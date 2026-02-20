@@ -1,0 +1,60 @@
+.cam-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 9999;
+}
+
+.cam-modal{
+  width: 760px;
+  max-width: calc(100vw - 32px);
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.cam-title{
+  font-weight: 900;
+  margin-bottom: 10px;
+  color: #1f2d3a;
+}
+
+.cam-videoWrap{
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+
+.cam-video{
+  width: 100%;
+  height: 420px;
+  object-fit: cover;
+  display: block;
+}
+
+.cam-error{
+  color: #c0392b;
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+.cam-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.doc-guide{
+  position: absolute;
+  inset: 12%;
+  border: 3px solid rgba(255,255,255,.9);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.15);
+  pointer-events: none;
+}

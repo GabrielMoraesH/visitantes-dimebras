@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  RECEPCAO
+  ADMIN
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String
+  users     User[]
+  visits    Visit[]
+  createdAt DateTime @default(now())
+
+  @@map("branches")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  role         UserRole @default(RECEPCAO)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  checkins  Visit[] @relation("CheckinBy")
+  checkouts Visit[] @relation("CheckoutBy")
+
+  createdAt DateTime @default(now())
+
+  @@map("users")
+}
+
+model Visitor {
+  id                 Int      @id @default(autoincrement())
+  name               String
+  cpf                String   @unique
+  phone              String?
+  company            String?
+
+  photoBytes         Bytes?
+  photoMime          String?
+  photoUpdatedAt     DateTime?
+
+  documentFrontBytes Bytes?
+  documentFrontMime  String?
+  documentFrontUpdatedAt    DateTime?
+
+  documentBackBytes   Bytes?
+  documentBackMime    String?
+  documentBackUpdatedAt     DateTime?
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  visits             Visit[]
+
+  @@map("visitors")
+}
+
+model Visit {
+  id        Int    @id @default(autoincrement())
+  visitCode String @unique
+
+  visitorId Int
+  visitor   Visitor @relation(fields: [visitorId], references: [id])
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  branchName String?
+  serviceType String?
+  attendedBy  String?
+  areaToVisit String?
+
+  checkinAt  DateTime @default(now())
+  checkoutAt DateTime?
+
+  checkinByUserId Int
+  checkinByUser   User @relation("CheckinBy", fields: [checkinByUserId], references: [id])
+
+  checkoutByUserId Int?
+  checkoutByUser   User? @relation("CheckoutBy", fields: [checkoutByUserId], references: [id])
+
+  @@index([visitorId])
+  @@index([branchId])
+  @@index([checkinAt])
+
+  @@map("visits")
+}

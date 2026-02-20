@@ -1,0 +1,50 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: #ffffff;
+  padding: 18px;
+  border-radius: 14px;
+  width: 380px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-card h3 {
+  margin: 0 0 10px;
+  color: #1f2d3a;
+}
+
+.modal-reader {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.modal-error {
+  margin-top: 10px;
+  color: crimson;
+  font-size: 14px;
+}
+
+.modal-hint {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.modal-close {
+  margin-top: 14px;
+  padding: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  background: #e9f2f6;
+  color: #0b6e86;
+  font-weight: 700;
+  cursor: pointer;
+}

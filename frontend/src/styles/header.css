@@ -1,0 +1,112 @@
+/* ====== APP HEADER (PADRÃO) ====== */
+.appHeader {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e6edf2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px;
+}
+
+/* Brand (logo clicável) */
+.appHeader-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 120px;
+}
+
+.appHeader-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+/* Ações */
+.appHeader-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+/* Botões */
+.appHeader-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.15s ease;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.appHeader-btn:active {
+  transform: translateY(1px);
+}
+
+.appHeader-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 110, 134, 0.14);
+}
+
+/* Ghost (padrão do sistema) */
+.appHeader-btn-ghost {
+  background: #e9f2f6;
+  color: #0b6e86;
+  border-color: #d6e6ee;
+}
+
+.appHeader-btn-ghost:hover {
+  background: #dfeef4;
+}
+
+/* Logout (vermelho discreto) */
+.appHeader-btn-logout {
+  background: transparent;
+  color: #b42318;
+  border-color: transparent;
+}
+
+.appHeader-btn-logout:hover {
+  background: #fdecec;
+  border-color: #f7c2c2;
+}
+
+/* Desabilitado */
+.appHeader-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ====== RESPONSIVO ====== */
+@media (max-width: 720px) {
+  .appHeader {
+    padding: 0 12px;
+  }
+
+  .appHeader-actions {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .appHeader-btn {
+    padding: 9px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .appHeader-logo {
+    height: 32px;
+  }
+}

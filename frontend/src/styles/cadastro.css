@@ -1,0 +1,322 @@
+/* ====== PAGE ====== */
+.cadastro-page {
+  min-height: 100vh;
+  background: #0b6e86;
+}
+
+/* ====== TOPBAR (padrão do sistema) ====== */
+.cadastro-topbar {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e6edf2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  gap: 14px;
+}
+
+.cadastro-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 120px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  color: #0b6e86;
+}
+
+.cadastro-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+/* Botão voltar igual "ghost" */
+.cadastro-back {
+  background: #e9f2f6;
+  color: #0b6e86;
+  border: 1px solid #d6e6ee;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 900;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s ease;
+  white-space: nowrap;
+}
+
+.cadastro-back:hover {
+  background: #dfeef4;
+}
+
+.cadastro-back:active {
+  transform: translateY(1px);
+}
+
+/* ====== CONTENT WRAP ====== */
+.cadastro-wrap {
+  max-width: 1080px;
+  margin: 26px auto;
+  padding: 0 16px;
+}
+
+.cadastro-card {
+  background: #ffffff;
+  border: 1px solid #e3edf4;
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 14px 32px rgba(16, 24, 40, 0.12);
+}
+
+/* ====== GRID ====== */
+.cadastro-grid {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+/* ====== LEFT SIDE (MEDIA) ====== */
+.cadastro-media {
+  display: grid;
+  gap: 12px;
+}
+
+.cadastro-photoBox {
+  width: 100%;
+  height: 260px;
+  border-radius: 16px;
+  border: 2px dashed #cfe0ea;
+  background: #fbfdff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.cadastro-photoPlaceholder {
+  color: #7f97a6;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  text-align: center;
+  padding: 0 10px;
+}
+
+.cadastro-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cadastro-docBox {
+  display: grid;
+  gap: 10px;
+}
+
+.cadastro-hint {
+  font-size: 12px;
+  color: #4b6776;
+  font-weight: 700;
+}
+
+/* Preview doc (caso use) */
+.cadastro-docPreview {
+  border: 1px solid #e3edf4;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.cadastro-docPreview img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+}
+
+.cadastro-docPreview .cadastro-hint {
+  padding: 10px 12px;
+}
+
+/* ====== RIGHT SIDE (FIELDS) ====== */
+.cadastro-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.cadastro-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cadastro-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f2230;
+  letter-spacing: -0.2px;
+}
+
+.cadastro-cpfBadge {
+  border-radius: 14px;
+  border: 1px solid #e3edf4;
+  padding: 10px 12px;
+  min-width: 170px;
+  text-align: right;
+  background: #fff;
+}
+
+.cadastro-cpfBadge span {
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  color: #7f97a6;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.cadastro-cpfBadge strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  color: #0f2230;
+}
+
+.cadastro-cpfBadge.ok {
+  border-color: #bfe8cd;
+  background: #e7f7ee;
+}
+
+.cadastro-cpfBadge.bad {
+  border-color: #f7c2c2;
+  background: #fdecec;
+}
+
+.cadastro-cpfWarn {
+  font-size: 12px;
+  font-weight: 900;
+  color: #b42318;
+}
+
+/* ====== FORM ====== */
+.cadastro-form {
+  display: grid;
+  gap: 12px;
+}
+
+.cadastro-field {
+  display: grid;
+  gap: 7px;
+}
+
+.cadastro-label {
+  font-size: 12px;
+  color: #6f8796;
+  font-weight: 900;
+}
+
+/* Inputs (isolado pra não “brigar” com outros .input globais) */
+.cadastro-form .input {
+  width: 100%;
+  padding: 12px 12px;
+  border: 1px solid #d9e6ee;
+  border-radius: 12px;
+  outline: none;
+  background: #fff;
+  color: #0f2230;
+  font-size: 14px;
+}
+
+.cadastro-form .input:focus {
+  border-color: #0b6e86;
+  box-shadow: 0 0 0 3px rgba(11, 110, 134, 0.14);
+}
+
+/* Buttons (isolado) */
+.cadastro-form .btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: 0.15s ease;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.cadastro-form .btn:active {
+  transform: translateY(1px);
+}
+
+.cadastro-form .btn-primary {
+  background: #0b6e86;
+  color: #fff;
+}
+
+.cadastro-form .btn-primary:hover {
+  filter: brightness(0.95);
+}
+
+.cadastro-form .btn-lg {
+  padding: 14px 18px;
+}
+
+.cadastro-form .w-full {
+  width: 100%;
+}
+
+/* Alert */
+.cadastro-form .alert {
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid #ffd1d1;
+  background: #fff4f4;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.cadastro-note {
+  font-size: 12px;
+  color: #7f97a6;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* ====== RESPONSIVE ====== */
+@media (max-width: 980px) {
+  .cadastro-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cadastro-photoBox {
+    height: 240px;
+  }
+
+  .cadastro-cpfBadge {
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 620px) {
+  .cadastro-topbar {
+    padding: 0 12px;
+  }
+
+  .cadastro-back {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .cadastro-logo {
+    height: 28px;
+  }
+}

@@ -1,0 +1,115 @@
+.qr-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.qr-modal {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  width: 380px; /* mantém seu tamanho */
+  border: 1px solid #e6edf2;
+}
+
+.qr-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1f2d3a;
+}
+
+.qr-reader {
+  width: 100%;     /* mantém como você tinha */
+  margin-top: 10px; /* mantém como você tinha */
+}
+
+/* área de erro */
+.qr-error {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fdecec;
+  color: #b42318;
+  border: 1px solid #f7c2c2;
+  font-size: 13px;
+}
+
+/* divisor "OU DIGITE..." */
+.qr-divider {
+  margin-top: 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qr-divider::before,
+.qr-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e6edf2;
+}
+
+.qr-divider span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7a92a1;
+  letter-spacing: 0.3px;
+}
+
+/* checkout manual */
+.qr-manual {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 10px;
+}
+
+.qr-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dbe5ea;
+  border-radius: 10px;
+  outline: none;
+  font-size: 13px;
+}
+
+.qr-input:focus {
+  border-color: #0b6e86;
+  box-shadow: 0 0 0 3px rgba(11, 110, 134, 0.12);
+}
+
+.qr-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 10px;
+}
+
+.qr-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.qr-btn-primary {
+  background: #0b6e86;
+  color: #fff;
+}
+
+.qr-btn-primary:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.qr-btn-ghost {
+  background: #e9f2f6;
+  color: #0b6e86;
+}
