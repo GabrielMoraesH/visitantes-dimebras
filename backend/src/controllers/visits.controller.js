@@ -243,6 +243,7 @@ export async function label(req, res) {
     const checkinAt = escapeHtml(new Date(visit.checkinAt).toLocaleString("pt-BR"));
     const visitCode = escapeHtml(visit.visitCode);
     const scriptNonce = randomBytes(16).toString("base64");
+    const logoUrl = "/api/LogoPreta.png";
 
     const html = `
       <!doctype html>
@@ -355,7 +356,7 @@ export async function label(req, res) {
       <div class="tag">
         <div class="info">
           <img
-            src="/LogoPreta.png"
+            src="${logoUrl}"
             alt="Dimebras"
             class="label-logo"
           />

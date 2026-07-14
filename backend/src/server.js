@@ -14,6 +14,8 @@ import { tvPublicPrefix, tvUploadDir } from "./config/uploads.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 function normalizeOrigin(origin) {
   return origin?.replace(/\/$/, "");
 }
