@@ -1,40 +1,25 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import api, { openVisitLabel } from "../services/api";
 import QrModal from "../components/QrModal";
 import CameraModal from "../components/CameraModal";
 import Header from "../components/Header";
+import { useToast } from "../components/Feedback/ToastProvider";
 import "../styles/checkin.css";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 function authHeader() {
   const token = localStorage.getItem("token");
   return { Authorization: `Bearer ${token}` };
 }
 
-function parseJwt(token) {
+function getUserFromStorage() {
+  const raw = localStorage.getItem("user");
+  if (!raw) return null;
   try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
+    return JSON.parse(raw);
   } catch {
     return null;
   }
-}
-
-function getUserFromToken() {
-  const token = localStorage.getItem("token");
-  if (!token) return null;
-  const u = parseJwt(token);
-  const id = Number(u?.id ?? u?.sub);
-  return { ...u, id };
 }
 
 function onlyDigits(v = "") {
@@ -73,13 +58,18 @@ function isOlderThan6Months(dateValue) {
   return d < sixMonthsAgo;
 }
 
+function fmt(dt) {
+  if (!dt) return "-";
+  const d = new Date(dt);
+  return d.toLocaleString("pt-BR");
+}
+
 export default function Checkin() {
   const navigate = useNavigate();
+  const toast = useToast();
 
-  const BRANCHES = ["Dimebras PR", "Dimebras MT", "Dimebras MS", "Dimebras SC", "Alfamed MS"];
-
-  const user = useMemo(() => getUserFromToken(), []);
-  const isAdmin = Number(user?.id) === 1;
+  const user = useMemo(() => getUserFromStorage(), []);
+  const isAdmin = user?.role === "ADMIN";
 
   const [showQr, setShowQr] = useState(false);
   const [cpf, setCpf] = useState("");
@@ -88,7 +78,6 @@ export default function Checkin() {
   const [msg, setMsg] = useState("");
   const [fieldErrors, setFieldErrors] = useState([]);
 
-  const [branchName, setBranchName] = useState(BRANCHES[0]);
   const [areaToVisit, setAreaToVisit] = useState("Logística");
   const [attendedBy, setAttendedBy] = useState("");
   const [serviceType, setServiceType] = useState("");
@@ -105,25 +94,92 @@ export default function Checkin() {
   const [docFrontDbUrl, setDocFrontDbUrl] = useState("");
   const [docBackDbUrl, setDocBackDbUrl] = useState("");
 
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
+  const [visitStats, setVisitStats] = useState(null);
+  const [recentVisits, setRecentVisits] = useState([]);
+  const [loadingExtras, setLoadingExtras] = useState(false);
 
-  function showToast(text, type = "success") {
-    setToast({ text, type });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
-  }
+  const [companyEdit, setCompanyEdit] = useState("");
+  const [phoneEdit, setPhoneEdit] = useState("");
+  const [savingVisitor, setSavingVisitor] = useState(false);
+
+  const [openVisits, setOpenVisits] = useState([]);
+  const [loadingOpenVisits, setLoadingOpenVisits] = useState(false);
+  const [initialLoadingOpenVisits, setInitialLoadingOpenVisits] = useState(true);
+  const [refreshingOpenVisits, setRefreshingOpenVisits] = useState(false);
+
+  const cpfInputRef = useRef(null);
+  const loadingOpenVisitsRef = useRef(false);
+  const pendingOpenVisitsRef = useRef(null);
+  const openVisitsIntervalRef = useRef(null);
+
+  const showToast = useCallback((text, type = "success") => {
+    toast[type]?.(text) ?? toast.show(text, type);
+  }, [toast]);
 
   function revokeUrl(url) {
     if (!url) return;
     try {
       URL.revokeObjectURL(url);
-    } catch {}
+    } catch {
+      // URL may already have been released by the browser.
+    }
+  }
+
+  const loadOpenVisits = useCallback(async ({ silent = false } = {}) => {
+    if (loadingOpenVisitsRef.current) {
+      pendingOpenVisitsRef.current = { silent };
+      return;
+    }
+
+    try {
+      loadingOpenVisitsRef.current = true;
+      if (silent) {
+        setRefreshingOpenVisits(true);
+      } else {
+        setLoadingOpenVisits(true);
+      }
+
+      const { data } = await api.get("/visits/open", { headers: authHeader() });
+      setOpenVisits(Array.isArray(data?.items) ? data.items : []);
+    } catch (err) {
+      if (!silent) setOpenVisits([]);
+      showToast(err?.response?.data?.message || "Erro ao carregar check-ins em aberto", "error");
+    } finally {
+      if (silent) {
+        setRefreshingOpenVisits(false);
+      } else {
+        setLoadingOpenVisits(false);
+        setInitialLoadingOpenVisits(false);
+      }
+      loadingOpenVisitsRef.current = false;
+
+      const pendingOptions = pendingOpenVisitsRef.current;
+      pendingOpenVisitsRef.current = null;
+      if (pendingOptions) loadOpenVisits(pendingOptions);
+    }
+  }, [showToast]);
+
+  async function loadExtrasByCpf(cpfDigits) {
+    if (!cpfDigits) return;
+    try {
+      setLoadingExtras(true);
+      const [s, r] = await Promise.all([
+        api.get(`/visits/stats-by-cpf/${cpfDigits}`, { headers: authHeader() }),
+        api.get(`/visits/recent-by-cpf/${cpfDigits}?limit=5`, { headers: authHeader() }),
+      ]);
+
+      setVisitStats(s.data);
+      setRecentVisits(Array.isArray(r.data?.items) ? r.data.items : []);
+    } catch {
+      setVisitStats(null);
+      setRecentVisits([]);
+    } finally {
+      setLoadingExtras(false);
+    }
   }
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       revokeUrl(photoPreviewUrl);
       revokeUrl(photoDbUrl);
       revokeUrl(docFrontDbUrl);
@@ -133,6 +189,51 @@ export default function Checkin() {
   }, []);
 
   useEffect(() => {
+    loadOpenVisits({ silent: false });
+
+    const POLL_MS = 5000;
+
+    function stopInterval() {
+      if (!openVisitsIntervalRef.current) return;
+      clearInterval(openVisitsIntervalRef.current);
+      openVisitsIntervalRef.current = null;
+    }
+
+    function startInterval() {
+      if (openVisitsIntervalRef.current || document.hidden) return;
+      openVisitsIntervalRef.current = setInterval(() => {
+        if (!document.hidden) loadOpenVisits({ silent: true });
+      }, POLL_MS);
+    }
+
+    const onFocus = () => {
+      if (document.hidden) return;
+      loadOpenVisits({ silent: true });
+      startInterval();
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        stopInterval();
+        return;
+      }
+
+      loadOpenVisits({ silent: true });
+      startInterval();
+    };
+
+    startInterval();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      stopInterval();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadOpenVisits]);
+
+  useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) navigate("/login");
   }, [navigate]);
@@ -140,7 +241,12 @@ export default function Checkin() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const cpfFromUrl = params.get("cpf");
-    if (cpfFromUrl) setCpf(cpfFromUrl);
+    if (cpfFromUrl) {
+      const digits = onlyDigits(cpfFromUrl);
+      setCpf(digits);
+      buscarComCpf(digits);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function logout() {
@@ -148,6 +254,28 @@ export default function Checkin() {
     navigate("/login");
   }
 
+  function resetTela() {
+    window.history.replaceState({}, "", "/checkin");
+
+    setCpf("");
+    setVisitor(null);
+    setOpenVisitId(null);
+
+    setMsg("");
+    setFieldErrors([]);
+
+    setAttendedBy("");
+    setServiceType("");
+    setAreaToVisit("Logística");
+
+    setVisitStats(null);
+    setRecentVisits([]);
+
+    revokeUrl(photoPreviewUrl);
+    setPhotoPreviewUrl("");
+
+    setTimeout(() => cpfInputRef.current?.focus(), 0);
+  }
   const photoExpired = useMemo(() => {
     if (!visitor) return false;
     return !visitor.photoUpdatedAt || isOlderThan6Months(visitor.photoUpdatedAt);
@@ -177,7 +305,7 @@ export default function Checkin() {
     });
     return URL.createObjectURL(res.data);
   }
-
+  
   useEffect(() => {
     let cancelled = false;
 
@@ -197,7 +325,7 @@ export default function Checkin() {
           if (!cancelled) setPhotoDbUrl(url);
           else revokeUrl(url);
         } catch {
-          // sem foto ainda -> ok
+          // Visitor may not have a photo stored yet.
         }
       }
 
@@ -206,7 +334,9 @@ export default function Checkin() {
           const url = await fetchBlobAsUrl(`/visitors/${visitor.id}/doc-front`);
           if (!cancelled) setDocFrontDbUrl(url);
           else revokeUrl(url);
-        } catch {}
+        } catch {
+          // Visitor may not have a front document stored yet.
+        }
       }
 
       if (visitor.documentBackUpdatedAt) {
@@ -214,7 +344,9 @@ export default function Checkin() {
           const url = await fetchBlobAsUrl(`/visitors/${visitor.id}/doc-back`);
           if (!cancelled) setDocBackDbUrl(url);
           else revokeUrl(url);
-        } catch {}
+        } catch {
+          // Visitor may not have a back document stored yet.
+        }
       }
     }
 
@@ -257,29 +389,42 @@ export default function Checkin() {
     }
   }
 
-  async function buscar() {
+  async function buscarComCpf(cpfDigits) {
     setMsg("");
     setFieldErrors([]);
     setVisitor(null);
     setOpenVisitId(null);
 
+    setVisitStats(null);
+    setRecentVisits([]);
+
     revokeUrl(photoPreviewUrl);
     setPhotoPreviewUrl("");
 
     try {
-      const cpfDigits = onlyDigits(cpf);
       const { data } = await api.get(`/visitors/by-cpf/${cpfDigits}`, {
         headers: authHeader(),
       });
+
       setVisitor(data);
+
+      setCompanyEdit(data.company || "");
+      setPhoneEdit(data.phone || "");
+
       await buscarVisitaAberta(cpfDigits);
+      await loadExtrasByCpf(cpfDigits);
     } catch (err) {
       if (err?.response?.status === 404) {
-        navigate(`/cadastro?cpf=${encodeURIComponent(onlyDigits(cpf))}`);
+        navigate(`/cadastro?cpf=${encodeURIComponent(cpfDigits)}`);
       } else {
         setMsg(err?.response?.data?.message || "Erro ao buscar");
       }
     }
+  }
+
+  async function buscar() {
+    const cpfDigits = onlyDigits(cpf);
+    await buscarComCpf(cpfDigits);
   }
 
   async function refreshVisitor() {
@@ -288,6 +433,9 @@ export default function Checkin() {
       headers: authHeader(),
     });
     setVisitor(data);
+
+    setCompanyEdit(data.company || "");
+    setPhoneEdit(data.phone || "");
   }
 
   async function atualizarFoto(blob) {
@@ -404,7 +552,33 @@ export default function Checkin() {
 
   function reimprimirEtiqueta() {
     if (!openVisitId) return;
-    window.open(`${API_URL}/visits/${openVisitId}/label`, "_blank");
+    openVisitLabel(openVisitId);
+  }
+
+  async function salvarDadosVisitante() {
+    if (!visitor?.id) return;
+
+    try {
+      setSavingVisitor(true);
+      setMsg("");
+      setFieldErrors([]);
+
+      await api.put(
+        `/visitors/${visitor.id}`,
+        {
+          company: companyEdit?.trim() || "",
+          phone: onlyDigits(phoneEdit),
+        },
+        { headers: authHeader() }
+      );
+
+      showToast("Dados atualizados!", "success");
+      await refreshVisitor();
+    } catch (err) {
+      showToast(err?.response?.data?.message || "Erro ao salvar", "error");
+    } finally {
+      setSavingVisitor(false);
+    }
   }
 
   async function gerarEtiqueta() {
@@ -416,7 +590,6 @@ export default function Checkin() {
     try {
       const payload = {
         visitorId: visitor.id,
-        branchName,
         areaToVisit: areaToVisit ?? "",
         attendedBy: attendedBy ?? "",
         serviceType: serviceType ?? "",
@@ -428,7 +601,9 @@ export default function Checkin() {
 
       setOpenVisitId(null);
       showToast("Check-in concluído! Etiqueta gerada.", "success");
-      window.open(`${API_URL}/visits/${data.id}/label`, "_blank");
+      openVisitLabel(data.id);
+      await loadOpenVisits({ silent: true });
+      resetTela();
     } catch (err) {
       const resp = err?.response?.data;
       const m = resp?.message || "Erro ao gerar etiqueta";
@@ -449,12 +624,6 @@ export default function Checkin() {
 
   return (
     <div className="checkin-page">
-      {toast && (
-        <div className={`checkin-toast ${toast.type === "error" ? "is-error" : "is-success"}`}>
-          {toast.text}
-        </div>
-      )}
-
       <Header showQr onQrClick={() => setShowQr(true)} onLogout={logout} />
 
       <main className="checkin-container">
@@ -469,6 +638,7 @@ export default function Checkin() {
             }}
           >
             <input
+              ref={cpfInputRef}
               className="input input-lg"
               value={cpf}
               onChange={(e) => setCpf(e.target.value)}
@@ -490,6 +660,73 @@ export default function Checkin() {
                   <li key={t}>{t}</li>
                 ))}
               </ul>
+            </div>
+          )}
+        </section>
+
+        <section className="card card-search openvisits-card">
+          <div className="card-title openvisits-header">
+            <span>
+              {isAdmin ? "Check-ins em aberto - Todas as filiais" : "Check-ins em aberto (minha filial)"}
+            </span>
+
+            <button
+              className="btn btn-light"
+              type="button"
+              onClick={() => loadOpenVisits({ silent: true })}
+              disabled={loadingOpenVisits || refreshingOpenVisits}
+            >
+              {loadingOpenVisits ? "CARREGANDO..." : refreshingOpenVisits ? "ATUALIZANDO..." : "ATUALIZAR"}
+            </button>
+          </div>
+
+          {refreshingOpenVisits && openVisits.length > 0 && (
+            <div className="openvisits-refreshing">Atualizando...</div>
+          )}
+
+          {initialLoadingOpenVisits && openVisits.length === 0 ? (
+            <div className="openvisits-empty">Carregando...</div>
+          ) : openVisits.length === 0 ? (
+            <div className="openvisits-empty">{isAdmin ? "Nenhum check-in em aberto em todas as filiais." : "Nenhum check-in em aberto nesta filial."}</div>
+          ) : (
+            <div className="openvisits-tableWrapper">
+              <table className="openvisits-table">
+                <thead>
+                  <tr>
+                    <th>Entrada</th>
+                    <th>Visitante</th>
+                    <th>CPF</th>
+                    <th>Empresa</th>
+                    {isAdmin && <th>Unidade</th>}
+                    <th>Setor</th>
+                    <th>Falar com</th>
+                    <th className="actions-col">Ações</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {openVisits.map((v) => (
+                    <tr key={v.id}>
+                      <td>{fmt(v.checkinAt)}</td>
+                      <td>{v.visitor?.name || "-"}</td>
+                      <td>{v.visitor?.cpf || "-"}</td>
+                      <td>{v.visitor?.company || "-"}</td>
+                      {isAdmin && <td>{v.branchName || "-"}</td>}
+                      <td>{v.areaToVisit || "-"}</td>
+                      <td>{v.attendedBy || "-"}</td>
+                      <td className="actions-col">
+                        <button
+                          className="btn btn-light btn-small"
+                          type="button"
+                          onClick={() => openVisitLabel(v.id)}
+                        >
+                          ETIQUETA
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
@@ -570,31 +807,58 @@ export default function Checkin() {
               <div className="kv-row">
                 <div className="kv">
                   <div className="kv-label">EMPRESA</div>
-                  <div className="kv-value">{visitor.company || "-"}</div>
+                  <div className="kv-value">
+                    <input
+                      className="input"
+                      value={companyEdit}
+                      onChange={(e) => setCompanyEdit(e.target.value)}
+                      placeholder="Empresa..."
+                    />
+                  </div>
                 </div>
+
                 <div className="kv">
                   <div className="kv-label">TELEFONE</div>
-                  <div className="kv-value">{visitor.phone ? formatPhone(visitor.phone) : "-"}</div>
+                  <div className="kv-value">
+                    <input
+                      className="input"
+                      value={formatPhone(phoneEdit)}
+                      onChange={(e) => setPhoneEdit(onlyDigits(e.target.value))}
+                      placeholder="Telefone..."
+                      inputMode="numeric"
+                    />
+                  </div>
                 </div>
+              </div>
+
+              <div className="visitor-save-actions">
+                <button
+                  className="btn btn-light"
+                  type="button"
+                  onClick={salvarDadosVisitante}
+                  disabled={savingVisitor}
+                >
+                  {savingVisitor ? "SALVANDO..." : "SALVAR DADOS"}
+                </button>
               </div>
 
               <div className="visit-box">
                 <div className="visit-title">DETALHES DA VISITA</div>
 
                 <div className="visit-grid">
-                  <select className="input" value={branchName} onChange={(e) => setBranchName(e.target.value)}>
-                    {BRANCHES.map((b) => (
-                      <option key={b} value={b}>
-                        Filial: {b}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    className="input"
+                    value={`Filial: ${user?.role === "ADMIN" ? "TODAS" : user?.branch?.name || "-"}`}
+                    readOnly
+                  />
 
                   <select className="input" value={areaToVisit} onChange={(e) => setAreaToVisit(e.target.value)}>
                     <option value="Logística">Setor: Logística</option>
                     <option value="Comercial">Setor: Comercial</option>
                     <option value="Financeiro">Setor: Financeiro</option>
                     <option value="Recepção">Setor: Recepção</option>
+                    <option value="Diretoria">Setor: Diretoria</option>
+                    <option value="Compras">Setor: Compras</option>
                     <option value="TI">Setor: TI</option>
                   </select>
 
@@ -607,7 +871,7 @@ export default function Checkin() {
 
                   <input
                     className="input"
-                    placeholder="O que veio fazer na empresa?"
+                    placeholder="Motivo da visita?"
                     value={serviceType}
                     onChange={(e) => setServiceType(e.target.value)}
                   />
@@ -624,7 +888,9 @@ export default function Checkin() {
                       setAttendedBy("");
                       setServiceType("");
                       setAreaToVisit("Logística");
-                      setBranchName(BRANCHES[0]);
+
+                      setVisitStats(null);
+                      setRecentVisits([]);
 
                       revokeUrl(photoPreviewUrl);
                       setPhotoPreviewUrl("");
@@ -645,13 +911,62 @@ export default function Checkin() {
                   )}
                 </div>
               </div>
+
+              <div className="extras">
+                <div className="extras-top">
+                  <div className="extras-card">
+                    <div className="extras-title">VISITAS</div>
+
+                    {loadingExtras ? (
+                      <div className="cpf-status">Carregando...</div>
+                    ) : (
+                      <div className="cpf-statTitle">
+                        <div className="cpf-statSingle">
+                          <div className="cpf-statLabel">Total</div>
+                          <div className="cpf-statValue">{visitStats?.total ?? 0}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="extras-card">
+                  <div className="extras-title">ÚLTIMAS VISITAS</div>
+
+                  {loadingExtras ? (
+                    <div className="extras-muted">Carregando...</div>
+                  ) : recentVisits.length === 0 ? (
+                    <div className="extras-muted">Nenhuma visita anterior.</div>
+                  ) : (
+                    <div className="mini-list">
+                      {recentVisits.map((v) => (
+                        <div key={v.id} className="mini-row">
+                          <div className="mini-left">
+                            <div className="mini-main">{fmt(v.checkinAt)}</div>
+                            <div className="mini-sub">
+                              {(v.branchName || "-") + " • " + (v.checkoutAt ? "Finalizada" : "Aberta")}
+                            </div>
+                          </div>
+                          <div className="mini-right">
+                            <div className="mini-code">{v.visitCode}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </section>
         )}
       </main>
 
       {showQr && (
-        <QrModal onClose={() => setShowQr(false)} onToast={(text, type) => showToast(text, type)} />
+        <QrModal
+          onClose={() => setShowQr(false)}
+          onToast={(text, type) => showToast(text, type)}
+          onCheckoutDone={() => loadOpenVisits({ silent: true })}
+        />
       )}
 
       {cameraOpen && (

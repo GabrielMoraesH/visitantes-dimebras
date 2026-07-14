@@ -12,12 +12,25 @@ enum UserRole {
   ADMIN
 }
 
+enum AgendaStatus {
+  AGENDADO
+  CANCELADO
+}
+
+enum TvContentType {
+  IMAGE
+  VIDEO
+}
+
 model Branch {
-  id        Int      @id @default(autoincrement())
-  name      String
-  users     User[]
-  visits    Visit[]
-  createdAt DateTime @default(now())
+  id             Int               @id @default(autoincrement())
+  name           String
+  users          User[]
+  visits         Visit[]
+  createdVisitors Visitor[]        @relation("VisitorCreatedInBranch")
+  agendaEvents   AgendaEvent[]
+  tvContentLinks TvContentBranch[]
+  createdAt      DateTime          @default(now())
 
   @@map("branches")
 }
@@ -31,8 +44,13 @@ model User {
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id])
 
-  checkins  Visit[] @relation("CheckinBy")
-  checkouts Visit[] @relation("CheckoutBy")
+  checkins     Visit[]       @relation("CheckinBy")
+  checkouts    Visit[]       @relation("CheckoutBy")
+  createdVisitors Visitor[]  @relation("VisitorCreatedBy")
+  agendaEvents AgendaEvent[]
+  tvContents   TvContent[]
+
+  isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
 
@@ -40,28 +58,36 @@ model User {
 }
 
 model Visitor {
-  id                 Int      @id @default(autoincrement())
-  name               String
-  cpf                String   @unique
-  phone              String?
-  company            String?
+  id      Int     @id @default(autoincrement())
+  name    String
+  cpf     String  @unique
+  phone   String?
+  company String?
 
-  photoBytes         Bytes?
-  photoMime          String?
-  photoUpdatedAt     DateTime?
+  photoBytes     Bytes?
+  photoMime      String?
+  photoUpdatedAt DateTime?
 
-  documentFrontBytes Bytes?
-  documentFrontMime  String?
-  documentFrontUpdatedAt    DateTime?
+  documentFrontBytes     Bytes?
+  documentFrontMime      String?
+  documentFrontUpdatedAt DateTime?
 
-  documentBackBytes   Bytes?
-  documentBackMime    String?
-  documentBackUpdatedAt     DateTime?
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  visits             Visit[]
+  documentBackBytes     Bytes?
+  documentBackMime      String?
+  documentBackUpdatedAt DateTime?
 
+  createdById Int?
+  createdBy   User? @relation("VisitorCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdInBranchId Int?
+  createdInBranch   Branch? @relation("VisitorCreatedInBranch", fields: [createdInBranchId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  visits    Visit[]
+
+  @@index([createdById])
+  @@index([createdInBranchId])
   @@map("visitors")
 }
 
@@ -75,12 +101,12 @@ model Visit {
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id])
 
-  branchName String?
+  branchName  String?
   serviceType String?
   attendedBy  String?
   areaToVisit String?
 
-  checkinAt  DateTime @default(now())
+  checkinAt  DateTime  @default(now())
   checkoutAt DateTime?
 
   checkinByUserId Int
@@ -92,6 +118,71 @@ model Visit {
   @@index([visitorId])
   @@index([branchId])
   @@index([checkinAt])
-
   @@map("visits")
+}
+
+model AgendaEvent {
+  id Int @id @default(autoincrement())
+
+  visitorName String
+  company     String
+  eventWith   String
+  department  String
+
+  eventDateTime DateTime
+
+  observation String?
+
+  status AgendaStatus @default(AGENDADO)
+
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventDateTime])
+  @@index([branchId])
+  @@map("agenda_events")
+}
+
+model TvContent {
+  id    Int           @id @default(autoincrement())
+  title String
+  type  TvContentType
+
+  fileUrl  String
+  fileName String?
+  mimeType String?
+  fileSize Int?
+
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+
+  branches TvContentBranch[]
+
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@map("tv_contents")
+}
+
+model TvContentBranch {
+  tvContentId Int
+  branchId    Int
+
+  tvContent TvContent @relation(fields: [tvContentId], references: [id], onDelete: Cascade)
+  branch    Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([tvContentId, branchId])
+  @@index([branchId])
+  @@map("tv_content_branches")
 }

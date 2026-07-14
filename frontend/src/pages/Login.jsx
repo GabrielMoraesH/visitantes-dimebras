@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import api from "../services/api";
 import "../styles/login.css";
 
 export default function Login() {
@@ -15,7 +15,13 @@ export default function Login() {
 
     try {
       const { data } = await api.post("/auth/login", { username, password });
+
       localStorage.setItem("token", data.token);
+
+      if (data?.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
       nav("/checkin");
     } catch (err) {
       setError(err?.response?.data?.message || "Erro no login");

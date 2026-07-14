@@ -1,0 +1,108 @@
+.agenda-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 34, 48, 0.58);
+    backdrop-filter: blur(2px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    z-index: 9999;
+}
+
+.agenda-modal {
+    background: var(--color-surface);
+    width: 460px;
+    max-width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-modal);
+}
+
+.agenda-modal h2 {
+    margin: 0 0 8px;
+    color: var(--color-text);
+    font-size: 17px;
+    font-weight: 900;
+}
+
+.agenda-modal label {
+    display: block;
+    margin-bottom: 4px;
+    margin-top: 7px;
+    color: var(--color-muted);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.agenda-modal input,
+.agenda-modal textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #dbe5ea;
+    border-radius: var(--radius-md);
+    box-sizing: border-box;
+    color: var(--color-text);
+    background: #fff;
+    outline: none;
+}
+
+.agenda-modal textarea {
+    min-height: 58px;
+    resize: none;
+}
+
+.agenda-modal input:focus,
+.agenda-modal textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: var(--focus-ring);
+}
+
+.agenda-modal-row {
+    display: flex;
+    gap: 12px;
+}
+
+.agenda-modal-row > div {
+    flex: 1;
+}
+
+.agenda-modal-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.agenda-modal-save {
+    background: var(--color-primary);
+    color: #fff;
+    border: 1px solid var(--color-primary);
+    padding: 9px 15px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 900;
+}
+
+.agenda-modal-cancel {
+    background: #e9f2f6;
+    color: var(--color-primary);
+    border: 1px solid var(--color-border-strong);
+    padding: 9px 15px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 900;
+}
+
+@media (max-width: 620px) {
+    .agenda-modal {
+        width: 100%;
+        padding: 16px;
+    }
+
+    .agenda-modal-row,
+    .agenda-modal-actions {
+        flex-direction: column;
+    }
+}

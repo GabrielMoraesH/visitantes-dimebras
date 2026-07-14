@@ -110,3 +110,18 @@
     height: 32px;
   }
 }
+
+/* ====== VISUAL SYSTEM OVERRIDES ====== */
+.appHeader {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.appHeader-btn-ghost {
+  color: var(--color-primary);
+  border-color: var(--color-border-strong);
+}
+
+.appHeader-btn-logout {
+  color: var(--color-danger);
+}

@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { prisma } from "../prisma.js";
+import prisma from "../lib/prisma.js";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -20,7 +20,11 @@ export async function login(req, res) {
     if (!user) {
       return res.status(401).json({ message: "Usuário ou senha inválidos" });
     }
-
+    if (user.isActive === false) {
+      return res.status(403).json({ 
+        message: "Usuário desativado. Contate o administrador." 
+      });
+    }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
       return res.status(401).json({ message: "Usuário ou senha inválidos" });
@@ -31,6 +35,7 @@ export async function login(req, res) {
         sub: String(user.id),
         role: user.role,
         branchId: user.branchId,
+        branchName: user.branch?.name || null,
       },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }

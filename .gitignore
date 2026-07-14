@@ -1,7 +1,51 @@
-node_modules
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+build/
+**/build/
+coverage/
+**/coverage/
+
+# Environment files
 .env
-dist
-build
-coverage
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Runtime uploads
+uploads/
+**/uploads/
+backend/uploads/
+
+# Logs
 *.log
-.prisma
+logs/
+**/logs/
+
+# Local backups and archives
+*.bak
+*.backup
+*.zip
+*.rar
+*.7z
+
+# Manual database dumps
+dumps/
+dump/
+db-dumps/
+database-dumps/
+backups/
+*.dump
+*.dump.gz
+*.sql.gz
+*.sql.zip
+
+# Generated Prisma artifacts
+.prisma/
+**/.prisma/

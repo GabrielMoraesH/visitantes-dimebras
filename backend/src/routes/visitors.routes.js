@@ -7,6 +7,7 @@ import {
   getVisitorPhoto,
   getVisitorDocFront,
   getVisitorDocBack,
+  updateVisitor,
 } from "../controllers/visitors.controller.js";
 import { upload } from "../utils/upload.js";
 
@@ -14,6 +15,8 @@ const router = Router();
 
 router.get("/by-cpf/:cpf", auth, getByCpf);
 router.post("/", auth, createVisitor);
+
+router.put("/:id", auth, updateVisitor);
 
 router.get("/:id/photo", auth, getVisitorPhoto);
 router.get("/:id/doc-front", auth, getVisitorDocFront);

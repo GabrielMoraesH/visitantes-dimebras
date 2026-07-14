@@ -32,20 +32,52 @@ export async function listHistory(req, res) {
       where.checkinAt = { gte: start, lte: end };
     }
 
-    const total = await prisma.visit.count({ where });
+    const shouldMeasureQuery = process.env.NODE_ENV !== "production";
+    const queryStartedAt = shouldMeasureQuery ? performance.now() : 0;
 
-    const items = await prisma.visit.findMany({
-      where,
-      orderBy: { checkinAt: "desc" },
-      skip,
-      take: limit,
-      include: {
-        visitor: true,
-        branch: true,
-        checkinByUser: { select: { username: true } },
-        checkoutByUser: { select: { username: true } },
-      },
-    });
+    const [total, items] = await Promise.all([
+      prisma.visit.count({ where }),
+      prisma.visit.findMany({
+        where,
+        orderBy: { checkinAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          checkinAt: true,
+          checkoutAt: true,
+          attendedBy: true,
+          branchName: true,
+          visitor: {
+            select: {
+              name: true,
+              cpf: true,
+              company: true,
+            },
+          },
+          branch: {
+            select: {
+              name: true,
+            },
+          },
+          checkinByUser: {
+            select: {
+              username: true,
+            },
+          },
+          checkoutByUser: {
+            select: {
+              username: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (shouldMeasureQuery) {
+      const queryDurationMs = performance.now() - queryStartedAt;
+      console.log(`history-query: ${queryDurationMs.toFixed(2)}ms`);
+    }
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
 

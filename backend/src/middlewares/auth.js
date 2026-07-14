@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma.js";
 
-export function auth(req, res, next) {
+export async function auth(req, res, next) {
   const header = req.headers.authorization;
 
   if (!header || !header.startsWith("Bearer ")) {
@@ -12,12 +13,38 @@ export function auth(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    const id = Number(payload.id ?? payload.sub);
+    const id = Number(payload.sub ?? payload.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(401).json({ message: "Token invalido" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+        branch: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!user || user.isActive !== true) {
+      return res.status(401).json({ message: "Usuario nao autorizado" });
+    }
 
     req.user = {
-      id,
-      role: payload.role,
-      branchId: payload.branchId,
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      branchId: user.branchId,
+      branchName: user.branch?.name || null,
     };
 
     return next();
@@ -27,7 +54,8 @@ export function auth(req, res, next) {
 }
 
 export function adminOnly(req, res, next) {
-  if (!req.user || Number(req.user.id) !== 1) {
+  const role = String(req.user?.role || "").toUpperCase();
+  if (role !== "ADMIN") {
     return res.status(403).json({ message: "Acesso negado" });
   }
   return next();

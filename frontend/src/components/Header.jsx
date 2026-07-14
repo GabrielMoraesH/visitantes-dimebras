@@ -29,15 +29,17 @@ function getUserFromToken() {
 export default function Header({
   showQr = false,
   onQrClick,
+  showAgenda = true,
   showHistory = true,
   showUsers = true,
+  showTvContent = true,
   showRefresh = false,
   onRefresh,
-  rightExtra, // opcional: você pode passar um botão/elemento extra
+  rightExtra,
 }) {
   const navigate = useNavigate();
   const user = useMemo(() => getUserFromToken(), []);
-  const isAdmin = Number(user?.id) === 1;
+  const isAdmin = user?.role === "ADMIN";
 
   function logout() {
     localStorage.removeItem("token");
@@ -63,6 +65,16 @@ export default function Header({
           </button>
         )}
 
+        {showAgenda && (
+          <button
+            className="appHeader-btn appHeader-btn-ghost"
+            onClick={() => navigate("/agenda")}
+            type="button"
+          >
+            AGENDA
+          </button>
+        )}
+
         {isAdmin && showHistory && (
           <button
             className="appHeader-btn appHeader-btn-ghost"
@@ -80,6 +92,16 @@ export default function Header({
             type="button"
           >
             USUÁRIOS
+          </button>
+        )}
+
+        {isAdmin && showTvContent && (
+          <button
+            className="appHeader-btn appHeader-btn-ghost"
+            onClick={() => navigate("/tv-content")}
+            type="button"
+          >
+            CONTEÚDO TV
           </button>
         )}
 

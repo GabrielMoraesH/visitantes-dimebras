@@ -1,5 +1,6 @@
-import { prisma } from "../prisma.js";
+import prisma from "../lib/prisma.js";
 import { z } from "zod";
+import { parseVisitorId, userCanAccessVisitor } from "../utils/visitorAccess.js";
 
 function onlyDigits(v = "") {
   return String(v).replace(/\D/g, "");
@@ -11,6 +12,33 @@ const createVisitorSchema = z.object({
   phone: z.string().optional(),
   company: z.string().optional(),
 });
+
+const updateVisitorSchema = z.object({
+  phone: z.string().optional().nullable(),
+  company: z.string().optional().nullable(),
+});
+
+function sendSensitiveFileHeaders(res, contentType) {
+  res.setHeader("Content-Type", contentType || "image/jpeg");
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Pragma", "no-cache");
+}
+
+async function ensureVisitorFileAccess(req, res) {
+  const id = parseVisitorId(req.params.id);
+  if (!id) {
+    res.status(400).json({ message: "ID inv\u00e1lido" });
+    return null;
+  }
+
+  const canAccess = await userCanAccessVisitor(req.user, id);
+  if (!canAccess) {
+    res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
+    return null;
+  }
+
+  return id;
+}
 
 export async function getByCpf(req, res) {
   try {
@@ -60,6 +88,8 @@ export async function createVisitor(req, res) {
         cpf,
         phone,
         company: data.company ?? null,
+        createdById: req.user.id,
+        createdInBranchId: req.user.branchId,
       },
       select: {
         id: true,
@@ -84,9 +114,52 @@ export async function createVisitor(req, res) {
   }
 }
 
-export async function updateVisitorFiles(req, res) {
+export async function updateVisitor(req, res) {
   try {
     const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID inválido" });
+
+    const body = updateVisitorSchema.parse(req.body);
+
+    const data = {};
+
+    if ("phone" in body) {
+      const digits = body.phone ? onlyDigits(body.phone) : "";
+      data.phone = digits ? digits : null;
+    }
+
+    if ("company" in body) {
+      const company = body.company ? String(body.company).trim() : "";
+      data.company = company ? company : null;
+    }
+
+    const updated = await prisma.visitor.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        name: true,
+        cpf: true,
+        phone: true,
+        company: true,
+        updatedAt: true,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    if (err?.name === "ZodError") {
+      return res.status(400).json({ message: "Dados inválidos", issues: err.issues });
+    }
+    console.error(err);
+    return res.status(500).json({ message: "Erro interno" });
+  }
+}
+
+export async function updateVisitorFiles(req, res) {
+  try {
+    const id = await ensureVisitorFileAccess(req, res);
+    if (!id) return;
 
     const photo = req.files?.photo?.[0];
     const documentFront = req.files?.documentFront?.[0];
@@ -139,7 +212,8 @@ export async function updateVisitorFiles(req, res) {
 
 export async function getVisitorPhoto(req, res) {
   try {
-    const id = Number(req.params.id);
+    const id = await ensureVisitorFileAccess(req, res);
+    if (!id) return;
 
     const v = await prisma.visitor.findUnique({
       where: { id },
@@ -148,8 +222,7 @@ export async function getVisitorPhoto(req, res) {
 
     if (!v?.photoBytes) return res.status(404).end();
 
-    res.setHeader("Content-Type", v.photoMime || "image/jpeg");
-    res.setHeader("Cache-Control", "no-store");
+    sendSensitiveFileHeaders(res, v.photoMime);
     return res.send(v.photoBytes);
   } catch (err) {
     console.error(err);
@@ -159,7 +232,8 @@ export async function getVisitorPhoto(req, res) {
 
 export async function getVisitorDocFront(req, res) {
   try {
-    const id = Number(req.params.id);
+    const id = await ensureVisitorFileAccess(req, res);
+    if (!id) return;
 
     const v = await prisma.visitor.findUnique({
       where: { id },
@@ -168,8 +242,7 @@ export async function getVisitorDocFront(req, res) {
 
     if (!v?.documentFrontBytes) return res.status(404).end();
 
-    res.setHeader("Content-Type", v.documentFrontMime || "image/jpeg");
-    res.setHeader("Cache-Control", "no-store");
+    sendSensitiveFileHeaders(res, v.documentFrontMime);
     return res.send(v.documentFrontBytes);
   } catch (err) {
     console.error(err);
@@ -179,7 +252,8 @@ export async function getVisitorDocFront(req, res) {
 
 export async function getVisitorDocBack(req, res) {
   try {
-    const id = Number(req.params.id);
+    const id = await ensureVisitorFileAccess(req, res);
+    if (!id) return;
 
     const v = await prisma.visitor.findUnique({
       where: { id },
@@ -188,8 +262,7 @@ export async function getVisitorDocBack(req, res) {
 
     if (!v?.documentBackBytes) return res.status(404).end();
 
-    res.setHeader("Content-Type", v.documentBackMime || "image/jpeg");
-    res.setHeader("Cache-Control", "no-store");
+    sendSensitiveFileHeaders(res, v.documentBackMime);
     return res.send(v.documentBackBytes);
   } catch (err) {
     console.error(err);

@@ -1,6 +1,6 @@
 .login-page {
   min-height: 100vh;
-  background: #0b6e86;
+  background: var(--color-app-bg);
   display: grid;
   place-items: center;
   padding: 24px;
@@ -8,10 +8,11 @@
 
 .login-card {
   width: 460px;
-  background: #ffffff;
-  border-radius: 16px;
+  background: var(--color-surface);
+  border: 1px solid rgba(230, 237, 242, 0.9);
+  border-radius: var(--radius-lg);
   padding: 36px 42px 28px;
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-modal);
 }
 
 .login-brand {
@@ -47,9 +48,11 @@
   width: 100%;
   padding: 14px 14px;
   border: 1px solid #dbe5ea;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   outline: none;
+  color: var(--color-text);
+  background: #fff;
 }
 
 .login-input::placeholder {
@@ -57,25 +60,24 @@
 }
 
 .login-input:focus {
-  border-color: #0b6e86;
-  box-shadow: 0 0 0 3px rgba(11, 110, 134, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
 }
 
 .login-error {
   margin: 6px 0 0;
-  color: #c0392b;
+  color: var(--color-danger);
   font-size: 13px;
+  font-weight: 800;
 }
 
 .login-btn {
   width: 100%;
   margin-top: 18px;
   padding: 14px 14px;
-  border: none;
-  border-radius: 8px;
-  background: #0b6e86;
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
   color: #fff;
-  font-weight: 700;
   letter-spacing: 0.2px;
   cursor: pointer;
   box-shadow: 0 12px 22px rgba(11, 110, 134, 0.22);

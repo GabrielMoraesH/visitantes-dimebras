@@ -16,7 +16,6 @@
   gap: 14px;
 }
 
-/* Brand (logo clicável) */
 .adminUsers-brand {
   display: inline-flex;
   align-items: center;
@@ -30,7 +29,6 @@
   outline: none;
 }
 
-/* Logo */
 .adminUsers-logo {
   height: 44px;
   width: auto;
@@ -38,14 +36,12 @@
   object-fit: contain;
 }
 
-/* ações da topbar */
 .adminUsers-actions {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-/* ✅ só botões da TOPBAR no padrão do checkin */
 .adminUsers-topbar .au-btn {
   border-radius: 12px;
   padding: 10px 14px;
@@ -79,7 +75,7 @@
 }
 
 .au-cardTitle {
-  font-weight: 800;
+  font-weight: 900;
   color: #1f2d3a;
 }
 
@@ -103,7 +99,7 @@
 .au-label {
   font-size: 12px;
   color: #6d8593;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .au-input {
@@ -124,22 +120,29 @@
   color: #b42318;
   font-size: 13px;
   margin-top: 2px;
+  font-weight: 800;
 }
 
 /* ====== BUTTONS ====== */
 .au-btn {
-  border: none;
+  border: 1px solid transparent;
   border-radius: 10px;
   padding: 12px 14px;
   font-weight: 900;
   cursor: pointer;
   transition: 0.15s ease;
   white-space: nowrap;
+  background: #f1f5f8;
+  color: #21313e;
 }
 
 .au-btn:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.au-btn:active {
+  transform: translateY(1px);
 }
 
 .au-btn-primary {
@@ -154,7 +157,7 @@
 .au-btn-ghost {
   background: #e9f2f6;
   color: #0b6e86;
-  border: 1px solid #d6e6ee;
+  border-color: #d6e6ee;
 }
 
 .au-btn-ghost:hover {
@@ -163,6 +166,18 @@
 
 .au-btn-full {
   width: 100%;
+}
+
+/* botão de ação perigosa (Desativar) */
+.au-btn-danger {
+  background: #d92d20;
+  color: #fff;
+  border-color: #d92d20;
+  border-radius: 12px;
+}
+
+.au-btn-danger:hover {
+  filter: brightness(0.95);
 }
 
 /* ====== TABLE ====== */
@@ -203,6 +218,7 @@
   padding: 18px;
   text-align: center;
   color: #7a92a1;
+  font-weight: 800;
 }
 
 .au-pill {
@@ -214,28 +230,26 @@
   border-radius: 999px;
 }
 
-/* ====== TOAST ====== */
-.adminUsers-toast {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
-  padding: 12px 14px;
-  border-radius: 12px;
+/* ====== STATUS ====== */
+.au-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
   font-weight: 900;
-  font-size: 14px;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+  font-size: 11px;
+  letter-spacing: 0.3px;
   border: 1px solid transparent;
 }
 
-.adminUsers-toast.is-success {
+.au-status.is-on {
   background: #e7f7ee;
   color: #146c2e;
   border-color: #bfe8cd;
 }
 
-.adminUsers-toast.is-error {
+.au-status.is-off {
   background: #fdecec;
   color: #b42318;
   border-color: #f7c2c2;
@@ -297,11 +311,76 @@
   transform: none;
 }
 
-/* ====== MODAL ====== */
+/* ====== CONFIRM MODAL (DESATIVAR/ATIVAR) ====== */
+.cmodal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15, 34, 48, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.cmodal {
+  width: min(520px, 92vw);
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e3edf4;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.cmodal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e3edf4;
+}
+
+.cmodal-title {
+  font-weight: 900;
+  color: #0f2230;
+}
+
+.cmodal-x {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid #e3edf4;
+  background: #f1f5f8;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cmodal-body {
+  padding: 16px;
+}
+
+.cmodal-message {
+  margin: 0;
+  color: #243441;
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.cmodal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 16px 16px;
+}
+
+/* ====== MODAL (reutilizado: editar + desativar/reativar) ====== */
 .au-modalOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(15, 34, 48, 0.55);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -315,6 +394,7 @@
   border: 1px solid #e6edf2;
   border-radius: 14px;
   padding: 16px;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.25);
 }
 
 .au-modalTitle {
@@ -324,23 +404,29 @@
 }
 
 .au-modalSub {
-  margin-top: 6px;
-  color: #6d8593;
-  font-size: 12px;
+  margin-top: 10px;
+  color: #243441;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .au-modalActions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
-.au-modalGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 10px;
+.au-btn-danger {
+  background: #d92d20;
+  color: #fff;
+  border: 1px solid #d92d20;
+  border-radius: 12px;
+}
+
+.au-btn-danger:hover {
+  filter: brightness(0.95);
 }
 
 /* ====== RESPONSIVE ====== */
@@ -352,10 +438,6 @@
 
 @media (max-width: 620px) {
   .au-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .au-modalGrid {
     grid-template-columns: 1fr;
   }
 
@@ -372,4 +454,75 @@
   .adminUsers-logo {
     height: 34px;
   }
+}
+
+/* ====== VISUAL SYSTEM OVERRIDES ====== */
+.adminUsers-page {
+  background: var(--color-app-bg);
+  padding-bottom: 26px;
+}
+
+.adminUsers-topbar,
+.au-card,
+.au-modal,
+.cmodal {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+.au-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.au-cardTitle,
+.au-table tbody td,
+.au-modalTitle,
+.cmodal-title {
+  color: var(--color-text);
+}
+
+.au-label,
+.au-table thead th {
+  color: var(--color-muted);
+}
+
+.au-input {
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+}
+
+.au-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+
+.au-btn-primary {
+  background: var(--color-primary);
+}
+
+.au-btn-ghost,
+.au-pill,
+.au-iconBtn-edit {
+  color: var(--color-primary);
+  border-color: var(--color-border-strong);
+}
+
+.au-btn-danger,
+.au-iconBtn-del {
+  color: #fff;
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.au-row-disabled {
+  opacity: 0.55;
+}
+
+.au-actions-col {
+  width: 160px;
+}
+
+.au-modalLabel-spaced {
+  margin-top: 10px;
 }

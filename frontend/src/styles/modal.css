@@ -48,3 +48,28 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ====== VISUAL SYSTEM OVERRIDES ====== */
+.modal-overlay {
+  background: rgba(15, 34, 48, 0.58);
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+}
+
+.modal-card h3 {
+  color: var(--color-text);
+}
+
+.modal-error {
+  color: var(--color-danger);
+}
+
+.modal-close {
+  color: var(--color-primary);
+  border: 1px solid var(--color-border-strong);
+}

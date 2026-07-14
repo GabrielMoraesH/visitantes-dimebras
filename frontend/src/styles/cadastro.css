@@ -1,14 +1,15 @@
 /* ====== PAGE ====== */
 .cadastro-page {
   min-height: 100vh;
-  background: #0b6e86;
+  background: var(--color-app-bg);
+  padding-bottom: 26px;
 }
 
 /* ====== TOPBAR (padrão do sistema) ====== */
 .cadastro-topbar {
   height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e6edf2;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,7 +26,7 @@
   min-width: 120px;
   font-weight: 900;
   letter-spacing: 0.6px;
-  color: #0b6e86;
+  color: var(--color-primary);
 }
 
 .cadastro-logo {
@@ -38,9 +39,8 @@
 /* Botão voltar igual "ghost" */
 .cadastro-back {
   background: #e9f2f6;
-  color: #0b6e86;
-  border: 1px solid #d6e6ee;
-  border-radius: 12px;
+  color: var(--color-primary);
+  border: 1px solid var(--color-border-strong);
   padding: 10px 14px;
   font-weight: 900;
   font-size: 13px;
@@ -66,11 +66,11 @@
 }
 
 .cadastro-card {
-  background: #ffffff;
-  border: 1px solid #e3edf4;
-  border-radius: 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 22px;
-  box-shadow: 0 14px 32px rgba(16, 24, 40, 0.12);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ====== GRID ====== */
@@ -90,7 +90,7 @@
 .cadastro-photoBox {
   width: 100%;
   height: 260px;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   border: 2px dashed #cfe0ea;
   background: #fbfdff;
   display: grid;
@@ -99,7 +99,7 @@
 }
 
 .cadastro-photoPlaceholder {
-  color: #7f97a6;
+  color: var(--color-muted);
   font-weight: 900;
   font-size: 12px;
   letter-spacing: 0.2px;
@@ -161,13 +161,13 @@
   margin: 0;
   font-size: 18px;
   font-weight: 900;
-  color: #0f2230;
+  color: var(--color-text);
   letter-spacing: -0.2px;
 }
 
 .cadastro-cpfBadge {
-  border-radius: 14px;
-  border: 1px solid #e3edf4;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
   padding: 10px 12px;
   min-width: 170px;
   text-align: right;
@@ -187,7 +187,7 @@
   display: block;
   margin-top: 4px;
   font-size: 14px;
-  color: #0f2230;
+  color: var(--color-text);
 }
 
 .cadastro-cpfBadge.ok {
@@ -203,7 +203,7 @@
 .cadastro-cpfWarn {
   font-size: 12px;
   font-weight: 900;
-  color: #b42318;
+  color: var(--color-danger);
 }
 
 /* ====== FORM ====== */
@@ -219,7 +219,7 @@
 
 .cadastro-label {
   font-size: 12px;
-  color: #6f8796;
+  color: var(--color-muted);
   font-weight: 900;
 }
 
@@ -228,7 +228,7 @@
   width: 100%;
   padding: 12px 12px;
   border: 1px solid #d9e6ee;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   outline: none;
   background: #fff;
   color: #0f2230;
@@ -236,14 +236,14 @@
 }
 
 .cadastro-form .input:focus {
-  border-color: #0b6e86;
-  box-shadow: 0 0 0 3px rgba(11, 110, 134, 0.14);
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
 }
 
 /* Buttons (isolado) */
 .cadastro-form .btn {
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   font-weight: 900;
   cursor: pointer;
@@ -257,7 +257,7 @@
 }
 
 .cadastro-form .btn-primary {
-  background: #0b6e86;
+  background: var(--color-primary);
   color: #fff;
 }
 
@@ -279,16 +279,79 @@
   border-radius: 12px;
   border: 1px solid #ffd1d1;
   background: #fff4f4;
-  color: #b42318;
+  color: var(--color-danger);
   font-size: 13px;
   font-weight: 800;
 }
 
 .cadastro-note {
   font-size: 12px;
-  color: #7f97a6;
+  color: var(--color-muted);
   font-weight: 700;
   margin-top: 4px;
+}
+
+.cadastro-cpfInput {
+  width: 170px;
+  margin-top: 4px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.cadastro-cpfBadge.bad .cadastro-cpfInput {
+  color: var(--color-danger);
+}
+
+.cadastro-cpfInput::placeholder {
+  color: #7f97a6;
+  font-weight: 800;
+}
+
+
+.cadastro-cpfInput {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--color-text);
+}
+.cadastro-cpfInput::placeholder {
+  color: #95a7b4;
+}
+
+/* Avisos do lookup do CPF (já cadastrado) */
+.cadastro-info {
+  font-size: 12px;
+  font-weight: 900;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: #f7fafc;
+  color: #243441;
+}
+
+.cadastro-info.ok {
+  border-color: #bfe8cd;
+  background: #e7f7ee;
+  color: #146c2e;
+}
+
+.cadastro-info.bad {
+  border-color: #f7c2c2;
+  background: #fdecec;
+  color: var(--color-danger);
+}
+
+.cadastro-photoBox--document {
+  height: 180px;
 }
 
 /* ====== RESPONSIVE ====== */

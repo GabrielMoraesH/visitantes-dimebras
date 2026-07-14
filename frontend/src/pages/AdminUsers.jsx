@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../services/api";
+import api from "../services/api";
+import { useConfirm } from "../components/Feedback/ConfirmProvider";
+import { useToast } from "../components/Feedback/ToastProvider";
 import "../styles/adminUsers.css";
 
 function authHeader() {
@@ -51,11 +53,11 @@ function PencilIcon({ size = 18 }) {
   );
 }
 
-function TrashIcon({ size = 18 }) {
+function DisableIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       <path
-        d="M6 7h12l-1 14H7L6 7Zm3-3h6l1 2H8l1-2Zm-4 2h14v2H5V6Z"
+        d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm0 2a7.96 7.96 0 0 1 4.9 1.7L5.7 16.9A8 8 0 0 1 12 4Zm0 16a7.96 7.96 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20Z"
         fill="currentColor"
       />
     </svg>
@@ -64,70 +66,53 @@ function TrashIcon({ size = 18 }) {
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
+  const toast = useToast();
   const user = useMemo(() => getUserFromToken(), []);
-  const isAdmin = Number(user?.id) === 1;
+  const isAdmin = user?.role === "ADMIN";
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // toast
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-
   function showToast(text, type = "success") {
-    setToast({ text, type });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+    toast[type]?.(text) ?? toast.show(text, type);
   }
 
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
-
-  // bloqueio de acesso
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return navigate("/login");
     if (!isAdmin) return navigate("/checkin");
   }, [navigate, isAdmin]);
 
-  // dados da tela
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState(FALLBACK_BRANCHES);
 
-  // form create
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("RECEPCAO");
   const [branchId, setBranchId] = useState(String(FALLBACK_BRANCHES[0].id));
 
-  // modal editar (username + senha opcional + cargo + filial)
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
   const [editUserId, setEditUserId] = useState(null);
   const [editUsername, setEditUsername] = useState("");
-  const [editPassword, setEditPassword] = useState(""); // opcional
+  const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState("RECEPCAO");
-  const [editBranchId, setEditBranchId] = useState(String(FALLBACK_BRANCHES[0].id));
+  const [editBranchId, setEditBranchId] = useState(
+    String(FALLBACK_BRANCHES[0].id)
+  );
 
-  function logout() {
-    localStorage.removeItem("token");
-    navigate("/login");
-  }
+  const [disableLoading, setDisableLoading] = useState(false);
+
+  const isEditingAdmin = Number(editUserId) === 1;
 
   async function loadBranches() {
     try {
       const { data } = await api.get("/branches", { headers: authHeader() });
       if (Array.isArray(data) && data.length > 0) {
         setBranches(data);
-
-        // create form
         setBranchId((prev) => (prev ? prev : String(data[0].id)));
-
-        // se modal aberto e não tiver branch, seta a primeira
         setEditBranchId((prev) => (prev ? prev : String(data[0].id)));
       }
     } catch {
@@ -149,7 +134,6 @@ export default function AdminUsers() {
     if (!isAdmin) return;
     loadBranches();
     loadUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   async function createUser(e) {
@@ -157,8 +141,10 @@ export default function AdminUsers() {
     setMsg("");
 
     const u = username.trim();
-    if (u.length < 3) return showToast("Username precisa ter pelo menos 3 letras", "error");
-    if (password.length < 6) return showToast("Senha precisa ter pelo menos 6 caracteres", "error");
+    if (u.length < 3)
+      return showToast("Username precisa ter pelo menos 3 letras", "error");
+    if (password.length < 6)
+      return showToast("Senha precisa ter pelo menos 6 caracteres", "error");
     if (!branchId) return showToast("Selecione a filial", "error");
 
     try {
@@ -187,7 +173,7 @@ export default function AdminUsers() {
   function openEditModal(u) {
     setEditUserId(u.id);
     setEditUsername(u.username || "");
-    setEditPassword(""); // sempre vazio
+    setEditPassword("");
     setEditRole(u.role || "RECEPCAO");
     setEditBranchId(String(u.branchId ?? branches?.[0]?.id ?? 1));
     setEditOpen(true);
@@ -196,11 +182,46 @@ export default function AdminUsers() {
   async function saveEdit() {
     if (!editUserId) return;
 
+    if (Number(editUserId) === 1) {
+      if (!editPassword) {
+        return showToast("Para o ADMIN, preencha a nova senha.", "error");
+      }
+      if (editPassword.length < 6) {
+        return showToast("Senha precisa ter no mínimo 6 caracteres", "error");
+      }
+
+      try {
+        setEditLoading(true);
+
+        await api.put(
+          `/users/${editUserId}`,
+          { password: editPassword },
+          { headers: authHeader() }
+        );
+
+        showToast("Senha do ADMIN atualizada!");
+        setEditOpen(false);
+        setEditUserId(null);
+        setEditPassword("");
+        await loadUsers();
+      } catch (err) {
+        const m = err?.response?.data?.message || "Erro ao atualizar usuário";
+        showToast(m, "error");
+      } finally {
+        setEditLoading(false);
+      }
+      return;
+    }
+
     const newU = editUsername.trim();
-    if (newU.length < 3) return showToast("Username precisa ter pelo menos 3 letras", "error");
+    if (newU.length < 3)
+      return showToast("Username precisa ter pelo menos 3 letras", "error");
 
     if (editPassword && editPassword.length < 6) {
-      return showToast("Se preencher senha, precisa ter no mínimo 6 caracteres", "error");
+      return showToast(
+        "Se preencher senha, precisa ter no mínimo 6 caracteres",
+        "error"
+      );
     }
 
     try {
@@ -228,36 +249,64 @@ export default function AdminUsers() {
     }
   }
 
-  async function deleteUser(u) {
+  function submitEdit(event) {
+    event.preventDefault();
+    if (editLoading) return;
+    saveEdit();
+  }
+
+  async function openToggleModal(u) {
     if (!u?.id) return;
 
     if (Number(u.id) === 1) {
-      return showToast("Não é permitido excluir o ADMIN (id=1).", "error");
+      return showToast("Nao e permitido alterar o ADMIN (id=1).", "error");
     }
 
-    const ok = window.confirm(`Excluir o usuário "${u.username}" (ID ${u.id})?`);
-    if (!ok) return;
+    const approved = await confirm({
+      title: u.isActive ? "Desativar usuario" : "Reativar usuario",
+      message: `Tem certeza que deseja ${
+        u.isActive ? "desativar" : "reativar"
+      } o usuario "${u.username}" (ID ${u.id})?`,
+      confirmText: u.isActive ? "Desativar" : "Reativar",
+      cancelText: "Cancelar",
+      type: u.isActive ? "danger" : "default",
+    });
+
+    if (!approved) return;
 
     try {
-      await api.delete(`/users/${u.id}`, { headers: authHeader() });
-      showToast("Usuário excluído!");
+      setDisableLoading(true);
+
+      if (u.isActive) {
+        await api.patch(`/users/${u.id}/disable`, null, {
+          headers: authHeader(),
+        });
+        showToast("Usuario desativado!");
+      } else {
+        await api.patch(`/users/${u.id}/enable`, null, {
+          headers: authHeader(),
+        });
+        showToast("Usuario reativado!");
+      }
+
       await loadUsers();
     } catch (err) {
-      const m = err?.response?.data?.message || "Erro ao excluir usuário";
+      const m = err?.response?.data?.message || "Erro ao alterar usuario";
       showToast(m, "error");
+    } finally {
+      setDisableLoading(false);
     }
   }
 
   return (
     <div className="adminUsers-page">
-      {toast && (
-        <div className={`adminUsers-toast ${toast.type === "error" ? "is-error" : "is-success"}`}>
-          {toast.text}
-        </div>
-      )}
-
       <header className="adminUsers-topbar">
-        <div className="adminUsers-brand" onClick={() => navigate("/checkin")} role="button" tabIndex={0}>
+        <div
+          className="adminUsers-brand"
+          onClick={() => navigate("/checkin")}
+          role="button"
+          tabIndex={0}
+        >
           <img src="/logo.png" alt="Dimebras" className="adminUsers-logo" />
         </div>
 
@@ -266,7 +315,11 @@ export default function AdminUsers() {
             ATUALIZAR
           </button>
 
-          <button className="au-btn au-btn-ghost" onClick={() => navigate("/checkin")} type="button">
+          <button
+            className="au-btn au-btn-ghost"
+            onClick={() => navigate("/checkin")}
+            type="button"
+          >
             VOLTAR
           </button>
         </div>
@@ -303,7 +356,11 @@ export default function AdminUsers() {
 
               <div className="au-field">
                 <label className="au-label">Cargo</label>
-                <select className="au-input" value={role} onChange={(e) => setRole(e.target.value)}>
+                <select
+                  className="au-input"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
                   <option value="RECEPCAO">RECEPÇÃO</option>
                   <option value="ADMIN">ADMIN</option>
                 </select>
@@ -311,7 +368,11 @@ export default function AdminUsers() {
 
               <div className="au-field">
                 <label className="au-label">Filial</label>
-                <select className="au-input" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+                <select
+                  className="au-input"
+                  value={branchId}
+                  onChange={(e) => setBranchId(e.target.value)}
+                >
                   {branches.map((b) => (
                     <option key={b.id} value={String(b.id)}>
                       {b.name}
@@ -323,7 +384,11 @@ export default function AdminUsers() {
 
             {msg && <div className="au-alert">{msg}</div>}
 
-            <button className="au-btn au-btn-primary au-btn-full" type="submit" disabled={loading}>
+            <button
+              className="au-btn au-btn-primary au-btn-full"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? "CRIANDO..." : "CRIAR USUÁRIO"}
             </button>
           </form>
@@ -343,26 +408,37 @@ export default function AdminUsers() {
                   <th>Username</th>
                   <th>Role</th>
                   <th>Filial</th>
+                  <th>Status</th>
                   <th>Criado em</th>
-                  <th style={{ width: 140 }}>Ações</th>
+                  <th className="au-actions-col">Ações</th>
                 </tr>
               </thead>
 
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="au-empty">
+                    <td colSpan="7" className="au-empty">
                       Nenhum usuário encontrado.
                     </td>
                   </tr>
                 ) : (
                   users.map((u) => (
-                    <tr key={u.id}>
+                    <tr
+                      key={u.id}
+                      className={u.isActive === false ? "au-row-disabled" : undefined}
+                    >
                       <td>{u.id}</td>
                       <td>{u.username}</td>
                       <td>{u.role}</td>
                       <td>{u.branch?.name || "-"}</td>
-                      <td>{u.createdAt ? new Date(u.createdAt).toLocaleString("pt-BR") : "-"}</td>
+                      <td>
+                        <span className={`au-status ${u.isActive ? "is-on" : "is-off"}`}>
+                          {u.isActive ? "ATIVO" : "DESATIVADO"}
+                        </span>
+                      </td>
+                      <td>
+                        {u.createdAt ? new Date(u.createdAt).toLocaleString("pt-BR") : "-"}
+                      </td>
                       <td>
                         <div className="au-actions">
                           <button
@@ -376,12 +452,12 @@ export default function AdminUsers() {
 
                           <button
                             className="au-iconBtn au-iconBtn-del"
-                            onClick={() => deleteUser(u)}
-                            disabled={Number(u.id) === 1}
-                            title={Number(u.id) === 1 ? "Não é permitido excluir o admin" : "Excluir usuário"}
+                            onClick={() => openToggleModal(u)}
+                            disabled={Number(u.id) === 1 || disableLoading}
+                            title={u.isActive ? "Desativar usuário" : "Reativar usuário"}
                             type="button"
                           >
-                            <TrashIcon />
+                            <DisableIcon />
                           </button>
                         </div>
                       </td>
@@ -395,11 +471,14 @@ export default function AdminUsers() {
       </main>
 
       {editOpen && (
-        <div className="au-modalOverlay" onMouseDown={(e) => e.target === e.currentTarget && setEditOpen(false)}>
-          <div className="au-modal">
+        <div
+          className="au-modalOverlay"
+          onMouseDown={(e) => e.target === e.currentTarget && setEditOpen(false)}
+        >
+          <form className="au-modal" onSubmit={submitEdit}>
             <div className="au-modalTitle">Editar usuário</div>
 
-            <label className="au-label" style={{ marginTop: 10 }}>
+            <label className="au-label au-modalLabel-spaced">
               Username
             </label>
             <input
@@ -407,15 +486,17 @@ export default function AdminUsers() {
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value)}
               autoComplete="off"
+              disabled={isEditingAdmin}
+              title={isEditingAdmin ? "No ADMIN (id=1) só é permitido alterar a senha" : ""}
             />
 
-            <label className="au-label" style={{ marginTop: 10 }}>
+            <label className="au-label au-modalLabel-spaced">
               Nova senha (opcional)
             </label>
             <input
               className="au-input"
               type="password"
-              placeholder="deixe vazio para não alterar"
+              placeholder={isEditingAdmin ? "digite a nova senha do ADMIN" : "deixe vazio para não alterar"}
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
               autoComplete="new-password"
@@ -424,7 +505,13 @@ export default function AdminUsers() {
             <div className="au-modalGrid">
               <div className="au-field">
                 <label className="au-label">Cargo</label>
-                <select className="au-input" value={editRole} onChange={(e) => setEditRole(e.target.value)}>
+                <select
+                  className="au-input"
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  disabled={isEditingAdmin}
+                  title={isEditingAdmin ? "No ADMIN (id=1) só é permitido alterar a senha" : ""}
+                >
                   <option value="RECEPCAO">RECEPÇÃO</option>
                   <option value="ADMIN">ADMIN</option>
                 </select>
@@ -432,7 +519,13 @@ export default function AdminUsers() {
 
               <div className="au-field">
                 <label className="au-label">Filial</label>
-                <select className="au-input" value={editBranchId} onChange={(e) => setEditBranchId(e.target.value)}>
+                <select
+                  className="au-input"
+                  value={editBranchId}
+                  onChange={(e) => setEditBranchId(e.target.value)}
+                  disabled={isEditingAdmin}
+                  title={isEditingAdmin ? "No ADMIN (id=1) só é permitido alterar a senha" : ""}
+                >
                   {branches.map((b) => (
                     <option key={b.id} value={String(b.id)}>
                       {b.name}
@@ -443,16 +536,26 @@ export default function AdminUsers() {
             </div>
 
             <div className="au-modalActions">
-              <button className="au-btn au-btn-ghost" onClick={() => setEditOpen(false)} disabled={editLoading}>
+              <button
+                className="au-btn au-btn-ghost"
+                onClick={() => setEditOpen(false)}
+                disabled={editLoading}
+                type="button"
+              >
                 Cancelar
               </button>
-              <button className="au-btn au-btn-primary" onClick={saveEdit} disabled={editLoading}>
+              <button
+                className="au-btn au-btn-primary"
+                disabled={editLoading}
+                type="submit"
+              >
                 {editLoading ? "SALVANDO..." : "Salvar"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
+
     </div>
   );
 }

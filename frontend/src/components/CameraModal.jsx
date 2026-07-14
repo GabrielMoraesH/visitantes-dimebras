@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import "../styles/cameraModal.css"; // (crie esse css ou coloque no seu css global)
+import { useCallback, useEffect, useRef, useState } from "react";
+import "../styles/cameraModal.css";
 
 export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
   const videoRef = useRef(null);
@@ -7,6 +7,14 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
 
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+
+  const stop = useCallback(() => {
+    const stream = streamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,17 +54,9 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
       cancelled = true;
       stop();
     };
-  }, []);
+  }, [stop]);
 
-  function stop() {
-    const stream = streamRef.current;
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }
-
-  async function capture() {
+  const capture = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !ready) return;
 
@@ -88,7 +88,22 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
 
     stop();
     onCapture(blob);
-  }
+  }, [mode, onCapture, ready, stop]);
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key !== "Enter" || !ready || error) return;
+
+      event.preventDefault();
+      capture();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [capture, error, ready]);
 
   return (
     <div className="cam-overlay">
@@ -116,6 +131,7 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
         <div className="cam-actions">
           <button
             className="btn btn-light"
+            type="button"
             onClick={() => {
               stop();
               onClose();
@@ -124,7 +140,7 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
             Cancelar
           </button>
 
-          <button className="btn btn-primary" onClick={capture} disabled={!ready || !!error}>
+          <button className="btn btn-primary" type="button" onClick={capture} disabled={!ready || !!error}>
             Capturar
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { prisma } from "../prisma.js";
+import prisma from "../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -13,16 +13,19 @@ const idParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
-const updatePasswordSchema = z.object({
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-});
-
 const updateUserSchema = z.object({
   username: z.string().trim().min(3, "Usuário deve ter no mínimo 3 caracteres").optional(),
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").optional(),
   role: z.enum(["RECEPCAO", "ADMIN"]).optional(),
   branchId: z.coerce.number().int().positive("branchId inválido").optional(),
 });
+
+function zodIssues(err) {
+  return err?.issues?.map((i) => ({
+    path: i.path?.join(".") || "",
+    message: i.message,
+  })) || [];
+}
 
 export async function createUser(req, res) {
   try {
@@ -31,18 +34,12 @@ export async function createUser(req, res) {
     const exists = await prisma.user.findUnique({
       where: { username: data.username },
     });
-
-    if (exists) {
-      return res.status(400).json({ message: "Usuário já existe" });
-    }
+    if (exists) return res.status(400).json({ message: "Usuário já existe" });
 
     const branch = await prisma.branch.findUnique({
       where: { id: data.branchId },
     });
-
-    if (!branch) {
-      return res.status(400).json({ message: "Filial (branchId) não existe" });
-    }
+    if (!branch) return res.status(400).json({ message: "Filial (branchId) não existe" });
 
     const passwordHash = await bcrypt.hash(data.password, 10);
 
@@ -52,12 +49,14 @@ export async function createUser(req, res) {
         passwordHash,
         role: data.role,
         branchId: data.branchId,
+        isActive: true,
       },
       select: {
         id: true,
         username: true,
         role: true,
         branchId: true,
+        isActive: true,
         createdAt: true,
         branch: { select: { name: true } },
       },
@@ -66,13 +65,7 @@ export async function createUser(req, res) {
     return res.status(201).json(created);
   } catch (err) {
     if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inválidos",
-        issues: err.issues.map((i) => ({
-          path: i.path?.join(".") || "",
-          message: i.message,
-        })),
-      });
+      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
     }
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -88,6 +81,7 @@ export async function listUsers(req, res) {
         username: true,
         role: true,
         branchId: true,
+        isActive: true,
         branch: { select: { name: true } },
         createdAt: true,
       },
@@ -100,44 +94,56 @@ export async function listUsers(req, res) {
   }
 }
 
-export async function deleteUser(req, res) {
+export async function disableUser(req, res) {
   try {
     const { id } = idParamSchema.parse(req.params);
 
     if (id === 1) {
-      return res.status(400).json({ message: "Não é permitido excluir o ADMIN (id=1)" });
+      return res.status(400).json({ message: "Não é permitido desativar o ADMIN (id=1)" });
     }
 
     if (Number(req.user?.id) === id) {
-      return res.status(400).json({ message: "Você não pode excluir seu próprio usuário" });
+      return res.status(400).json({ message: "Você não pode desativar seu próprio usuário" });
     }
 
     const exists = await prisma.user.findUnique({ where: { id } });
     if (!exists) return res.status(404).json({ message: "Usuário não encontrado" });
 
-    await prisma.user.delete({ where: { id } });
+    if (exists.isActive === false) {
+      return res.json({ ok: true });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { isActive: false },
+    });
 
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);
+    if (err?.name === "ZodError") {
+      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
+    }
     return res.status(500).json({ message: "Erro interno" });
   }
 }
 
-// (opcional) se você ainda usa PUT /users/:id/password
-export async function updateUserPassword(req, res) {
+export async function enableUser(req, res) {
   try {
     const { id } = idParamSchema.parse(req.params);
-    const { password } = updatePasswordSchema.parse(req.body);
 
     const exists = await prisma.user.findUnique({ where: { id } });
-    if (!exists) return res.status(404).json({ message: "Usuário não encontrado" });
+    if (!exists) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    if (exists.isActive === true) {
+      return res.json({ ok: true });
+    }
 
     await prisma.user.update({
       where: { id },
-      data: { passwordHash },
+      data: { isActive: true },
     });
 
     return res.json({ ok: true });
@@ -146,37 +152,59 @@ export async function updateUserPassword(req, res) {
     if (err?.name === "ZodError") {
       return res.status(400).json({
         message: "Dados inválidos",
-        issues: err.issues.map((i) => ({
-          path: i.path?.join(".") || "",
-          message: i.message,
-        })),
+        issues: zodIssues(err),
       });
     }
     return res.status(500).json({ message: "Erro interno" });
   }
 }
 
-// ✅ EDITAR usuário (username, role, branchId e senha opcional)
 export async function updateUser(req, res) {
   try {
     const { id } = idParamSchema.parse(req.params);
     const data = updateUserSchema.parse(req.body);
 
-    // recomendado: não editar o admin principal
-    if (id === 1) {
-      return res.status(400).json({ message: "Não é permitido editar o ADMIN (id=1)" });
-    }
-
     const exists = await prisma.user.findUnique({ where: { id } });
     if (!exists) return res.status(404).json({ message: "Usuário não encontrado" });
 
-    // username único
+    if (id === 1) {
+      const triedOtherFields =
+        typeof data.username !== "undefined" ||
+        typeof data.role !== "undefined" ||
+        typeof data.branchId !== "undefined";
+
+      if (triedOtherFields) {
+        return res.status(400).json({
+          message: "No ADMIN (id=1) só é permitido alterar a senha",
+        });
+      }
+
+      if (!data.password) {
+        return res.status(400).json({ message: "Informe a nova senha do ADMIN" });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id },
+        data: { passwordHash: await bcrypt.hash(data.password, 10) },
+        select: {
+          id: true,
+          username: true,
+          role: true,
+          branchId: true,
+          isActive: true,
+          createdAt: true,
+          branch: { select: { name: true } },
+        },
+      });
+
+      return res.json(updated);
+    }
+
     if (data.username && data.username !== exists.username) {
       const conflict = await prisma.user.findUnique({ where: { username: data.username } });
       if (conflict) return res.status(400).json({ message: "Username já existe" });
     }
 
-    // branch válido
     if (typeof data.branchId === "number") {
       const branch = await prisma.branch.findUnique({ where: { id: data.branchId } });
       if (!branch) return res.status(400).json({ message: "Filial (branchId) não existe" });
@@ -203,6 +231,7 @@ export async function updateUser(req, res) {
         username: true,
         role: true,
         branchId: true,
+        isActive: true,
         createdAt: true,
         branch: { select: { name: true } },
       },
@@ -212,13 +241,7 @@ export async function updateUser(req, res) {
   } catch (err) {
     console.error(err);
     if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inválidos",
-        issues: err.issues.map((i) => ({
-          path: i.path?.join(".") || "",
-          message: i.message,
-        })),
-      });
+      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
     }
     return res.status(500).json({ message: "Erro interno" });
   }

@@ -1,40 +1,51 @@
 import bcrypt from "bcrypt";
-import { PrismaClient } from "@prisma/client";
+import dotenv from "dotenv";
+import prisma from "../src/lib/prisma.js";
 
-const prisma = new PrismaClient();
+dotenv.config();
 
 async function main() {
-  // cria filial padrão
+  const adminSeedPassword = process.env.ADMIN_SEED_PASSWORD;
+
+  if (!adminSeedPassword) {
+    throw new Error(
+      "ADMIN_SEED_PASSWORD nao definida. Configure essa variavel no ambiente antes de executar o seed."
+    );
+  }
+
   const branch = await prisma.branch.upsert({
     where: { id: 1 },
     update: {},
     create: { name: "Cascavel" },
   });
 
-  // cria admin padrão
-  const passwordHash = await bcrypt.hash("admin123", 10);
-
-  await prisma.user.upsert({
+  const existingAdmin = await prisma.user.findUnique({
     where: { username: "admin" },
-    update: {
-      passwordHash,
-      role: "ADMIN",
-      branchId: branch.id,
-    },
-    create: {
-      username: "admin",
-      passwordHash,
-      role: "ADMIN",
-      branchId: branch.id,
-    },
   });
 
-  console.log("✅ Seed OK: admin / admin123");
+  if (!existingAdmin) {
+    const passwordHash = await bcrypt.hash(adminSeedPassword, 10);
+
+    await prisma.user.create({
+      data: {
+        username: "admin",
+        passwordHash,
+        role: "ADMIN",
+        branchId: branch.id,
+      },
+    });
+  }
+
+  console.log(
+    existingAdmin
+      ? "Seed OK: filial padrao verificada; usuario admin existente preservado."
+      : "Seed OK: filial padrao verificada; usuario admin criado."
+  );
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed erro:", e);
+    console.error("Seed erro:", e);
     process.exit(1);
   })
   .finally(async () => {

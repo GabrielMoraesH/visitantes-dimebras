@@ -1,15 +1,106 @@
+:root {
+  --color-primary: #0b6e86;
+  --color-primary-dark: #064b5c;
+  --color-bg: #f3f7fb;
+  --color-app-bg:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.14), transparent 34%),
+    linear-gradient(135deg, var(--color-primary-dark), var(--color-primary));
+  --color-surface: #ffffff;
+  --color-border: #e6edf2;
+  --color-border-strong: #d6e6ee;
+  --color-text: #1f2d3a;
+  --color-muted: #6d8593;
+  --color-success: #166534;
+  --color-danger: #b42318;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 8px 22px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 14px 34px rgba(16, 24, 40, 0.1);
+  --shadow-modal: 0 24px 70px rgba(15, 34, 48, 0.28);
+  --focus-ring: 0 0 0 3px rgba(11, 110, 134, 0.14);
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html, body, #root {
-  height: 100%;
+html,
+body,
+#root {
+  min-height: 100vh;
 }
 
 body {
   font-family: Arial, Helvetica, sans-serif;
-  background: #f5f8fb;
+  background: var(--color-app-bg);
+  background-attachment: fixed;
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  appearance: none;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #95a7b4;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn,
+.au-btn,
+.h-btn,
+.login-btn,
+.history-topbar-btn,
+.agenda-topbar-btn,
+.new-event-button,
+.today-button,
+.qr-btn,
+.modal-close,
+.cadastro-back {
+  border-radius: var(--radius-md);
+  font-weight: 900;
+  transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn:active,
+.au-btn:active,
+.h-btn:active,
+.login-btn:active,
+.history-topbar-btn:active,
+.agenda-topbar-btn:active,
+.new-event-button:active,
+.today-button:active,
+.qr-btn:active,
+.modal-close:active,
+.cadastro-back:active {
+  transform: translateY(1px);
 }
 

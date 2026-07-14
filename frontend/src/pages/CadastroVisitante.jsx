@@ -1,6 +1,6 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../services/api";
+import { useEffect, useMemo, useState, useRef } from "react";
+import api from "../services/api";
 import CameraModal from "../components/CameraModal";
 import "../styles/cadastro.css";
 
@@ -59,28 +59,36 @@ function makeJpgFile(blob, filenameBase) {
 }
 
 export default function CadastroVisitante() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const cpfParam = useMemo(() => onlyDigits(searchParams.get("cpf") || ""), [searchParams]);
-  const [cpfDigits] = useState(cpfParam);
+  const [cpfDigits, setCpfDigits] = useState(cpfParam);
+
+  useEffect(() => {
+    setCpfDigits(cpfParam);
+  }, [cpfParam]);
+
   const cpfDisplay = useMemo(() => formatCPF(cpfDigits), [cpfDigits]);
 
   const [name, setName] = useState("");
   const [phoneDisplay, setPhoneDisplay] = useState("");
   const [company, setCompany] = useState("");
 
-  // arquivos (todos por câmera)
-  const [photo, setPhoto] = useState(null); // visitante
-  const [docFront, setDocFront] = useState(null); // documento frente
-  const [docBack, setDocBack] = useState(null); // documento verso
+  const [photo, setPhoto] = useState(null);
+  const [docFront, setDocFront] = useState(null);
+  const [docBack, setDocBack] = useState(null);
 
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraTarget, setCameraTarget] = useState(null); // "photo" | "docFront" | "docBack"
+  const [cameraTarget, setCameraTarget] = useState(null);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const cpfInputRef = useRef(null);
 
-  // previews (sem vazamento)
+  const [cpfLookup, setCpfLookup] = useState({ status: "idle", message: "" });
+  const lookupTimerRef = useRef(null);
+  const lastLookupCpfRef = useRef("");
+
   const photoPreview = useMemo(() => (photo ? URL.createObjectURL(photo) : ""), [photo]);
   const docFrontPreview = useMemo(() => (docFront ? URL.createObjectURL(docFront) : ""), [docFront]);
   const docBackPreview = useMemo(() => (docBack ? URL.createObjectURL(docBack) : ""), [docBack]);
@@ -91,7 +99,9 @@ export default function CadastroVisitante() {
         if (!url) continue;
         try {
           URL.revokeObjectURL(url);
-        } catch {}
+        } catch (err) {
+          void err;
+        }
       }
     };
   }, [photoPreview, docFrontPreview, docBackPreview]);
@@ -144,10 +154,84 @@ export default function CadastroVisitante() {
     setCameraTarget(null);
   }
 
+  function onChangeCpfInput(value) {
+    setMsg("");
+    const digits = onlyDigits(value).slice(0, 11);
+    setCpfDigits(digits);
+
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (digits) p.set("cpf", digits);
+        else p.delete("cpf");
+        return p;
+      },
+      { replace: true }
+    );
+  }
+
+  async function lookupCpfAndGo(checkCpfDigits) {
+    const digits = onlyDigits(checkCpfDigits).slice(0, 11);
+    if (!isValidCPF(digits)) return false;
+
+    if (lastLookupCpfRef.current === digits) return false;
+    lastLookupCpfRef.current = digits;
+
+    setCpfLookup({ status: "checking", message: "Verificando CPF..." });
+
+    try {
+      await api.get(`/visitors/by-cpf/${digits}`, { headers: authHeader() });
+
+      setCpfLookup({ status: "exists", message: "CPF já cadastrado. Indo para o check-in..." });
+
+      setTimeout(() => navigate(`/checkin?cpf=${digits}`), 250);
+      return true;
+    } catch (err) {
+      const status = err?.response?.status;
+
+      if (status === 404) {
+        setCpfLookup({ status: "notfound", message: "" });
+        return false;
+      }
+
+      setCpfLookup({
+        status: "error",
+        message: err?.response?.data?.message || "Erro ao verificar CPF",
+      });
+      return false;
+    }
+  }
+
+  useEffect(() => {
+    if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+
+    setCpfLookup((prev) => (prev.status === "exists" ? prev : { status: "idle", message: "" }));
+    lastLookupCpfRef.current = "";
+
+    if (!cpfOk) return;
+
+    lookupTimerRef.current = setTimeout(() => {
+      lookupCpfAndGo(cpfDigits);
+    }, 350);
+
+    return () => {
+      if (lookupTimerRef.current) clearTimeout(lookupTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cpfDigits, cpfOk]);
+
   async function cadastrar() {
+    const redirected = await lookupCpfAndGo(cpfDigits);
+    if (redirected) return;
+
     const err = getFirstError();
     if (err) {
       setMsg(err);
+      if (!cpfOk) {
+        setTimeout(() => {
+          cpfInputRef.current?.focus();
+        }, 0);
+      }
       return;
     }
 
@@ -186,7 +270,6 @@ export default function CadastroVisitante() {
   return (
     <div className="cadastro-page">
       <header className="cadastro-topbar">
-        {/* LOGO (clicável) */}
         <div
           className="cadastro-brand"
           role="button"
@@ -205,9 +288,7 @@ export default function CadastroVisitante() {
       <div className="cadastro-wrap">
         <div className="cadastro-card">
           <div className="cadastro-grid">
-            {/* COLUNA ESQUERDA */}
             <div className="cadastro-media">
-              {/* FOTO VISITANTE */}
               <div className="cadastro-photoBox">
                 {photo ? (
                   <img src={photoPreview} alt="Foto do visitante" className="cadastro-photo" />
@@ -216,17 +297,11 @@ export default function CadastroVisitante() {
                 )}
               </div>
 
-              <button
-                className="btn btn-primary w-full"
-                onClick={() => openCamera("photo")}
-                disabled={saving}
-                type="button"
-              >
+              <button className="btn btn-primary w-full" onClick={() => openCamera("photo")} disabled={saving} type="button">
                 {photo ? "TROCAR FOTO DO VISITANTE" : "TIRAR FOTO DO VISITANTE"}
               </button>
 
-              {/* DOCUMENTO FRENTE */}
-              <div className="cadastro-photoBox" style={{ height: 180 }}>
+              <div className="cadastro-photoBox cadastro-photoBox--document">
                 {docFront ? (
                   <img src={docFrontPreview} alt="Documento frente" className="cadastro-photo" />
                 ) : (
@@ -234,17 +309,11 @@ export default function CadastroVisitante() {
                 )}
               </div>
 
-              <button
-                className="btn btn-primary w-full"
-                onClick={() => openCamera("docFront")}
-                disabled={saving}
-                type="button"
-              >
+              <button className="btn btn-primary w-full" onClick={() => openCamera("docFront")} disabled={saving} type="button">
                 {docFront ? "TROCAR DOCUMENTO (FRENTE)" : "FOTOGRAFAR DOCUMENTO (FRENTE)"}
               </button>
 
-              {/* DOCUMENTO VERSO */}
-              <div className="cadastro-photoBox" style={{ height: 180 }}>
+              <div className="cadastro-photoBox cadastro-photoBox--document">
                 {docBack ? (
                   <img src={docBackPreview} alt="Documento verso" className="cadastro-photo" />
                 ) : (
@@ -252,12 +321,7 @@ export default function CadastroVisitante() {
                 )}
               </div>
 
-              <button
-                className="btn btn-primary w-full"
-                onClick={() => openCamera("docBack")}
-                disabled={saving}
-                type="button"
-              >
+              <button className="btn btn-primary w-full" onClick={() => openCamera("docBack")} disabled={saving} type="button">
                 {docBack ? "TROCAR DOCUMENTO (VERSO)" : "FOTOGRAFAR DOCUMENTO (VERSO)"}
               </button>
 
@@ -266,31 +330,43 @@ export default function CadastroVisitante() {
               </div>
             </div>
 
-            {/* COLUNA DIREITA */}
             <div className="cadastro-fields">
               <div className="cadastro-head">
                 <h3 className="cadastro-title">Cadastrar Visitante</h3>
 
                 <div className={`cadastro-cpfBadge ${cpfOk ? "ok" : "bad"}`}>
                   <span>CPF</span>
-                  <strong>{cpfDisplay || "-"}</strong>
+                  <input
+                    ref={cpfInputRef}
+                    className="cadastro-cpfInput"
+                    value={cpfDisplay}
+                    onChange={(e) => onChangeCpfInput(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const redirected = await lookupCpfAndGo(cpfDigits);
+                        if (!redirected) cadastrar();
+                      }
+                    }}
+                    inputMode="numeric"
+                    disabled={saving}
+                    placeholder="Digite o CPF"
+                  />
                 </div>
               </div>
 
               {!cpfOk && <div className="cadastro-cpfWarn">CPF inválido</div>}
+
+              {cpfLookup.status === "checking" && <div className="cadastro-info">Verificando CPF...</div>}
+              {cpfLookup.status === "exists" && <div className="cadastro-info ok">{cpfLookup.message}</div>}
+              {cpfLookup.status === "error" && <div className="cadastro-info bad">{cpfLookup.message}</div>}
 
               {msg && <div className="alert">{msg}</div>}
 
               <div className="cadastro-form">
                 <div className="cadastro-field">
                   <label className="cadastro-label">Nome completo</label>
-                  <input
-                    className="input"
-                    placeholder="Ex: João da Silva"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    disabled={saving}
-                  />
+                  <input className="input" placeholder="Ex: João da Silva" value={name} onChange={(e) => setName(e.target.value)} disabled={saving} />
                 </div>
 
                 <div className="cadastro-field">
@@ -307,13 +383,7 @@ export default function CadastroVisitante() {
 
                 <div className="cadastro-field">
                   <label className="cadastro-label">Empresa</label>
-                  <input
-                    className="input"
-                    placeholder="Ex: Transportadora X"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    disabled={saving}
-                  />
+                  <input className="input" placeholder="Ex: Transportadora X" value={company} onChange={(e) => setCompany(e.target.value)} disabled={saving} />
                 </div>
 
                 <button

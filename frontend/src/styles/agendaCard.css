@@ -1,0 +1,197 @@
+.agenda-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  transition: 0.15s ease;
+}
+
+.agenda-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+
+/* ===== PRÓXIMO VISITANTE ===== */
+
+.next-event {
+  border-color: var(--color-primary);
+  box-shadow: 0 12px 30px rgba(11, 110, 134, 0.14);
+}
+
+.next-badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+
+  background: #e9f2f6;
+  color: var(--color-primary);
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+
+/* ===== HEADER DO CARD ===== */
+
+.agenda-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.agenda-time {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--color-primary);
+}
+
+
+/* ===== STATUS ===== */
+
+.agenda-status {
+  padding: 7px 14px;
+  border-radius: 999px;
+
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.status-agendado {
+  background: #dcfce7;
+  color: var(--color-success);
+  border: 1px solid #bfe8cd;
+}
+
+.status-cancelado {
+  background: #fee2e2;
+  color: var(--color-danger);
+  border: 1px solid #f7c2c2;
+}
+
+.status-finalizado {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+
+/* ===== CONTEÚDO ===== */
+
+.agenda-card-body h3 {
+  margin: 0 0 10px;
+
+  font-size: 20px;
+  font-weight: 900;
+
+  color: var(--color-text);
+}
+
+.agenda-card-body p {
+  margin: 5px 0;
+
+  color: var(--color-text);
+
+  font-size: 14px;
+}
+
+
+/* ===== RODAPÉ ===== */
+
+.agenda-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-top: 16px;
+}
+
+
+/* ===== BOTÕES ===== */
+
+.agenda-card-footer .edit-button,
+.agenda-card-footer .agenda-cancel-button {
+  border-radius: var(--radius-sm);
+
+  padding: 10px 16px;
+
+  font-weight: 900;
+
+  cursor: pointer;
+
+  transition: 0.15s ease;
+}
+
+
+/* EDITAR */
+
+.agenda-card-footer .edit-button {
+  background: #e9f2f6;
+  color: var(--color-primary);
+
+  border: 1px solid var(--color-border-strong);
+}
+
+.agenda-card-footer .edit-button:hover {
+  background: #dfeef4;
+}
+
+
+/* CANCELAR */
+
+.agenda-card-footer .agenda-cancel-button {
+  background: var(--color-danger);
+  color: #ffffff;
+
+  border: 1px solid var(--color-danger);
+}
+
+.agenda-card-footer .agenda-cancel-button:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+
+/* CANCELADO / DESABILITADO */
+
+.agenda-card-footer .agenda-cancel-button:disabled {
+  background: #f1f5f8;
+  color: #7a92a1;
+
+  border-color: var(--color-border);
+
+  cursor: not-allowed;
+
+  opacity: 1;
+}
+
+
+/* ===== RESPONSIVO ===== */
+
+@media (max-width: 620px) {
+  .agenda-card {
+    padding: 16px;
+  }
+
+  .agenda-card-header {
+    align-items: flex-start;
+  }
+
+  .agenda-time {
+    font-size: 20px;
+  }
+
+  .agenda-card-footer {
+    width: 100%;
+  }
+
+  .agenda-card-footer .edit-button,
+  .agenda-card-footer .agenda-cancel-button {
+    flex: 1;
+  }
+}

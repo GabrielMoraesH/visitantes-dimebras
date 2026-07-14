@@ -1,0 +1,275 @@
+.tvDisplay-page {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #03070d;
+  color: #f7fbff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.tvDisplay-stage {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(13, 69, 86, 0.35), transparent 42%),
+    #03070d;
+}
+
+.tvDisplay-media {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  border: 0;
+  background: #03070d;
+}
+
+.tvDisplay-image,
+.tvDisplay-video {
+  object-fit: contain;
+}
+
+.tvDisplay-clockWrap {
+  position: fixed;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  margin: 20px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.tvDisplay-clockWrap {
+  right: 0;
+  padding: 10px 14px;
+  background: rgba(3, 7, 13, 0.72);
+}
+
+.tvDisplay-clock {
+  color: rgba(247, 251, 255, 0.92);
+  font-size: clamp(16px, 1.5vw, 22px);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+  text-transform: capitalize;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+.tvDisplay-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(36px, 5vw, 72px);
+  background:
+    radial-gradient(circle at 50% 25%, rgba(21, 120, 142, 0.42), transparent 38%),
+    linear-gradient(135deg, #03131c 0%, #073241 48%, #041016 100%);
+  color: #ffffff;
+  text-align: center;
+}
+
+.tvDisplay-welcome-card {
+  width: min(1120px, 92vw);
+  height: min(780px, calc(100vh - 118px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 3vw, 46px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tvDisplay-welcome-cardMultiple {
+  justify-content: space-between;
+  gap: clamp(14px, 2vw, 28px);
+}
+
+.tvDisplay-welcome-title {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: clamp(28px, 4vw, 62px);
+  font-weight: 900;
+  flex: 0 0 auto;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.tvDisplay-welcome-list {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 1.6vw, 22px);
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tvDisplay-welcome-cardMultiple .tvDisplay-welcome-list {
+  flex: 1 1 auto;
+  align-content: center;
+}
+
+.tvDisplay-welcome-count-2 .tvDisplay-welcome-list {
+  grid-template-columns: 1fr;
+}
+
+.tvDisplay-welcome-count-3 .tvDisplay-welcome-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tvDisplay-welcome-count-3 .tvDisplay-welcome-visitor:nth-child(3) {
+  grid-column: 1 / -1;
+  width: min(620px, 100%);
+}
+
+.tvDisplay-welcome-count-4 .tvDisplay-welcome-list,
+.tvDisplay-welcome-count-5 .tvDisplay-welcome-list,
+.tvDisplay-welcome-count-6 .tvDisplay-welcome-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tvDisplay-welcome-visitor {
+  width: min(980px, 100%);
+  min-width: 0;
+  padding: clamp(18px, 2.6vw, 34px) clamp(24px, 4vw, 56px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(8px);
+}
+
+.tvDisplay-welcome-name {
+  color: #ffffff;
+  font-size: clamp(44px, 7vw, 112px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+}
+
+.tvDisplay-welcome-cardMultiple .tvDisplay-welcome-name {
+  font-size: clamp(32px, 4.8vw, 70px);
+}
+
+.tvDisplay-welcome-count-3 .tvDisplay-welcome-name {
+  font-size: clamp(26px, 3.5vw, 50px);
+}
+
+.tvDisplay-welcome-count-3 .tvDisplay-welcome-visitor {
+  padding: clamp(14px, 1.8vw, 24px) clamp(16px, 2.8vw, 36px);
+}
+
+.tvDisplay-welcome-count-4 .tvDisplay-welcome-name,
+.tvDisplay-welcome-count-5 .tvDisplay-welcome-name,
+.tvDisplay-welcome-count-6 .tvDisplay-welcome-name {
+  font-size: clamp(24px, 3vw, 44px);
+}
+
+.tvDisplay-welcome-count-4 .tvDisplay-welcome-visitor,
+.tvDisplay-welcome-count-5 .tvDisplay-welcome-visitor,
+.tvDisplay-welcome-count-6 .tvDisplay-welcome-visitor {
+  padding: clamp(14px, 1.8vw, 24px) clamp(16px, 2.6vw, 34px);
+}
+
+.tvDisplay-welcome-message,
+.tvDisplay-welcome-extra {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(22px, 3vw, 44px);
+  font-weight: 800;
+  flex: 0 0 auto;
+  line-height: 1.2;
+}
+
+.tvDisplay-welcome-extra {
+  font-size: clamp(18px, 2.1vw, 30px);
+}
+
+.tvDisplay-status {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  padding: 48px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(12, 91, 112, 0.3), transparent 46%),
+    #03070d;
+  text-align: center;
+}
+
+.tvDisplay-status h1 {
+  max-width: min(920px, 90vw);
+  color: #f7fbff;
+  font-size: clamp(36px, 6vw, 82px);
+  font-weight: 800;
+  line-height: 1.08;
+  text-wrap: balance;
+  text-shadow: 0 6px 26px rgba(0, 0, 0, 0.4);
+}
+
+.tvDisplay-status p {
+  max-width: min(760px, 86vw);
+  color: rgba(247, 251, 255, 0.76);
+  font-size: clamp(18px, 2vw, 28px);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .tvDisplay-clockWrap {
+    min-height: 44px;
+    margin: 12px;
+    border-radius: 10px;
+  }
+
+  .tvDisplay-clockWrap {
+    padding: 8px 10px;
+  }
+
+  .tvDisplay-clock {
+    font-size: 15px;
+  }
+
+  .tvDisplay-welcome {
+    padding: 24px 14px 76px;
+  }
+
+  .tvDisplay-welcome-card {
+    height: min(680px, calc(100vh - 106px));
+    gap: 18px;
+  }
+
+  .tvDisplay-welcome-count-4 .tvDisplay-welcome-list,
+  .tvDisplay-welcome-count-5 .tvDisplay-welcome-list,
+  .tvDisplay-welcome-count-6 .tvDisplay-welcome-list {
+    grid-template-columns: 1fr;
+  }
+
+  .tvDisplay-welcome-cardMultiple .tvDisplay-welcome-name,
+  .tvDisplay-welcome-count-3 .tvDisplay-welcome-name,
+  .tvDisplay-welcome-count-4 .tvDisplay-welcome-name,
+  .tvDisplay-welcome-count-5 .tvDisplay-welcome-name,
+  .tvDisplay-welcome-count-6 .tvDisplay-welcome-name {
+    font-size: clamp(22px, 7vw, 42px);
+  }
+}
