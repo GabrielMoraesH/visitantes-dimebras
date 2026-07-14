@@ -250,6 +250,7 @@ export async function label(req, res) {
         <head>
           <meta charset="utf-8" />
           <title>Etiqueta</title>
+
           <style>
             @page {
               size: 100mm 60mm;
@@ -276,6 +277,15 @@ export async function label(req, res) {
               padding-right: 6mm;
             }
 
+            .label-logo {
+              display: block;
+              height: 9mm;
+              width: auto;
+              max-width: 48mm;
+              object-fit: contain;
+              margin-bottom: 3mm;
+            }
+
             h2 {
               margin: 0 0 3mm 0;
               font-size: 16px;
@@ -290,10 +300,10 @@ export async function label(req, res) {
               font-size: 9px;
             }
 
-            .code{
-            font-size: 16px;
+            .code {
+              font-size: 16px;
             }
-            
+
             .qr {
               width: 30mm;
               height: 30mm;
@@ -323,37 +333,57 @@ export async function label(req, res) {
             }
 
             @media print {
-              body { margin: 0; }
-              .actions { display: none; }
+              body {
+              margin: 0;
             }
-          </style>
-        </head>
-        <body>
-          <div class="actions">
-            <button id="print-button" type="button">IMPRIMIR</button>
-            <button id="close-button" type="button" class="secondary">FECHAR</button>
-          </div>
-          <div class="tag">
-            <div class="info">
-              <img src="/logo2.png" style="height: 9mm; margin-bottom: 3mm; filter: brightness(0);" />
-              <p><b>Nome:</b> ${visitorName}</p>
-              <p><b>CPF:</b> ${visitorCpf}</p>
-              <p><b>Empresa:</b> ${visitorCompany}</p>
-              <p><b>Falar com:</b> ${attendedBy}</p>
-              <p class="small"><b>Unidade:</b> ${branchName}</p>
-              <p class="small"><b>Entrada:</b> ${checkinAt}</p>
-              <p class="code"><b>Código:</b> ${visitCode}</p>
-            </div>
 
-            <img class="qr" src="${qrDataUrl}" />
-          </div>
-          <script nonce="${scriptNonce}">
-            document.getElementById("print-button")?.addEventListener("click", () => window.print());
-            document.getElementById("close-button")?.addEventListener("click", () => window.close());
-          </script>
-        </body>
-      </html>
-    `;
+            .actions {
+              display: none;
+            }
+          }
+        </style>
+      </head>
+
+    <body>
+      <div class="actions">
+        <button id="print-button" type="button">IMPRIMIR</button>
+        <button id="close-button" type="button" class="secondary">
+          FECHAR
+        </button>
+      </div>
+
+      <div class="tag">
+        <div class="info">
+          <img
+            src="/LogoPreta.png"
+            alt="Dimebras"
+            class="label-logo"
+          />
+
+          <p><b>Nome:</b> ${visitorName}</p>
+          <p><b>CPF:</b> ${visitorCpf}</p>
+          <p><b>Empresa:</b> ${visitorCompany}</p>
+          <p><b>Falar com:</b> ${attendedBy}</p>
+          <p class="small"><b>Unidade:</b> ${branchName}</p>
+          <p class="small"><b>Entrada:</b> ${checkinAt}</p>
+          <p class="code"><b>Código:</b> ${visitCode}</p>
+        </div>
+
+        <img class="qr" src="${qrDataUrl}" alt="QR Code da visita" />
+      </div>
+
+      <script nonce="${scriptNonce}">
+        document
+          .getElementById("print-button")
+          ?.addEventListener("click", () => window.print());
+
+        document
+          .getElementById("close-button")
+          ?.addEventListener("click", () => window.close());
+      </script>
+    </body>
+  </html>
+`;
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader(
