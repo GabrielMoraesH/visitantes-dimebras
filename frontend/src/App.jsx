@@ -11,6 +11,28 @@ import TvDisplay from "./pages/TvDisplay";
 import { ToastProvider } from "./components/Feedback/ToastProvider";
 import { ConfirmProvider } from "./components/Feedback/ConfirmProvider";
 
+function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
+}
+
+function ProtectedRoute({ children, roles }) {
+  const token = localStorage.getItem("token");
+  const user = getStoredUser();
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (roles?.length && !roles.includes(user?.role)) {
+    return <Navigate to="/checkin" replace />;
+  }
+
+  return children;
+}
 
 export default function App() {
   return (
@@ -20,13 +42,22 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/tv" element={<TvDisplay />} />
-            <Route path="/checkin" element={<Checkin />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/visit/:id" element={<VisitDetails />} />
-            <Route path="/cadastro" element={<CadastroVisitante />} />
-            <Route path="/admin/users" element={<AdminUsers />} />
-            <Route path="/agenda" element={<Agenda />} />
-            <Route path="/tv-content" element={<TvContent />} />
+            <Route path="/checkin" element={<ProtectedRoute><Checkin /></ProtectedRoute>} />
+            <Route
+              path="/history"
+              element={<ProtectedRoute roles={["ADMIN"]}><History /></ProtectedRoute>}
+            />
+            <Route path="/visit/:id" element={<ProtectedRoute><VisitDetails /></ProtectedRoute>} />
+            <Route path="/cadastro" element={<ProtectedRoute><CadastroVisitante /></ProtectedRoute>} />
+            <Route
+              path="/admin/users"
+              element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>}
+            />
+            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route
+              path="/tv-content"
+              element={<ProtectedRoute roles={["ADMIN"]}><TvContent /></ProtectedRoute>}
+            />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
