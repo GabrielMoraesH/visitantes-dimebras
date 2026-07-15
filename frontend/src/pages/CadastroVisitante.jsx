@@ -58,6 +58,18 @@ function makeJpgFile(blob, filenameBase) {
   return new File([blob], `${filenameBase}.jpg`, { type: "image/jpeg" });
 }
 
+function uploadErrorMessage(err) {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.code;
+  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Imagem excede o limite permitido.";
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Imagem em formato nao permitido.";
+  const message = err?.response?.data?.message || "Erro ao salvar visitante";
+  if (err?.cleanupFailed) {
+    return `${message}. O cadastro pode ter ficado incompleto; busque o CPF novamente para continuar.`;
+  }
+  return message;
+}
+
 export default function CadastroVisitante() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -88,6 +100,7 @@ export default function CadastroVisitante() {
   const [cpfLookup, setCpfLookup] = useState({ status: "idle", message: "" });
   const lookupTimerRef = useRef(null);
   const lastLookupCpfRef = useRef("");
+  const submittingRef = useRef(false);
 
   const photoPreview = useMemo(() => (photo ? URL.createObjectURL(photo) : ""), [photo]);
   const docFrontPreview = useMemo(() => (docFront ? URL.createObjectURL(docFront) : ""), [docFront]);
@@ -152,6 +165,32 @@ export default function CadastroVisitante() {
 
     setCameraOpen(false);
     setCameraTarget(null);
+  }
+
+  function buildVisitorFilesFormData() {
+    const fd = new FormData();
+    fd.set("photo", photo);
+    fd.set("documentFront", docFront);
+    fd.set("documentBack", docBack);
+    return fd;
+  }
+
+  async function uploadVisitorFiles(visitorId) {
+    return api.put(`/visitors/${visitorId}/files`, buildVisitorFilesFormData(), {
+      headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
+    });
+  }
+
+  async function cleanupIncompleteVisitor(visitorId) {
+    try {
+      await api.delete(`/visitors/${visitorId}/incomplete-created`, {
+        headers: authHeader(),
+      });
+      return true;
+    } catch {
+      console.warn("Falha ao executar compensacao de visitante incompleto.");
+      return false;
+    }
   }
 
   function onChangeCpfInput(value) {
@@ -221,8 +260,7 @@ export default function CadastroVisitante() {
   }, [cpfDigits, cpfOk]);
 
   async function cadastrar() {
-    const redirected = await lookupCpfAndGo(cpfDigits);
-    if (redirected) return;
+    if (submittingRef.current) return;
 
     const err = getFirstError();
     if (err) {
@@ -235,34 +273,51 @@ export default function CadastroVisitante() {
       return;
     }
 
+    submittingRef.current = true;
     setSaving(true);
     setMsg("");
 
+    let createdVisitorId = null;
+
     try {
-      const { data: created } = await api.post(
-        "/visitors",
-        {
-          name: name.trim(),
-          cpf: cpfDigits,
-          phone: onlyDigits(phoneDisplay),
-          company: company.trim(),
-        },
-        { headers: authHeader() }
-      );
+      let created;
+      try {
+        const response = await api.post(
+          "/visitors",
+          {
+            name: name.trim(),
+            cpf: cpfDigits,
+            phone: onlyDigits(phoneDisplay),
+            company: company.trim(),
+          },
+          { headers: authHeader() }
+        );
+        created = response.data;
+        createdVisitorId = created.id;
+      } catch (createErr) {
+        if (createErr?.response?.status !== 409) throw createErr;
 
-      const fd = new FormData();
-      fd.append("photo", photo);
-      fd.append("documentFront", docFront);
-      fd.append("documentBack", docBack);
+        const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`, {
+          headers: authHeader(),
+        });
+        created = existing.data;
+      }
 
-      await api.put(`/visitors/${created.id}/files`, fd, {
-        headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
-      });
+      try {
+        await uploadVisitorFiles(created.id);
+      } catch (uploadErr) {
+        if (createdVisitorId) {
+          const cleaned = await cleanupIncompleteVisitor(createdVisitorId);
+          uploadErr.cleanupFailed = !cleaned;
+        }
+        throw uploadErr;
+      }
 
       navigate(`/checkin?cpf=${cpfDigits}`);
     } catch (err2) {
-      setMsg(err2?.response?.data?.message || "Erro ao salvar visitante");
+      setMsg(uploadErrorMessage(err2));
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }
