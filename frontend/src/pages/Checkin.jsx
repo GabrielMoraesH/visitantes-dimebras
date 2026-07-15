@@ -64,6 +64,14 @@ function fmt(dt) {
   return d.toLocaleString("pt-BR");
 }
 
+function uploadErrorMessage(err, fallback) {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.code;
+  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Imagem excede o limite permitido.";
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Imagem em formato nao permitido.";
+  return err?.response?.data?.message || fallback;
+}
+
 export default function Checkin() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -111,6 +119,7 @@ export default function Checkin() {
   const loadingOpenVisitsRef = useRef(false);
   const pendingOpenVisitsRef = useRef(null);
   const openVisitsIntervalRef = useRef(null);
+  const updatingFilesRef = useRef(false);
 
   const showToast = useCallback((text, type = "success") => {
     toast[type]?.(text) ?? toast.show(text, type);
@@ -440,12 +449,14 @@ export default function Checkin() {
 
   async function atualizarFoto(blob) {
     if (!visitor?.id) return;
+    if (updatingFilesRef.current) return;
 
     const localUrl = URL.createObjectURL(blob);
     revokeUrl(photoPreviewUrl);
     setPhotoPreviewUrl(localUrl);
 
     try {
+      updatingFilesRef.current = true;
       setUpdatingFiles(true);
       setMsg("");
       setFieldErrors([]);
@@ -455,7 +466,7 @@ export default function Checkin() {
       });
 
       const fd = new FormData();
-      fd.append("photo", photoFile);
+      fd.set("photo", photoFile);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
         headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
@@ -466,19 +477,22 @@ export default function Checkin() {
       await refreshVisitor();
       showToast("Foto atualizada!", "success");
     } catch (err) {
-      setMsg(err?.response?.data?.message || "Erro ao atualizar foto");
+      setMsg(uploadErrorMessage(err, "Erro ao atualizar foto"));
       revokeUrl(localUrl);
       setPhotoPreviewUrl("");
       showToast("Erro ao atualizar foto", "error");
     } finally {
+      updatingFilesRef.current = false;
       setUpdatingFiles(false);
     }
   }
 
   async function atualizarDocFrente(blob) {
     if (!visitor?.id) return;
+    if (updatingFilesRef.current) return;
 
     try {
+      updatingFilesRef.current = true;
       setUpdatingFiles(true);
       setMsg("");
       setFieldErrors([]);
@@ -488,7 +502,7 @@ export default function Checkin() {
       });
 
       const fd = new FormData();
-      fd.append("documentFront", file);
+      fd.set("documentFront", file);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
         headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
@@ -499,17 +513,20 @@ export default function Checkin() {
       await refreshVisitor();
       showToast("Documento (frente) atualizado!", "success");
     } catch (err) {
-      setMsg(err?.response?.data?.message || "Erro ao atualizar documento (frente)");
+      setMsg(uploadErrorMessage(err, "Erro ao atualizar documento (frente)"));
       showToast("Erro ao atualizar documento (frente)", "error");
     } finally {
+      updatingFilesRef.current = false;
       setUpdatingFiles(false);
     }
   }
 
   async function atualizarDocVerso(blob) {
     if (!visitor?.id) return;
+    if (updatingFilesRef.current) return;
 
     try {
+      updatingFilesRef.current = true;
       setUpdatingFiles(true);
       setMsg("");
       setFieldErrors([]);
@@ -519,7 +536,7 @@ export default function Checkin() {
       });
 
       const fd = new FormData();
-      fd.append("documentBack", file);
+      fd.set("documentBack", file);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
         headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
@@ -530,9 +547,10 @@ export default function Checkin() {
       await refreshVisitor();
       showToast("Documento (verso) atualizado!", "success");
     } catch (err) {
-      setMsg(err?.response?.data?.message || "Erro ao atualizar documento (verso)");
+      setMsg(uploadErrorMessage(err, "Erro ao atualizar documento (verso)"));
       showToast("Erro ao atualizar documento (verso)", "error");
     } finally {
+      updatingFilesRef.current = false;
       setUpdatingFiles(false);
     }
   }
@@ -608,15 +626,20 @@ export default function Checkin() {
       const resp = err?.response?.data;
       const m = resp?.message || "Erro ao gerar etiqueta";
 
-      if (Array.isArray(resp?.issues) && resp.issues.length > 0) {
-        setFieldErrors(resp.issues);
+      const details = resp?.details || resp?.issues;
+
+      if (Array.isArray(details) && details.length > 0) {
+        setFieldErrors(details.map((item) => ({ path: item.path || item.field, message: item.message })));
         setMsg("");
         showToast("Verifique os campos obrigatórios", "error");
       } else {
         setMsg(m);
       }
 
-      if (String(m).toLowerCase().includes("visita em andamento")) {
+      if (
+        resp?.code === "VISITOR_OPEN_VISIT_CONFLICT" ||
+        String(m).toLowerCase().includes("visita em andamento")
+      ) {
         await buscarVisitaAberta(onlyDigits(visitor?.cpf || cpf));
       }
     }

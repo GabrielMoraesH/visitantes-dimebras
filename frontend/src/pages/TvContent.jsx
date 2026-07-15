@@ -13,6 +13,10 @@ import { useConfirm } from "../components/Feedback/ConfirmProvider";
 import { useToast } from "../components/Feedback/ToastProvider";
 import "../styles/tvContent.css";
 
+const TV_MAX_FILE_SIZE = 200 * 1024 * 1024;
+const TV_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
+const TV_ALLOWED_MIMES = new Set(TV_ACCEPT.split(","));
+
 function parseJwt(token) {
   try {
     const base64Url = token.split(".")[1];
@@ -70,6 +74,14 @@ function fmtDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleString("pt-BR");
+}
+
+function uploadErrorMessage(err, fallback) {
+  const status = err?.response?.status;
+  const code = err?.response?.data?.code;
+  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Arquivo excede o limite de 200MB.";
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Formato de arquivo nao permitido.";
+  return err?.response?.data?.message || fallback;
 }
 
 function branchIdsFromItem(item) {
@@ -258,6 +270,12 @@ export default function TvContent() {
     const cleanTitle = title.trim();
     if (!cleanTitle) return showToast("Informe o titulo da midia.", "error");
     if (!file) return showToast("Selecione um arquivo.", "error");
+    if (!TV_ALLOWED_MIMES.has(file.type)) {
+      return showToast("Use JPG, PNG, WEBP, MP4 ou WEBM.", "error");
+    }
+    if (file.size > TV_MAX_FILE_SIZE) {
+      return showToast("Arquivo excede o limite de 200MB.", "error");
+    }
     if (selectedBranchIds.length === 0) {
       return showToast("Selecione pelo menos uma filial.", "error");
     }
@@ -281,7 +299,7 @@ export default function TvContent() {
       showToast("Midia enviada com sucesso!");
       await loadContents();
     } catch (err) {
-      const message = err?.response?.data?.message || "Erro ao enviar midia.";
+      const message = uploadErrorMessage(err, "Erro ao enviar midia.");
       setMsg(message);
       showToast(message, "error");
     } finally {
@@ -403,7 +421,7 @@ export default function TvContent() {
                 <input
                   className="tc-input"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                  accept={TV_ACCEPT}
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </div>

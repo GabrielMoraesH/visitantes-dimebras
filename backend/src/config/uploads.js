@@ -10,6 +10,8 @@ const defaultUploadRoot = path.resolve(__dirname, "../../uploads");
 
 export const uploadRoot = path.resolve(process.env.UPLOAD_ROOT || defaultUploadRoot);
 export const tvUploadDir = path.join(uploadRoot, "tv");
+export const tvTempUploadDir = path.join(uploadRoot, "tmp", "tv");
 export const tvPublicPrefix = "/uploads/tv";
 
 fs.mkdirSync(tvUploadDir, { recursive: true });
+fs.mkdirSync(tvTempUploadDir, { recursive: true });

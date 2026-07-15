@@ -8,8 +8,9 @@ import {
   getVisitorDocFront,
   getVisitorDocBack,
   updateVisitor,
+  deleteIncompleteVisitorFromCurrentAttempt,
 } from "../controllers/visitors.controller.js";
-import { upload } from "../utils/upload.js";
+import { handleVisitorUploadErrors } from "../utils/upload.js";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.get("/by-cpf/:cpf", auth, getByCpf);
 router.post("/", auth, createVisitor);
 
 router.put("/:id", auth, updateVisitor);
+router.delete("/:id/incomplete-created", auth, deleteIncompleteVisitorFromCurrentAttempt);
 
 router.get("/:id/photo", auth, getVisitorPhoto);
 router.get("/:id/doc-front", auth, getVisitorDocFront);
@@ -25,11 +27,7 @@ router.get("/:id/doc-back", auth, getVisitorDocBack);
 router.put(
   "/:id/files",
   auth,
-  upload.fields([
-    { name: "photo", maxCount: 1 },
-    { name: "documentFront", maxCount: 1 },
-    { name: "documentBack", maxCount: 1 },
-  ]),
+  handleVisitorUploadErrors,
   updateVisitorFiles
 );
 
