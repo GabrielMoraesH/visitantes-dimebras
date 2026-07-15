@@ -2,11 +2,13 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import { z } from "zod";
+import { ALL_USER_ROLES } from "../constants/roles.js";
+import { passwordSchema, usernameSchema } from "../utils/validation.js";
 
 const loginSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-});
+  username: usernameSchema,
+  password: passwordSchema,
+}).strict();
 
 export async function login(req, res) {
   try {
@@ -20,10 +22,8 @@ export async function login(req, res) {
     if (!user) {
       return res.status(401).json({ message: "Usuário ou senha inválidos" });
     }
-    if (user.isActive === false) {
-      return res.status(403).json({ 
-        message: "Usuário desativado. Contate o administrador." 
-      });
+    if (user.isActive === false || !ALL_USER_ROLES.includes(user.role)) {
+      return res.status(401).json({ message: "Usuário ou senha inválidos" });
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
