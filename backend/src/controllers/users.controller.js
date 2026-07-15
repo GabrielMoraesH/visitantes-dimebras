@@ -1,24 +1,22 @@
 import prisma from "../lib/prisma.js";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { ALL_USER_ROLES } from "../constants/roles.js";
+import { idParamSchema, passwordSchema, usernameSchema } from "../utils/validation.js";
 
 const createUserSchema = z.object({
-  username: z.string().trim().min(3, "Usuário deve ter no mínimo 3 caracteres"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  role: z.enum(["RECEPCAO", "ADMIN"]).optional().default("RECEPCAO"),
-  branchId: z.number().int().positive("branchId inválido"),
-});
-
-const idParamSchema = z.object({
-  id: z.coerce.number().int().positive(),
-});
+  username: usernameSchema,
+  password: passwordSchema,
+  role: z.enum(ALL_USER_ROLES).optional().default("RECEPCAO"),
+  branchId: z.number().int().positive("branchId invalido"),
+}).strict();
 
 const updateUserSchema = z.object({
-  username: z.string().trim().min(3, "Usuário deve ter no mínimo 3 caracteres").optional(),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres").optional(),
-  role: z.enum(["RECEPCAO", "ADMIN"]).optional(),
-  branchId: z.coerce.number().int().positive("branchId inválido").optional(),
-});
+  username: usernameSchema.optional(),
+  password: passwordSchema.optional(),
+  role: z.enum(ALL_USER_ROLES).optional(),
+  branchId: z.number().int().positive("branchId invalido").optional(),
+}).strict();
 
 function zodIssues(err) {
   return err?.issues?.map((i) => ({

@@ -4,16 +4,21 @@ import { z } from "zod";
 import QRCode from "qrcode";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
+import { userCanAccessVisitor } from "../utils/visitorAccess.js";
+import {
+  boundedLimitQuery,
+  cpfSchema,
+  idParamSchema,
+  LIMITS,
+  positiveIntBody,
+  trimmedString,
+} from "../utils/validation.js";
 
 const numericCode = customAlphabet("0123456789", 8);
 const LABEL_TOKEN_TTL_SECONDS = Math.max(
   300,
   Number(process.env.LABEL_TOKEN_TTL_SECONDS || 8 * 60 * 60)
 );
-
-function onlyDigits(v = "") {
-  return String(v).replace(/\D/g, "");
-}
 
 function zodToIssues(err) {
   return err?.issues?.map((i) => ({
@@ -31,12 +36,29 @@ function escapeHtml(value = "") {
     .replace(/'/g, "&#39;");
 }
 
-function getBearerPayload(req) {
+async function getBearerUser(req) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) return null;
 
   try {
-    return jwt.verify(header.slice("Bearer ".length), process.env.JWT_SECRET);
+    const payload = jwt.verify(header.slice("Bearer ".length), process.env.JWT_SECRET);
+    const id = Number(payload.sub ?? payload.id);
+
+    if (!Number.isInteger(id) || id <= 0) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        role: true,
+        branchId: true,
+        isActive: true,
+      },
+    });
+
+    if (!user || user.isActive !== true) return null;
+
+    return user;
   } catch {
     return null;
   }
@@ -67,22 +89,21 @@ function verifyLabelToken(req, visit) {
 const asString = (v) => (v === null || v === undefined ? "" : String(v));
 
 const checkinSchema = z.object({
-  visitorId: z.number(),
+  visitorId: positiveIntBody("Visitante invalido"),
 
   areaToVisit: z
-    .preprocess(asString, z.string().trim().min(1, "Selecione o setor.")),
+    .preprocess(asString, trimmedString(LIMITS.visitText, "Selecione o setor.")),
 
   attendedBy: z
-    .preprocess(asString, z.string().trim().min(2, "Informe com quem veio falar.")),
+    .preprocess(asString, trimmedString(LIMITS.visitText, "Informe com quem veio falar.").min(2, "Informe com quem veio falar.")),
 
   serviceType: z
-    .preprocess(asString, z.string().trim().min(2, "Informe o que veio fazer na empresa.")),
-});
+    .preprocess(asString, trimmedString(LIMITS.visitText, "Informe o que veio fazer na empresa.").min(2, "Informe o que veio fazer na empresa.")),
+}).strict();
 
 export async function labelToken(req, res) {
   try {
-    const visitId = Number(req.params.id);
-    if (!visitId) return res.status(400).json({ message: "ID invalido" });
+    const { id: visitId } = idParamSchema.parse(req.params);
 
     const visit = await prisma.visit.findUnique({
       where: { id: visitId },
@@ -126,6 +147,11 @@ export async function checkin(req, res) {
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitante não encontrado" });
+    }
+
+    const canAccessVisitor = await userCanAccessVisitor(req.user, visitor.id);
+    if (!canAccessVisitor) {
+      return res.status(404).json({ message: "Visitante nao encontrado" });
     }
 
     const branch = await prisma.branch.findUnique({
@@ -202,7 +228,7 @@ export async function checkin(req, res) {
 
 export async function label(req, res) {
   try {
-    const visitId = Number(req.params.id);
+    const { id: visitId } = idParamSchema.parse(req.params);
 
     const visit = await prisma.visit.findUnique({
       where: { id: visitId },
@@ -222,12 +248,12 @@ export async function label(req, res) {
       return res.status(404).send("Visita não encontrada");
     }
 
-    const bearerPayload = getBearerPayload(req);
-    const hasBearerAccess = bearerPayload && userCanAccessVisit(bearerPayload, visit);
+    const bearerUser = await getBearerUser(req);
+    const hasBearerAccess = bearerUser && userCanAccessVisit(bearerUser, visit);
     const hasTokenAccess = verifyLabelToken(req, visit);
 
     if (!hasBearerAccess && !hasTokenAccess) {
-      return res.status(401).send("Acesso negado");
+      return res.status(404).send("Visita nao encontrada");
     }
 
     const qrDataUrl = await QRCode.toDataURL(visit.visitCode, {
@@ -407,12 +433,16 @@ export async function label(req, res) {
 }
 
 const checkoutSchema = z.object({
-  visitCode: z.string().min(6, "QR inválido (código muito curto)"),
-});
+  visitCode: z
+    .string()
+    .trim()
+    .min(6, "QR invalido (codigo muito curto)")
+    .max(LIMITS.visitCode, "QR invalido"),
+}).strict();
 
 export async function openByCpf(req, res) {
   try {
-    const cpf = onlyDigits(req.params.cpf);
+    const cpf = cpfSchema.parse(req.params.cpf);
 
     const visit = await prisma.visit.findFirst({
       where: {
@@ -442,7 +472,7 @@ export async function openByCpf(req, res) {
 
 export async function statsByCpf(req, res) {
   try {
-    const cpf = onlyDigits(req.params.cpf);
+    const cpf = cpfSchema.parse(req.params.cpf);
     const role = String(req.user?.role || "").toUpperCase();
     const where = { visitor: { is: { cpf } } };
 
@@ -468,8 +498,8 @@ export async function statsByCpf(req, res) {
 
 export async function recentByCpf(req, res) {
   try {
-    const cpf = onlyDigits(req.params.cpf);
-    const limit = Math.min(20, Math.max(1, Number(req.query.limit || 5)));
+    const cpf = cpfSchema.parse(req.params.cpf);
+    const limit = boundedLimitQuery(20, 5).parse(req.query.limit);
     const role = String(req.user?.role || "").toUpperCase();
     const where = { visitor: { is: { cpf } } };
 
@@ -540,8 +570,7 @@ export async function checkout(req, res) {
 
 export async function getVisitById(req, res) {
   try {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ message: "ID inválido" });
+    const { id } = idParamSchema.parse(req.params);
 
     const visit = await prisma.visit.findUnique({
       where: { id },
@@ -570,7 +599,7 @@ export async function getVisitById(req, res) {
     const sameBranch = Number(req.user?.branchId) === Number(visit.branch?.id);
 
     if (!isAdmin && !sameBranch) {
-      return res.status(403).json({ message: "Acesso negado" });
+      return res.status(404).json({ message: "Visita nao encontrada" });
     }
     return res.json(visit);
   } catch (err) {

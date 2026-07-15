@@ -1,5 +1,13 @@
 import prisma from "../lib/prisma.js";
 import { z } from "zod";
+import {
+  dateOnlySchema,
+  dateTimeSchema,
+  idParamSchema,
+  LIMITS,
+  positiveIntQuery,
+  trimmedString,
+} from "../utils/validation.js";
 
 function zodToIssues(err) {
   return (
@@ -17,35 +25,31 @@ const PAST_AGENDA_MESSAGE =
 const createAgendaSchema = z.object({
   visitorName: z.preprocess(
     asString,
-    z.string().trim().min(2, "Informe o nome do visitante.")
+    trimmedString(LIMITS.agendaText, "Informe o nome do visitante.").min(2, "Informe o nome do visitante.")
   ),
-
   company: z.preprocess(
     asString,
-    z.string().trim().min(2, "Informe a empresa.")
+    trimmedString(LIMITS.agendaText, "Informe a empresa.").min(2, "Informe a empresa.")
   ),
-
   eventWith: z.preprocess(
     asString,
-    z.string().trim().min(2, "Informe com quem será o evento.")
+    trimmedString(LIMITS.agendaText, "Informe com quem sera o evento.").min(2, "Informe com quem sera o evento.")
   ),
-
   department: z.preprocess(
     asString,
-    z.string().trim().min(2, "Informe o setor.")
+    trimmedString(LIMITS.agendaText, "Informe o setor.").min(2, "Informe o setor.")
   ),
-
-  eventDateTime: z.preprocess(
-    asString,
-    z.string().min(1, "Informe a data e hora do evento.")
-  ),
-
-  observation: z.preprocess(asString, z.string()).optional(),
-});
+  eventDateTime: z.preprocess(asString, dateTimeSchema),
+  observation: z.preprocess(asString, z.string().trim().max(LIMITS.agendaObservation)).optional(),
+}).strict();
 
 const publicTvNowSchema = z.object({
-  branchId: z.coerce.number().int().positive(),
-});
+  branchId: positiveIntQuery("branchId"),
+}).strict();
+
+const listEventsQuerySchema = z.object({
+  date: dateOnlySchema.optional(),
+}).strict();
 
 function validateFutureDate(eventDate) {
   if (eventDate < new Date()) {
@@ -61,7 +65,7 @@ function validateFutureDate(eventDate) {
 
 export async function listEvents(req, res) {
   try {
-    const { date } = req.query;
+    const { date } = listEventsQuerySchema.parse(req.query);
 
     let startOfDay;
     let endOfDay;
@@ -238,13 +242,7 @@ export async function createEvent(req, res) {
 
 export async function updateEvent(req, res) {
   try {
-    const id = Number(req.params.id);
-
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({
-        message: "ID inválido.",
-      });
-    }
+    const { id } = idParamSchema.parse(req.params);
 
     const existingEvent = await prisma.agendaEvent.findFirst({
       where: {
@@ -303,13 +301,7 @@ export async function updateEvent(req, res) {
 
 export async function cancelEvent(req, res) {
   try {
-    const id = Number(req.params.id);
-
-    if (!Number.isInteger(id) || id <= 0) {
-      return res.status(400).json({
-        message: "ID inválido.",
-      });
-    }
+    const { id } = idParamSchema.parse(req.params);
 
     const existingEvent = await prisma.agendaEvent.findFirst({
       where: {

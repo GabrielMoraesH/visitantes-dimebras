@@ -1,16 +1,20 @@
 import prisma from "../lib/prisma.js";
+import { z } from "zod";
+import { boundedLimitQuery, boundedPageQuery, cpfSchema, dateOnlySchema } from "../utils/validation.js";
 
-function onlyDigits(v = "") {
-  return String(v).replace(/\D/g, "");
-}
+const historyQuerySchema = z.object({
+  cpf: cpfSchema.optional(),
+  status: z.enum(["open", "closed"]).optional(),
+  branchName: z.string().trim().max(120).optional(),
+  date: dateOnlySchema.optional(),
+  page: boundedPageQuery.optional().default("1"),
+  limit: boundedLimitQuery(100, 25),
+}).strict();
 
 export async function listHistory(req, res) {
   try {
-    const { cpf, status, branchName, date } = req.query;
+    const { cpf, status, branchName, date, page, limit } = historyQuerySchema.parse(req.query);
 
-    const page = Math.max(1, Number(req.query.page || 1));
-    const limitRaw = Number(req.query.limit || 25);
-    const limit = Math.min(100, Math.max(1, limitRaw));
     const skip = (page - 1) * limit;
 
     const where = {};
@@ -19,7 +23,7 @@ export async function listHistory(req, res) {
     if (status === "closed") where.checkoutAt = { not: null };
 
     if (cpf) {
-      where.visitor = { cpf: onlyDigits(cpf) };
+      where.visitor = { cpf };
     }
 
     if (branchName && branchName !== "all") {
@@ -89,6 +93,9 @@ export async function listHistory(req, res) {
       totalPages,
     });
   } catch (error) {
+    if (error?.name === "ZodError") {
+      return res.status(400).json({ message: "Parametros invalidos", issues: error.issues });
+    }
     console.error(error);
     return res.status(500).json({ message: "Erro ao carregar histórico" });
   }

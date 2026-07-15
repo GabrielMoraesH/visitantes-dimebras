@@ -5,6 +5,7 @@ function normalizeRole(role) {
 }
 
 function toPositiveInt(value) {
+  if (typeof value === "string" && !/^[1-9]\d*$/.test(value)) return null;
   const id = Number(value);
   return Number.isInteger(id) && id > 0 ? id : null;
 }
