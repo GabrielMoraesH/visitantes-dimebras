@@ -1,26 +1,4 @@
-import prisma from "../lib/prisma.js";
-import { z } from "zod";
-import { parseVisitorId, userCanAccessVisitor } from "../utils/visitorAccess.js";
-import { validateMagicBytes, VISITOR_IMAGE_MIMES } from "../utils/fileSecurity.js";
-import {
-  cpfSchema,
-  LIMITS,
-  optionalTrimmedString,
-  phoneSchema,
-  trimmedString,
-} from "../utils/validation.js";
-
-const createVisitorSchema = z.object({
-  name: trimmedString(LIMITS.name, "Nome invalido").min(2, "Nome invalido"),
-  cpf: cpfSchema,
-  phone: phoneSchema,
-  company: optionalTrimmedString(LIMITS.company),
-}).strict();
-
-const updateVisitorSchema = z.object({
-  phone: phoneSchema.optional(),
-  company: optionalTrimmedString(LIMITS.company).optional(),
-}).strict();
+import * as VisitorService from "../services/visitor.service.js";
 
 function sendSensitiveFileHeaders(res, contentType) {
   res.setHeader("Content-Type", contentType || "image/jpeg");
@@ -30,61 +8,50 @@ function sendSensitiveFileHeaders(res, contentType) {
   res.setHeader("Pragma", "no-cache");
 }
 
-function validateVisitorFile(file) {
-  if (!file) return null;
-  return validateMagicBytes(file, VISITOR_IMAGE_MIMES);
-}
-
 async function ensureVisitorFileAccess(req, res) {
-  const id = parseVisitorId(req.params.id);
-  if (!id) {
+  const access = await VisitorService.ensureFileAccess({
+    user: req.user,
+    id: req.params.id,
+  });
+
+  if (access.ok) return access.id;
+
+  if (access.reason === "invalid-id") {
     res.status(400).json({ message: "ID inv\u00e1lido" });
     return null;
   }
 
-  const canAccess = await userCanAccessVisitor(req.user, id);
-  if (!canAccess) {
-    res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
-    return null;
+  res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
+  return null;
+}
+
+function sendFileAccessError(res, result) {
+  if (result.reason === "invalid-id") {
+    res.status(400).json({ message: "ID inv\u00e1lido" });
+    return true;
   }
 
-  return id;
+  if (result.reason === "not-found") {
+    res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
+    return true;
+  }
+
+  return false;
 }
 
 export async function getByCpf(req, res) {
   try {
-    const cpf = cpfSchema.parse(req.params.cpf);
-
-    const visitor = await prisma.visitor.findUnique({
-      where: { cpf },
-      select: {
-        id: true,
-        name: true,
-        cpf: true,
-        phone: true,
-        company: true,
-
-        photoUpdatedAt: true,
-        documentFrontUpdatedAt: true,
-        documentBackUpdatedAt: true,
-
-        photoMime: true,
-        documentFrontMime: true,
-        documentBackMime: true,
-
-        createdAt: true,
-        updatedAt: true,
-      },
+    const result = await VisitorService.findByCpf({
+      user: req.user,
+      cpf: req.params.cpf,
     });
 
-    if (!visitor) return res.status(404).json({ message: "Visitante não encontrado" });
-
-    const canAccess = await userCanAccessVisitor(req.user, visitor.id);
-    if (!canAccess) {
-      return res.status(404).json({ message: "Visitante nao encontrado" });
+    if (!result.found) {
+      const message = result.inaccessible ? "Visitante nao encontrado" : "Visitante n\u00e3o encontrado";
+      return res.status(404).json({ message });
     }
 
-    return res.json(visitor);
+    return res.json(result.visitor);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -93,37 +60,18 @@ export async function getByCpf(req, res) {
 
 export async function createVisitor(req, res) {
   try {
-    const data = createVisitorSchema.parse(req.body);
-
-    const cpf = data.cpf;
-    const phone = data.phone;
-
-    const created = await prisma.visitor.create({
-      data: {
-        name: data.name,
-        cpf,
-        phone,
-        company: data.company ?? null,
-        createdById: req.user.id,
-        createdInBranchId: req.user.branchId,
-      },
-      select: {
-        id: true,
-        name: true,
-        cpf: true,
-        phone: true,
-        company: true,
-        createdAt: true,
-      },
+    const created = await VisitorService.create({
+      user: req.user,
+      body: req.body,
     });
 
     return res.status(201).json(created);
   } catch (err) {
     if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: err.issues });
+      return res.status(400).json({ message: "Dados inv\u00e1lidos", issues: err.issues });
     }
     if (err?.code === "P2002") {
-      return res.status(409).json({ message: "CPF já cadastrado" });
+      return res.status(409).json({ message: "CPF j\u00e1 cadastrado" });
     }
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -132,24 +80,12 @@ export async function createVisitor(req, res) {
 
 export async function deleteIncompleteVisitorFromCurrentAttempt(req, res) {
   try {
-    const id = parseVisitorId(req.params.id);
-    if (!id) return res.status(404).json({ message: "Visitante nao encontrado" });
-
-    const cutoff = new Date(Date.now() - 15 * 60 * 1000);
-    const deleted = await prisma.visitor.deleteMany({
-      where: {
-        id,
-        createdById: req.user.id,
-        createdInBranchId: req.user.branchId,
-        createdAt: { gte: cutoff },
-        photoBytes: null,
-        documentFrontBytes: null,
-        documentBackBytes: null,
-        visits: { none: {} },
-      },
+    const result = await VisitorService.deleteIncompleteFromCurrentAttempt({
+      user: req.user,
+      id: req.params.id,
     });
 
-    if (deleted.count !== 1) {
+    if (!result.deleted) {
       return res.status(404).json({ message: "Visitante nao encontrado" });
     }
 
@@ -162,43 +98,24 @@ export async function deleteIncompleteVisitorFromCurrentAttempt(req, res) {
 
 export async function updateVisitor(req, res) {
   try {
-    const id = parseVisitorId(req.params.id);
-    if (!id) return res.status(400).json({ message: "ID inválido" });
+    const result = await VisitorService.update({
+      user: req.user,
+      id: req.params.id,
+      body: req.body,
+    });
 
-    const canAccess = await userCanAccessVisitor(req.user, id);
-    if (!canAccess) {
+    if (!result.ok) {
+      if (result.reason === "invalid-id") {
+        return res.status(400).json({ message: "ID inv\u00e1lido" });
+      }
+
       return res.status(404).json({ message: "Visitante nao encontrado" });
     }
 
-    const body = updateVisitorSchema.parse(req.body);
-
-    const data = {};
-
-    if ("phone" in body) {
-      data.phone = body.phone ?? null;
-    }
-
-    if ("company" in body) {
-      data.company = body.company ?? null;
-    }
-
-    const updated = await prisma.visitor.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        name: true,
-        cpf: true,
-        phone: true,
-        company: true,
-        updatedAt: true,
-      },
-    });
-
-    return res.json(updated);
+    return res.json(result.visitor);
   } catch (err) {
     if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: err.issues });
+      return res.status(400).json({ message: "Dados inv\u00e1lidos", issues: err.issues });
     }
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -210,61 +127,32 @@ export async function updateVisitorFiles(req, res) {
     const id = await ensureVisitorFileAccess(req, res);
     if (!id) return;
 
-    const photo = req.files?.photo?.[0];
-    const documentFront = req.files?.documentFront?.[0];
-    const documentBack = req.files?.documentBack?.[0];
+    const files = {
+      photo: req.files?.photo?.[0],
+      documentFront: req.files?.documentFront?.[0],
+      documentBack: req.files?.documentBack?.[0],
+    };
 
-    if (!photo && !documentFront && !documentBack) {
+    if (!files.photo && !files.documentFront && !files.documentBack) {
       return res
         .status(400)
         .json({ message: "Envie photo e/ou documentFront e/ou documentBack" });
     }
 
-    const data = {};
-
-    if (photo) {
-      const validation = validateVisitorFile(photo);
-      if (!validation.ok) {
-        return res.status(validation.statusCode).json({ message: validation.message });
-      }
-      data.photoBytes = photo.buffer;
-      data.photoMime = validation.detected.mime;
-      data.photoUpdatedAt = new Date();
-    }
-
-    if (documentFront) {
-      const validation = validateVisitorFile(documentFront);
-      if (!validation.ok) {
-        return res.status(validation.statusCode).json({ message: validation.message });
-      }
-      data.documentFrontBytes = documentFront.buffer;
-      data.documentFrontMime = validation.detected.mime;
-      data.documentFrontUpdatedAt = new Date();
-    }
-
-    if (documentBack) {
-      const validation = validateVisitorFile(documentBack);
-      if (!validation.ok) {
-        return res.status(validation.statusCode).json({ message: validation.message });
-      }
-      data.documentBackBytes = documentBack.buffer;
-      data.documentBackMime = validation.detected.mime;
-      data.documentBackUpdatedAt = new Date();
-    }
-
-    const updated = await prisma.visitor.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        cpf: true,
-        photoUpdatedAt: true,
-        documentFrontUpdatedAt: true,
-        documentBackUpdatedAt: true,
-      },
+    const result = await VisitorService.updateFiles({
+      user: req.user,
+      id,
+      files,
     });
+    if (sendFileAccessError(res, result)) return;
 
-    return res.json(updated);
+    if (!result.ok) {
+      return res
+        .status(result.validation.statusCode)
+        .json({ message: result.validation.message });
+    }
+
+    return res.json(result.visitor);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -273,19 +161,18 @@ export async function updateVisitorFiles(req, res) {
 
 export async function getVisitorPhoto(req, res) {
   try {
-    const id = await ensureVisitorFileAccess(req, res);
-    if (!id) return;
-
-    const v = await prisma.visitor.findUnique({
-      where: { id },
-      select: { photoBytes: true, photoMime: true, photoUpdatedAt: true },
+    const result = await VisitorService.getPhoto({
+      user: req.user,
+      id: req.params.id,
     });
+    if (sendFileAccessError(res, result)) return;
 
-    if (!v?.photoBytes) return res.status(404).end();
+    const visitor = result.visitor;
+    if (!visitor?.photoBytes) return res.status(404).end();
 
-    sendSensitiveFileHeaders(res, v.photoMime);
-    res.setHeader("Content-Length", v.photoBytes.length);
-    return res.send(v.photoBytes);
+    sendSensitiveFileHeaders(res, visitor.photoMime);
+    res.setHeader("Content-Length", visitor.photoBytes.length);
+    return res.send(visitor.photoBytes);
   } catch (err) {
     console.error(err);
     return res.status(500).end();
@@ -294,19 +181,18 @@ export async function getVisitorPhoto(req, res) {
 
 export async function getVisitorDocFront(req, res) {
   try {
-    const id = await ensureVisitorFileAccess(req, res);
-    if (!id) return;
-
-    const v = await prisma.visitor.findUnique({
-      where: { id },
-      select: { documentFrontBytes: true, documentFrontMime: true, documentFrontUpdatedAt: true },
+    const result = await VisitorService.getDocumentFront({
+      user: req.user,
+      id: req.params.id,
     });
+    if (sendFileAccessError(res, result)) return;
 
-    if (!v?.documentFrontBytes) return res.status(404).end();
+    const visitor = result.visitor;
+    if (!visitor?.documentFrontBytes) return res.status(404).end();
 
-    sendSensitiveFileHeaders(res, v.documentFrontMime);
-    res.setHeader("Content-Length", v.documentFrontBytes.length);
-    return res.send(v.documentFrontBytes);
+    sendSensitiveFileHeaders(res, visitor.documentFrontMime);
+    res.setHeader("Content-Length", visitor.documentFrontBytes.length);
+    return res.send(visitor.documentFrontBytes);
   } catch (err) {
     console.error(err);
     return res.status(500).end();
@@ -315,19 +201,18 @@ export async function getVisitorDocFront(req, res) {
 
 export async function getVisitorDocBack(req, res) {
   try {
-    const id = await ensureVisitorFileAccess(req, res);
-    if (!id) return;
-
-    const v = await prisma.visitor.findUnique({
-      where: { id },
-      select: { documentBackBytes: true, documentBackMime: true, documentBackUpdatedAt: true },
+    const result = await VisitorService.getDocumentBack({
+      user: req.user,
+      id: req.params.id,
     });
+    if (sendFileAccessError(res, result)) return;
 
-    if (!v?.documentBackBytes) return res.status(404).end();
+    const visitor = result.visitor;
+    if (!visitor?.documentBackBytes) return res.status(404).end();
 
-    sendSensitiveFileHeaders(res, v.documentBackMime);
-    res.setHeader("Content-Length", v.documentBackBytes.length);
-    return res.send(v.documentBackBytes);
+    sendSensitiveFileHeaders(res, visitor.documentBackMime);
+    res.setHeader("Content-Length", visitor.documentBackBytes.length);
+    return res.send(visitor.documentBackBytes);
   } catch (err) {
     console.error(err);
     return res.status(500).end();
