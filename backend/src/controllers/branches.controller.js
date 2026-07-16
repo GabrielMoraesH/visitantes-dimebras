@@ -1,11 +1,8 @@
-import prisma from "../lib/prisma.js";
+import * as branchService from "../services/branch.service.js";
 
 export async function listBranches(req, res) {
   try {
-    const items = await prisma.branch.findMany({
-      orderBy: { id: "asc" },
-      select: { id: true, name: true },
-    });
+    const items = await branchService.listBranches();
     return res.json(items);
   } catch (err) {
     console.error(err);
