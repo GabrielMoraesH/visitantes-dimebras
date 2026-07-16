@@ -1,38 +1,16 @@
 import fs from "fs";
-import path from "path";
 import crypto from "crypto";
 import multer from "multer";
-import { z } from "zod";
-import prisma from "../lib/prisma.js";
-import { tvPublicPrefix, tvTempUploadDir, tvUploadDir } from "../config/uploads.js";
+import { tvTempUploadDir } from "../config/uploads.js";
 import {
-  assertPathInside,
-  makeSafeStoredFileName,
   TV_FILE_LIMIT_BYTES,
   TV_MEDIA_MIMES,
   validateDeclaredFile,
-  validateMagicBytes,
 } from "../utils/fileSecurity.js";
 import { toErrorPayload } from "../utils/errors.js";
-import {
-  idParamSchema,
-  LIMITS,
-  positiveIntQuery,
-  strictBoolean,
-  trimmedString,
-} from "../utils/validation.js";
+import * as tvContentService from "../services/tvContent.service.js";
 
-const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const VIDEO_MIMES = new Set(["video/mp4", "video/webm"]);
-
-fs.mkdirSync(tvUploadDir, { recursive: true });
 fs.mkdirSync(tvTempUploadDir, { recursive: true });
-
-function getTypeFromMime(mime) {
-  if (IMAGE_MIMES.has(mime)) return "IMAGE";
-  if (VIDEO_MIMES.has(mime)) return "VIDEO";
-  return null;
-}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -67,33 +45,6 @@ export const tvUpload = multer({
   },
 });
 
-const createSchema = z.object({
-  title: trimmedString(LIMITS.tvTitle, "Titulo obrigatorio"),
-  order: z.coerce.number().int().optional().default(0),
-  isActive: z
-    .preprocess((value) => {
-      if (value === "true" || value === true) return true;
-      if (value === "false" || value === false) return false;
-      if (value === "" || value === undefined) return undefined;
-      return value;
-    }, z.boolean().optional())
-    .default(true),
-  branchIds: z.any(),
-}).strict();
-
-const updateSchema = z
-  .object({
-    title: trimmedString(LIMITS.tvTitle, "Titulo nao pode ficar vazio").optional(),
-    order: z.coerce.number().int().optional(),
-    isActive: strictBoolean.optional(),
-    branchIds: z.any().optional(),
-  })
-  .strict();
-
-const publicTvContentSchema = z.object({
-  branchId: positiveIntQuery("branchId"),
-}).strict();
-
 function zodIssues(err) {
   return err?.issues?.map((i) => ({
     path: i.path?.join(".") || "",
@@ -103,163 +54,6 @@ function zodIssues(err) {
 
 function sendError(res, statusCode, message, code) {
   return res.status(statusCode).json(toErrorPayload({ message, code, statusCode }));
-}
-
-function serialize(item) {
-  if (!item) return item;
-  const { branches, ...rest } = item;
-  return {
-    ...rest,
-    branches: Array.isArray(branches)
-      ? branches.map((link) => link.branch).filter(Boolean)
-      : [],
-  };
-}
-
-async function findAllowedContent(id) {
-  return prisma.tvContent.findUnique({
-    where: { id },
-    include: {
-      branches: {
-        include: { branch: { select: { id: true, name: true } } },
-        orderBy: { branchId: "asc" },
-      },
-    },
-  });
-}
-
-function parseBranchIds(rawValue) {
-  let raw = rawValue;
-
-  if (typeof raw === "undefined") {
-    return [];
-  }
-
-  if (typeof raw === "string") {
-    const trimmed = raw.trim();
-    if (!trimmed) return [];
-    try {
-      raw = JSON.parse(trimmed);
-    } catch {
-      raw = trimmed;
-    }
-  }
-
-  const values = Array.isArray(raw) ? raw : [raw];
-  const branchIds = values.map((value) => {
-    if (typeof value === "number") return value;
-    if (typeof value === "string" && /^[1-9]\d*$/.test(value)) return Number(value);
-    return NaN;
-  });
-
-  if (branchIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    const error = new Error("Filiais invalidas.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return [...new Set(branchIds)];
-}
-
-async function validateBranchIds(rawValue, tx = prisma) {
-  const branchIds = parseBranchIds(rawValue);
-
-  if (branchIds.length === 0) {
-    const error = new Error("Selecione pelo menos uma filial.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const branches = await tx.branch.findMany({
-    where: { id: { in: branchIds } },
-    select: { id: true },
-  });
-
-  if (branches.length !== branchIds.length) {
-    const error = new Error("Uma ou mais filiais nao existem.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  return branchIds;
-}
-
-async function readFileHead(filePath, bytes = 4096) {
-  const handle = await fs.promises.open(filePath, "r");
-  try {
-    const buffer = Buffer.alloc(bytes);
-    const { bytesRead } = await handle.read(buffer, 0, bytes, 0);
-    return buffer.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
-
-async function removeFileInside(rootDir, filePath) {
-  if (!filePath) return;
-  const resolved = assertPathInside(rootDir, filePath);
-  if (!resolved) return;
-
-  try {
-    await fs.promises.unlink(resolved);
-  } catch (err) {
-    if (err.code !== "ENOENT") {
-      console.error("tv-file-remove-error", { code: err.code });
-    }
-  }
-}
-
-async function removeTempFile(filePath) {
-  await removeFileInside(tvTempUploadDir, filePath);
-}
-
-async function promoteTvUpload(file) {
-  const tempPath = assertPathInside(tvTempUploadDir, file?.path);
-  if (!tempPath) {
-    const error = new Error("Upload invalido.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const head = await readFileHead(tempPath);
-  const validation = validateMagicBytes({ ...file, buffer: head }, TV_MEDIA_MIMES);
-  if (!validation.ok) {
-    await removeTempFile(tempPath);
-    const error = new Error(validation.message);
-    error.statusCode = validation.statusCode;
-    throw error;
-  }
-
-  const filename = makeSafeStoredFileName(validation.detected.mime);
-  const finalPath = assertPathInside(tvUploadDir, path.join(tvUploadDir, filename));
-  if (!filename || !finalPath) {
-    await removeTempFile(tempPath);
-    const error = new Error("Upload invalido.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  await fs.promises.rename(tempPath, finalPath);
-
-  return {
-    path: finalPath,
-    filename,
-    mime: validation.detected.mime,
-    type: getTypeFromMime(validation.detected.mime),
-    size: file.size,
-  };
-}
-
-function filePathFromUrl(fileUrl) {
-  const prefix = `${tvPublicPrefix}/`;
-  const normalizedUrl = String(fileUrl || "");
-
-  if (!normalizedUrl.startsWith(prefix)) return null;
-
-  const fileName = path.basename(normalizedUrl);
-  if (!fileName || fileName !== normalizedUrl.slice(prefix.length)) return null;
-
-  return path.join(tvUploadDir, fileName);
 }
 
 export function handleTvUploadErrors(req, res, next) {
@@ -282,17 +76,9 @@ export function handleTvUploadErrors(req, res, next) {
 
 export async function listTvContents(req, res) {
   try {
-    const items = await prisma.tvContent.findMany({
-      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
-      include: {
-        branches: {
-          include: { branch: { select: { id: true, name: true } } },
-          orderBy: { branchId: "asc" },
-        },
-      },
-    });
+    const items = await tvContentService.listTvContents();
 
-    return res.json(items.map(serialize));
+    return res.json(items);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -301,18 +87,9 @@ export async function listTvContents(req, res) {
 
 export async function listActiveTvContents(req, res) {
   try {
-    const items = await prisma.tvContent.findMany({
-      where: { isActive: true },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      include: {
-        branches: {
-          include: { branch: { select: { id: true, name: true } } },
-          orderBy: { branchId: "asc" },
-        },
-      },
-    });
+    const items = await tvContentService.listActiveTvContents();
 
-    return res.json(items.map(serialize));
+    return res.json(items);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Erro interno" });
@@ -321,42 +98,10 @@ export async function listActiveTvContents(req, res) {
 
 export async function listPublicActiveTvContents(req, res) {
   try {
-    if (!req.query.branchId) {
-      return res.status(400).json({
-        message: "Filial obrigatória para exibição da TV.",
-      });
-    }
+    const result = await tvContentService.listPublicActiveTvContents({ query: req.query });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
 
-    const { branchId } = publicTvContentSchema.parse(req.query);
-    const branch = await prisma.branch.findUnique({
-      where: { id: branchId },
-      select: { id: true },
-    });
-
-    if (!branch) {
-      return res.status(404).json({
-        message: "Filial não encontrada.",
-      });
-    }
-
-    const items = await prisma.tvContent.findMany({
-      where: {
-        isActive: true,
-        branches: {
-          some: { branchId },
-        },
-      },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        type: true,
-        fileUrl: true,
-        order: true,
-      },
-    });
-
-    return res.json(items);
+    return res.json(result.items);
   } catch (err) {
     if (err?.name === "ZodError") {
       return res.status(400).json({ message: "Parametros invalidos", issues: zodIssues(err) });
@@ -367,58 +112,16 @@ export async function listPublicActiveTvContents(req, res) {
 }
 
 export async function createTvContent(req, res) {
-  let promotedFile = null;
-
   try {
-    const data = createSchema.parse(req.body);
-    const branchIds = await validateBranchIds(data.branchIds);
-
-    if (!req.file) {
-      return res.status(400).json({ message: "Arquivo obrigatorio." });
-    }
-
-    promotedFile = await promoteTvUpload(req.file);
-
-    const created = await prisma.$transaction(async (tx) => {
-      const content = await tx.tvContent.create({
-        data: {
-          title: data.title,
-          type: promotedFile.type,
-          fileUrl: `${tvPublicPrefix}/${promotedFile.filename}`,
-          fileName: req.file.originalname,
-          mimeType: promotedFile.mime,
-          fileSize: promotedFile.size,
-          order: data.order,
-          isActive: data.isActive,
-          createdById: req.user.id,
-        },
-      });
-
-      await tx.tvContentBranch.createMany({
-        data: branchIds.map((branchId) => ({
-          tvContentId: content.id,
-          branchId,
-        })),
-      });
-
-      return tx.tvContent.findUnique({
-        where: { id: content.id },
-        include: {
-          branches: {
-            include: { branch: { select: { id: true, name: true } } },
-            orderBy: { branchId: "asc" },
-          },
-        },
-      });
+    const result = await tvContentService.createTvContent({
+      actor: req.user,
+      input: req.body,
+      file: req.file,
     });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
 
-    return res.status(201).json(serialize(created));
+    return res.status(201).json(result.content);
   } catch (err) {
-    if (promotedFile?.path) {
-      await removeFileInside(tvUploadDir, promotedFile.path);
-    } else if (req.file?.path) {
-      await removeTempFile(req.file.path);
-    }
     if (err?.name === "ZodError") {
       return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
     }
@@ -432,50 +135,13 @@ export async function createTvContent(req, res) {
 
 export async function updateTvContent(req, res) {
   try {
-    const { id } = idParamSchema.parse(req.params);
-    const data = updateSchema.parse(req.body);
-    const hasBranchIds = Object.prototype.hasOwnProperty.call(data, "branchIds");
-
-    if (Object.keys(data).length === 0) {
-      return res.status(400).json({ message: "Nada para atualizar" });
-    }
-
-    const exists = await findAllowedContent(id);
-    if (!exists) return res.status(404).json({ message: "Conteudo nao encontrado" });
-
-    const updated = await prisma.$transaction(async (tx) => {
-      const updateData = {};
-      if (typeof data.title !== "undefined") updateData.title = data.title;
-      if (typeof data.order !== "undefined") updateData.order = data.order;
-      if (typeof data.isActive !== "undefined") updateData.isActive = data.isActive;
-
-      if (hasBranchIds) {
-        const branchIds = await validateBranchIds(data.branchIds, tx);
-        await tx.tvContentBranch.deleteMany({ where: { tvContentId: id } });
-        await tx.tvContentBranch.createMany({
-          data: branchIds.map((branchId) => ({ tvContentId: id, branchId })),
-        });
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        await tx.tvContent.update({
-          where: { id },
-          data: updateData,
-        });
-      }
-
-      return tx.tvContent.findUnique({
-        where: { id },
-        include: {
-          branches: {
-            include: { branch: { select: { id: true, name: true } } },
-            orderBy: { branchId: "asc" },
-          },
-        },
-      });
+    const result = await tvContentService.updateTvContent({
+      contentId: req.params,
+      input: req.body,
     });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
 
-    return res.json(serialize(updated));
+    return res.json(result.content);
   } catch (err) {
     if (err?.name === "ZodError") {
       return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
@@ -490,16 +156,10 @@ export async function updateTvContent(req, res) {
 
 export async function toggleTvContent(req, res) {
   try {
-    const { id } = idParamSchema.parse(req.params);
-    const exists = await findAllowedContent(id);
-    if (!exists) return res.status(404).json({ message: "Conteudo nao encontrado" });
+    const result = await tvContentService.toggleTvContent({ contentId: req.params });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
 
-    const updated = await prisma.tvContent.update({
-      where: { id },
-      data: { isActive: !exists.isActive },
-    });
-
-    return res.json(serialize(updated));
+    return res.json(result.content);
   } catch (err) {
     if (err?.name === "ZodError") {
       return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
@@ -511,12 +171,8 @@ export async function toggleTvContent(req, res) {
 
 export async function deleteTvContent(req, res) {
   try {
-    const { id } = idParamSchema.parse(req.params);
-    const exists = await findAllowedContent(id);
-    if (!exists) return res.status(404).json({ message: "Conteudo nao encontrado" });
-
-    await prisma.tvContent.delete({ where: { id } });
-    await removeFileInside(tvUploadDir, filePathFromUrl(exists.fileUrl));
+    const result = await tvContentService.deleteTvContent({ contentId: req.params });
+    if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json({ ok: true });
   } catch (err) {
