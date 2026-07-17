@@ -45,15 +45,13 @@ export const tvUpload = multer({
   },
 });
 
-function zodIssues(err) {
-  return err?.issues?.map((i) => ({
-    path: i.path?.join(".") || "",
-    message: i.message,
-  })) || [];
-}
-
 function sendError(res, statusCode, message, code) {
   return res.status(statusCode).json(toErrorPayload({ message, code, statusCode }));
+}
+
+function forwardError(err, next) {
+  if (typeof next === "function") return next(err);
+  throw err;
 }
 
 export function handleTvUploadErrors(req, res, next) {
@@ -70,48 +68,46 @@ export function handleTvUploadErrors(req, res, next) {
       return sendError(res, 400, "Upload invalido.", "UPLOAD_INVALID");
     }
 
-    return sendError(res, err.statusCode || 400, err.message || "Upload invalido.", err.code);
+    if (Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 500) {
+      return sendError(res, err.statusCode, err.message || "Upload invalido.", err.code);
+    }
+
+    return next(err);
   });
 }
 
-export async function listTvContents(req, res) {
+export async function listTvContents(req, res, next) {
   try {
     const items = await tvContentService.listTvContents();
 
     return res.json(items);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function listActiveTvContents(req, res) {
+export async function listActiveTvContents(req, res, next) {
   try {
     const items = await tvContentService.listActiveTvContents();
 
     return res.json(items);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function listPublicActiveTvContents(req, res) {
+export async function listPublicActiveTvContents(req, res, next) {
   try {
     const result = await tvContentService.listPublicActiveTvContents({ query: req.query });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json(result.items);
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Parametros invalidos", issues: zodIssues(err) });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function createTvContent(req, res) {
+export async function createTvContent(req, res, next) {
   try {
     const result = await tvContentService.createTvContent({
       actor: req.user,
@@ -122,18 +118,11 @@ export async function createTvContent(req, res) {
 
     return res.status(201).json(result.content);
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
-    }
-    if (err?.statusCode) {
-      return res.status(err.statusCode).json({ message: err.message });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function updateTvContent(req, res) {
+export async function updateTvContent(req, res, next) {
   try {
     const result = await tvContentService.updateTvContent({
       contentId: req.params,
@@ -143,43 +132,28 @@ export async function updateTvContent(req, res) {
 
     return res.json(result.content);
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
-    }
-    if (err?.statusCode) {
-      return res.status(err.statusCode).json({ message: err.message });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function toggleTvContent(req, res) {
+export async function toggleTvContent(req, res, next) {
   try {
     const result = await tvContentService.toggleTvContent({ contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json(result.content);
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }
 
-export async function deleteTvContent(req, res) {
+export async function deleteTvContent(req, res, next) {
   try {
     const result = await tvContentService.deleteTvContent({ contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json({ ok: true });
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados invalidos", issues: zodIssues(err) });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return forwardError(err, next);
   }
 }

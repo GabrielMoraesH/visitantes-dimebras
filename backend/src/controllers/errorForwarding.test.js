@@ -5,8 +5,12 @@ import bcrypt from "bcrypt";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import QRCode from "qrcode";
+import fs from "fs";
+import path from "path";
+import multer from "multer";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
+import { tvTempUploadDir, tvUploadDir } from "../config/uploads.js";
 import { normalizeErrorResponses, notFoundHandler, errorHandler } from "../middlewares/errorHandler.js";
 import { login } from "./auth.controller.js";
 import { listBranches } from "./branches.controller.js";
@@ -44,6 +48,17 @@ import {
   recentByCpf,
   statsByCpf,
 } from "./visits.controller.js";
+import {
+  createTvContent,
+  deleteTvContent,
+  handleTvUploadErrors,
+  listActiveTvContents,
+  listPublicActiveTvContents,
+  listTvContents,
+  toggleTvContent,
+  tvUpload,
+  updateTvContent,
+} from "./tvContent.controller.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -60,6 +75,9 @@ const activeUser = {
 const visitorCpf = "52998224725";
 const visitorFileBytes = Buffer.from([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9,
+]);
+const tvPngBytes = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
 ]);
 
 function withPrismaMocks(mocks, fn) {
@@ -122,6 +140,33 @@ function withQRCodeToDataURLMock(replacement, fn) {
     .then(fn)
     .finally(() => {
       QRCode.toDataURL = originalToDataURL;
+    });
+}
+
+function withFsMocks(mocks, fn) {
+  const originals = Object.entries(mocks).map(([method, replacement]) => {
+    const original = fs.promises[method];
+    fs.promises[method] = replacement;
+    return [method, original];
+  });
+
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      for (const [method, original] of originals.reverse()) {
+        fs.promises[method] = original;
+      }
+    });
+}
+
+function withTvUploadSingleMock(replacement, fn) {
+  const originalSingle = tvUpload.single;
+  tvUpload.single = replacement;
+
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      tvUpload.single = originalSingle;
     });
 }
 
@@ -1521,6 +1566,518 @@ test("visitors incomplete compensation Prisma error is normalized globally", asy
     code: "INTERNAL_ERROR",
     details: null,
   });
+});
+
+test("tv content admin and active listings preserve success and forward Prisma failures", async () => {
+  const item = {
+    id: 1,
+    title: "Banner",
+    fileUrl: "/uploads/tv/banner.png",
+    branches: [{ branch: { id: 2, name: "Filial 2" } }],
+  };
+
+  const admin = await withPrismaMocks(
+    {
+      tvContent: {
+        findMany: async (args) => {
+          assert.deepEqual(args.orderBy, [{ order: "asc" }, { createdAt: "desc" }]);
+          return [item];
+        },
+      },
+    },
+    () => request((app) => app.get("/test", listTvContents))
+  );
+
+  assert.equal(admin.status, 200);
+  assert.deepEqual(admin.body, [
+    { id: 1, title: "Banner", fileUrl: "/uploads/tv/banner.png", branches: [{ id: 2, name: "Filial 2" }] },
+  ]);
+
+  const active = await withPrismaMocks(
+    {
+      tvContent: {
+        findMany: async (args) => {
+          assert.deepEqual(args.where, { isActive: true });
+          assert.deepEqual(args.orderBy, [{ order: "asc" }, { createdAt: "asc" }]);
+          return [item];
+        },
+      },
+    },
+    () => request((app) => app.get("/test", listActiveTvContents))
+  );
+
+  assert.equal(active.status, 200);
+  assert.equal(active.body[0].fileUrl, "/uploads/tv/banner.png");
+
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        tvContent: {
+          findMany: async () => {
+            throw new Error("select tv content stack");
+          },
+        },
+      },
+      () => request((app) => app.get("/test", listTvContents))
+    )
+  );
+
+  assert.equal(failure.status, 500);
+  assert.deepEqual(failure.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(failure.body).includes("select"), false);
+});
+
+test("tv content public listing preserves operational messages, success shape and global failures", async () => {
+  const missing = await request((app) => app.get("/test", listPublicActiveTvContents));
+  assert.equal(missing.status, 400);
+  assert.deepEqual(missing.body, {
+    message: "Filial obrigatória para exibição da TV.",
+    code: "BAD_REQUEST",
+    details: null,
+  });
+
+  const nonexistent = await withPrismaMocks(
+    {
+      branch: {
+        findUnique: async () => null,
+      },
+    },
+    () => request((app) => app.get("/test", listPublicActiveTvContents), { path: "/test?branchId=99" })
+  );
+  assert.equal(nonexistent.status, 404);
+  assert.deepEqual(nonexistent.body, {
+    message: "Filial não encontrada.",
+    code: "RESOURCE_NOT_FOUND",
+    details: null,
+  });
+
+  const items = [{ id: 3, title: "TV", type: "IMAGE", fileUrl: "/uploads/tv/a.png", order: 1 }];
+  const success = await withPrismaMocks(
+    {
+      branch: {
+        findUnique: async (args) => {
+          assert.deepEqual(args, { where: { id: 7 }, select: { id: true } });
+          return { id: 7 };
+        },
+      },
+      tvContent: {
+        findMany: async (args) => {
+          assert.deepEqual(args.where, { isActive: true, branches: { some: { branchId: 7 } } });
+          assert.deepEqual(args.select, { id: true, title: true, type: true, fileUrl: true, order: true });
+          return items;
+        },
+      },
+    },
+    () => request((app) => app.get("/test", listPublicActiveTvContents), { path: "/test?branchId=7" })
+  );
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, items);
+
+  const invalid = await withSilencedApiLogs(() =>
+    request((app) => app.get("/test", listPublicActiveTvContents), { path: "/test?branchId=abc" })
+  );
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.message, "Dados inválidos.");
+  assert.equal(invalid.body.code, "VALIDATION_ERROR");
+  assert.equal(Array.isArray(invalid.body.details), true);
+
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        branch: {
+          findUnique: async () => {
+            throw new Error("branch lookup failed with stack");
+          },
+        },
+      },
+      () => request((app) => app.get("/test", listPublicActiveTvContents), { path: "/test?branchId=7" })
+    )
+  );
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+});
+
+test("tv content upload wrapper preserves known upload errors and forwards unknown technical errors", async () => {
+  const large = await withTvUploadSingleMock(
+    () => (req, res, cb) => cb(new multer.MulterError("LIMIT_FILE_SIZE", "file")),
+    () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+  );
+  assert.equal(large.status, 413);
+  assert.deepEqual(large.body, {
+    message: "Arquivo excede o limite de 200MB.",
+    code: "UPLOAD_FILE_TOO_LARGE",
+    details: null,
+  });
+
+  const unexpected = await withTvUploadSingleMock(
+    () => (req, res, cb) => cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", "other")),
+    () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+  );
+  assert.equal(unexpected.status, 400);
+  assert.equal(unexpected.body.code, "UPLOAD_INVALID");
+
+  const invalidTypeError = new Error("Tipo de arquivo nao permitido.");
+  invalidTypeError.statusCode = 415;
+  const invalidType = await withTvUploadSingleMock(
+    () => (req, res, cb) => cb(invalidTypeError),
+    () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+  );
+  assert.equal(invalidType.status, 415);
+  assert.deepEqual(invalidType.body, {
+    message: "Tipo de arquivo nao permitido.",
+    code: "UPLOAD_INVALID_TYPE",
+    details: null,
+  });
+
+  const unknown = await withSilencedApiLogs(() =>
+    withTvUploadSingleMock(
+      () => (req, res, cb) => cb(new Error("storage mkdir failed with absolute path C:\\secret")),
+      () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+    )
+  );
+  assert.equal(unknown.status, 500);
+  assert.deepEqual(unknown.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(unknown.body).includes("secret"), false);
+});
+
+test("tv content create preserves 201, missing file contract and forwards service errors without duplicate cleanup", async () => {
+  const missingFile = await withTvUploadSingleMock(
+    () => (req, res, cb) => {
+      req.body = { title: "Banner", branchIds: "[1]" };
+      cb();
+    },
+    () => withPrismaMocks(
+      {
+        branch: {
+          findMany: async () => [{ id: 1 }],
+        },
+      },
+      () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+    )
+  );
+  assert.equal(missingFile.status, 400);
+  assert.deepEqual(missingFile.body, {
+    message: "Arquivo obrigatorio.",
+    code: "BAD_REQUEST",
+    details: null,
+  });
+
+  const tempPath = path.join(tvTempUploadDir, "controller-test.upload");
+  const createdContent = {
+    id: 10,
+    title: "Banner",
+    type: "IMAGE",
+    fileUrl: "/uploads/tv/generated.png",
+    branches: [{ branch: { id: 1, name: "Filial 1" } }],
+  };
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async (callback) =>
+    callback({
+      tvContent: {
+        create: async () => ({ id: 10 }),
+        findUnique: async () => createdContent,
+      },
+      tvContentBranch: {
+        createMany: async () => {},
+      },
+    });
+
+  try {
+    const success = await withTvUploadSingleMock(
+      () => (req, res, cb) => {
+        req.body = { title: "Banner", branchIds: "[1]" };
+        req.file = {
+          path: tempPath,
+          originalname: "banner.png",
+          mimetype: "image/png",
+          size: tvPngBytes.length,
+        };
+        cb();
+      },
+      () =>
+        withFsMocks(
+          {
+            open: async () => ({
+              read: async (buffer) => {
+                tvPngBytes.copy(buffer);
+                return { bytesRead: tvPngBytes.length };
+              },
+              close: async () => {},
+            }),
+            rename: async (from, to) => {
+              assert.equal(from, tempPath);
+              assert.ok(to.startsWith(tvUploadDir));
+            },
+            unlink: async () => {
+              throw new Error("controller must not cleanup on success");
+            },
+          },
+          () =>
+            withPrismaMocks(
+              {
+                branch: {
+                  findMany: async () => [{ id: 1 }],
+                },
+              },
+              () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+            )
+        )
+    );
+    assert.equal(success.status, 201);
+    assert.deepEqual(success.body, {
+      id: 10,
+      title: "Banner",
+      type: "IMAGE",
+      fileUrl: "/uploads/tv/generated.png",
+      branches: [{ id: 1, name: "Filial 1" }],
+    });
+  } finally {
+    prisma.$transaction = originalTransaction;
+  }
+
+  let unlinkCalls = 0;
+  const failure = await withSilencedApiLogs(() =>
+    withTvUploadSingleMock(
+      () => (req, res, cb) => {
+        req.body = { title: "Banner", branchIds: "[1]" };
+        req.file = {
+          path: tempPath,
+          originalname: "banner.png",
+          mimetype: "image/png",
+          size: tvPngBytes.length,
+        };
+        cb();
+      },
+      () =>
+        withFsMocks(
+          {
+            open: async () => ({
+              read: async (buffer) => {
+                tvPngBytes.copy(buffer);
+                return { bytesRead: tvPngBytes.length };
+              },
+              close: async () => {},
+            }),
+            rename: async () => {},
+            unlink: async () => {
+              unlinkCalls += 1;
+            },
+          },
+          async () => {
+            const original = prisma.$transaction;
+            prisma.$transaction = async () => {
+              throw new Error("database failed after promote");
+            };
+            try {
+              return await withPrismaMocks(
+                {
+                  branch: {
+                    findMany: async () => [{ id: 1 }],
+                  },
+                },
+                () => request((app) => app.post("/test", handleTvUploadErrors, createTvContent), { method: "POST" })
+              );
+            } finally {
+              prisma.$transaction = original;
+            }
+          }
+        )
+    )
+  );
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+  assert.equal(unlinkCalls, 1);
+});
+
+test("tv content update preserves success, operational 404 and forwards validation or Prisma errors", async () => {
+  const updated = { id: 4, title: "Atualizado", branches: [{ branch: { id: 2, name: "Filial 2" } }] };
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async (callback) =>
+    callback({
+      tvContent: {
+        update: async () => ({}),
+        findUnique: async () => updated,
+      },
+      tvContentBranch: {
+        deleteMany: async () => {},
+        createMany: async () => {},
+      },
+    });
+
+  try {
+    const success = await withPrismaMocks(
+      {
+        tvContent: {
+          findUnique: async () => ({ id: 4, branches: [] }),
+        },
+      },
+      () =>
+        request((app) => app.put("/test/:id", updateTvContent), {
+          method: "PUT",
+          path: "/test/4",
+          body: { title: "Atualizado" },
+        })
+    );
+    assert.equal(success.status, 200);
+    assert.deepEqual(success.body, { id: 4, title: "Atualizado", branches: [{ id: 2, name: "Filial 2" }] });
+  } finally {
+    prisma.$transaction = originalTransaction;
+  }
+
+  const missing = await withPrismaMocks(
+    {
+      tvContent: {
+        findUnique: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.put("/test/:id", updateTvContent), {
+        method: "PUT",
+        path: "/test/4",
+        body: { title: "Atualizado" },
+      })
+  );
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "TV_CONTENT_NOT_FOUND");
+
+  const invalid = await withSilencedApiLogs(() =>
+    request((app) => app.put("/test/:id", updateTvContent), {
+      method: "PUT",
+      path: "/test/4",
+      body: { fileUrl: "/uploads/tv/client.png" },
+    })
+  );
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.code, "VALIDATION_ERROR");
+
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        tvContent: {
+          findUnique: async () => {
+            throw new Error("update lookup failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.put("/test/:id", updateTvContent), {
+          method: "PUT",
+          path: "/test/4",
+          body: { title: "Atualizado" },
+        })
+    )
+  );
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+});
+
+test("tv content toggle preserves success and operational 404, then forwards technical errors", async () => {
+  const success = await withPrismaMocks(
+    {
+      tvContent: {
+        findUnique: async () => ({ id: 4, isActive: true, branches: [] }),
+        update: async (args) => {
+          assert.deepEqual(args, { where: { id: 4 }, data: { isActive: false } });
+          return { id: 4, isActive: false };
+        },
+      },
+    },
+    () => request((app) => app.patch("/test/:id/toggle", toggleTvContent), { method: "PATCH", path: "/test/4/toggle" })
+  );
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, { id: 4, isActive: false, branches: [] });
+
+  const missing = await withPrismaMocks(
+    {
+      tvContent: {
+        findUnique: async () => null,
+      },
+    },
+    () => request((app) => app.patch("/test/:id/toggle", toggleTvContent), { method: "PATCH", path: "/test/4/toggle" })
+  );
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "TV_CONTENT_NOT_FOUND");
+
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        tvContent: {
+          findUnique: async () => {
+            throw new Error("toggle failed with stack");
+          },
+        },
+      },
+      () => request((app) => app.patch("/test/:id/toggle", toggleTvContent), { method: "PATCH", path: "/test/4/toggle" })
+    )
+  );
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+});
+
+test("tv content delete preserves success, operational 404 and forwards technical errors without leaking paths", async () => {
+  let deleted = false;
+  const success = await withFsMocks(
+    {
+      unlink: async (filePath) => {
+        assert.equal(filePath.startsWith(tvUploadDir), true);
+      },
+    },
+    () =>
+      withPrismaMocks(
+        {
+          tvContent: {
+            findUnique: async () => ({ id: 5, fileUrl: "/uploads/tv/a.png", branches: [] }),
+            delete: async () => {
+              deleted = true;
+            },
+          },
+        },
+        () => request((app) => app.delete("/test/:id", deleteTvContent), { method: "DELETE", path: "/test/5" })
+      )
+  );
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, { ok: true });
+  assert.equal(deleted, true);
+
+  const missing = await withPrismaMocks(
+    {
+      tvContent: {
+        findUnique: async () => null,
+      },
+    },
+    () => request((app) => app.delete("/test/:id", deleteTvContent), { method: "DELETE", path: "/test/5" })
+  );
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "TV_CONTENT_NOT_FOUND");
+
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        tvContent: {
+          findUnique: async () => ({ id: 5, fileUrl: "/uploads/tv/a.png", branches: [] }),
+          delete: async () => {
+            throw new Error(`delete failed at ${tvUploadDir}`);
+          },
+        },
+      },
+      () => request((app) => app.delete("/test/:id", deleteTvContent), { method: "DELETE", path: "/test/5" })
+    )
+  );
+  assert.equal(failure.status, 500);
+  assert.deepEqual(failure.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(failure.body).includes(tvUploadDir), false);
 });
 
 const visitInput = {

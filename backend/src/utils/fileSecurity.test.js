@@ -133,27 +133,28 @@ test("createTvContent removes promoted TV file when database write fails", async
   };
   const res = createRes();
   const originalTransaction = prisma.$transaction;
-  const originalConsoleError = console.error;
   prisma.$transaction = async () => {
     throw new Error("db fail");
   };
-  console.error = () => {};
 
   try {
-    await withPrismaMocks(
-      {
-        branch: {
-          findMany: async () => [{ id: 1 }],
+    await assert.rejects(
+      withPrismaMocks(
+        {
+          branch: {
+            findMany: async () => [{ id: 1 }],
+          },
         },
-      },
-      () => createTvContent(req, res)
+        () => createTvContent(req, res)
+      ),
+      /db fail/
     );
   } finally {
     prisma.$transaction = originalTransaction;
-    console.error = originalConsoleError;
   }
 
-  assert.equal(res.statusCode, 500);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body, undefined);
   assert.deepEqual(listFiles(tvUploadDir), beforeTv);
   assert.deepEqual(listFiles(tvTempUploadDir), beforeTemp);
 });
