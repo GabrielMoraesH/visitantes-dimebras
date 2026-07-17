@@ -1,16 +1,12 @@
 import * as authService from "../services/auth.service.js";
 
-export async function login(req, res) {
+export async function login(req, res, next) {
   try {
     const result = await authService.login({ input: req.body });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json({ token: result.token, user: result.user });
   } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: err.issues });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+    return next(err);
   }
 }
