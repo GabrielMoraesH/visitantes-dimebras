@@ -1,5 +1,6 @@
 import { customAlphabet } from "nanoid";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { userCanAccessVisitor } from "../utils/visitorAccess.js";
@@ -13,6 +14,8 @@ import {
 } from "../utils/validation.js";
 
 const numericCode = customAlphabet("0123456789", 8);
+const OPEN_VISIT_UNIQUE_INDEX = "visits_one_open_per_visitor_branch_idx";
+const OPEN_VISIT_CONFLICT_MESSAGE = "Visitante já possui visita em andamento.";
 
 const LABEL_TOKEN_TTL_SECONDS = Math.max(
   300,
@@ -20,6 +23,33 @@ const LABEL_TOKEN_TTL_SECONDS = Math.max(
 );
 
 const asString = (v) => (v === null || v === undefined ? "" : String(v));
+
+function openVisitConflict() {
+  return {
+    ok: false,
+    status: 400,
+    message: OPEN_VISIT_CONFLICT_MESSAGE,
+  };
+}
+
+function isOpenVisitUniqueConflict(error) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (error.code !== "P2002") return false;
+
+  const constraint = error.meta?.constraint;
+  if (constraint === OPEN_VISIT_UNIQUE_INDEX) return true;
+
+  const target = error.meta?.target;
+  if (target === OPEN_VISIT_UNIQUE_INDEX) return true;
+  if (typeof target === "string") {
+    const fields = new Set(target.split(/[^A-Za-z0-9_]+/).filter(Boolean));
+    return fields.size === 2 && fields.has("visitorId") && fields.has("branchId");
+  }
+  if (!Array.isArray(target)) return false;
+
+  const fields = new Set(target);
+  return fields.size === 2 && fields.has("visitorId") && fields.has("branchId");
+}
 
 const checkinSchema = z.object({
   visitorId: positiveIntBody("Visitante invalido"),
@@ -205,26 +235,26 @@ export async function checkin({ user, input }) {
     },
   });
 
-  if (openVisit) {
-    return {
-      ok: false,
-      status: 400,
-      message: "Visitante já possui visita em andamento.",
-    };
-  }
+  if (openVisit) return openVisitConflict();
 
-  const visit = await prisma.visit.create({
-    data: {
-      visitCode: numericCode(),
-      visitorId: data.visitorId,
-      branchId: branch.id,
-      branchName: branch.name,
-      serviceType: data.serviceType,
-      attendedBy: data.attendedBy,
-      areaToVisit: data.areaToVisit,
-      checkinByUserId: user.id,
-    },
-  });
+  let visit;
+  try {
+    visit = await prisma.visit.create({
+      data: {
+        visitCode: numericCode(),
+        visitorId: data.visitorId,
+        branchId: branch.id,
+        branchName: branch.name,
+        serviceType: data.serviceType,
+        attendedBy: data.attendedBy,
+        areaToVisit: data.areaToVisit,
+        checkinByUserId: user.id,
+      },
+    });
+  } catch (err) {
+    if (isOpenVisitUniqueConflict(err)) return openVisitConflict();
+    throw err;
+  }
 
   return { ok: true, visit };
 }
