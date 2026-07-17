@@ -233,6 +233,7 @@ test("checkin rejects protected branchId from body before creating visit", async
   };
   const res = createRes();
   let created = false;
+  let forwardedError;
 
   await withPrismaMocks(
     {
@@ -243,10 +244,12 @@ test("checkin rejects protected branchId from body before creating visit", async
         },
       },
     },
-    () => checkin(req, res)
+    () => checkin(req, res, (error) => {
+      forwardedError = error;
+    })
   );
 
-  assert.equal(res.statusCode, 400);
+  assert.equal(forwardedError?.name, "ZodError");
   assert.equal(created, false);
 });
 

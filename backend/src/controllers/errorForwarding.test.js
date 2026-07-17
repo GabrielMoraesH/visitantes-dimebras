@@ -32,6 +32,16 @@ import {
   getVisitorDocBack,
   deleteIncompleteVisitorFromCurrentAttempt,
 } from "./visitors.controller.js";
+import {
+  checkin,
+  checkout,
+  getOpenVisitsMyBranch,
+  getVisitById,
+  labelToken,
+  openByCpf,
+  recentByCpf,
+  statsByCpf,
+} from "./visits.controller.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -1498,4 +1508,530 @@ test("visitors incomplete compensation Prisma error is normalized globally", asy
     code: "INTERNAL_ERROR",
     details: null,
   });
+});
+
+const visitInput = {
+  visitorId: 55,
+  areaToVisit: "Recepcao",
+  attendedBy: "Maria",
+  serviceType: "Reuniao",
+};
+
+const freshVisitor = {
+  id: 55,
+  cpf: visitorCpf,
+  name: "Maria Silva",
+  photoBytes: Buffer.from("photo"),
+  photoMime: "image/jpeg",
+  photoUpdatedAt: new Date(),
+  documentFrontBytes: Buffer.from("front"),
+  documentFrontMime: "image/jpeg",
+  documentFrontUpdatedAt: new Date(),
+  documentBackBytes: Buffer.from("back"),
+  documentBackMime: "image/jpeg",
+  documentBackUpdatedAt: new Date(),
+};
+
+function openVisitP2002(meta) {
+  return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+    meta,
+  });
+}
+
+test("visits checkin success keeps the 201 visit response", async () => {
+  const visit = { id: 10, visitCode: "12345678" };
+  let visitorFinds = 0;
+
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => (++visitorFinds === 1 ? freshVisitor : { id: 55, createdInBranchId: 2 }),
+      },
+      branch: {
+        findUnique: async () => ({ id: 2, name: "Dimebras SP" }),
+      },
+      visit: {
+        findFirst: async () => null,
+        create: async () => visit,
+      },
+    },
+    () =>
+      request((app) => app.post("/test", checkin), {
+        method: "POST",
+        body: visitInput,
+      })
+  );
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body, visit);
+});
+
+test("visits checkin operational open-visit conflict remains preserved", async () => {
+  let visitorFinds = 0;
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => (++visitorFinds === 1 ? freshVisitor : { id: 55, createdInBranchId: 2 }),
+      },
+      branch: {
+        findUnique: async () => ({ id: 2, name: "Dimebras SP" }),
+      },
+      visit: {
+        findFirst: async () => ({ id: 99 }),
+        create: async () => ({ id: 10 }),
+      },
+    },
+    () =>
+      request((app) => app.post("/test", checkin), {
+        method: "POST",
+        body: visitInput,
+      })
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    message: "Visitante j\u00e1 possui visita em andamento.",
+    code: "VISITOR_OPEN_VISIT_CONFLICT",
+    details: null,
+  });
+});
+
+test("visits checkin Zod validation is normalized globally", async () => {
+  let createCalled = false;
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          create: async () => {
+            createCalled = true;
+            return {};
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", checkin), {
+          method: "POST",
+          body: { ...visitInput, branchId: 99 },
+        })
+    )
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "Dados inv\u00e1lidos.");
+  assert.equal(response.body.code, "VALIDATION_ERROR");
+  assert.equal(Array.isArray(response.body.details), true);
+  assert.equal("issues" in response.body, false);
+  assert.equal(createCalled, false);
+});
+
+test("visits checkin race P2002 converted by service remains operational", async () => {
+  let visitorFinds = 0;
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => (++visitorFinds === 1 ? freshVisitor : { id: 55, createdInBranchId: 2 }),
+      },
+      branch: {
+        findUnique: async () => ({ id: 2, name: "Dimebras SP" }),
+      },
+      visit: {
+        findFirst: async () => null,
+        create: async () => {
+          throw openVisitP2002({ target: "visits_one_open_per_visitor_branch_idx" });
+        },
+      },
+    },
+    () =>
+      request((app) => app.post("/test", checkin), {
+        method: "POST",
+        body: visitInput,
+      })
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.code, "VISITOR_OPEN_VISIT_CONFLICT");
+});
+
+test("visits checkin technical error is normalized globally without stack", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => {
+            throw new Error("select * from visitors with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", checkin), {
+          method: "POST",
+          body: visitInput,
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(response.body).includes("stack"), false);
+  assert.equal(JSON.stringify(response.body).includes("select"), false);
+});
+
+test("visits open by CPF success and operational 404 keep their contracts", async () => {
+  const visit = { id: 20, visitCode: "12345678", visitor: { name: "Maria", cpf: visitorCpf } };
+
+  const success = await withPrismaMocks(
+    {
+      visit: {
+        findFirst: async () => visit,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", openByCpf), {
+        path: `/test/${visitorCpf}`,
+      })
+  );
+
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, visit);
+
+  const missing = await withPrismaMocks(
+    {
+      visit: {
+        findFirst: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", openByCpf), {
+        path: `/test/${visitorCpf}`,
+      })
+  );
+
+  assert.equal(missing.status, 404);
+  assert.deepEqual(missing.body, {
+    message: "Nenhuma visita em aberto",
+    code: "OPEN_VISIT_NOT_FOUND",
+    details: null,
+  });
+});
+
+test("visits open by CPF technical error is normalized globally", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findFirst: async () => {
+            throw new Error("findFirst visit failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.get("/test/:cpf", openByCpf), {
+          path: `/test/${visitorCpf}`,
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.equal(response.body.code, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(response.body).includes("stack"), false);
+});
+
+test("visits open list success returns items wrapper and Prisma errors go global", async () => {
+  const items = [{ id: 31, visitCode: "87654321" }];
+  const success = await withPrismaMocks(
+    {
+      visit: {
+        findMany: async () => items,
+      },
+    },
+    () => request((app) => app.get("/test", getOpenVisitsMyBranch))
+  );
+
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, { items });
+
+  const prismaError = new Prisma.PrismaClientKnownRequestError("Invalid reference", {
+    code: "P2003",
+    clientVersion: "test",
+  });
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findMany: async () => {
+            throw prismaError;
+          },
+        },
+      },
+      () => request((app) => app.get("/test", getOpenVisitsMyBranch))
+    )
+  );
+
+  assert.equal(failure.status, 400);
+  assert.deepEqual(failure.body, {
+    message: "Refer\u00eancia inv\u00e1lida.",
+    code: "INVALID_REFERENCE",
+    details: null,
+  });
+});
+
+test("visits stats and recent keep success shape and use global validation/error handling", async () => {
+  const stats = await withPrismaMocks(
+    {
+      visit: {
+        count: async (args) => (args.where.checkoutAt === null ? 1 : 3),
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", statsByCpf), {
+        path: `/test/${visitorCpf}`,
+      })
+  );
+
+  assert.equal(stats.status, 200);
+  assert.deepEqual(stats.body, { cpf: visitorCpf, total: 3, open: 1, closed: 2 });
+
+  const invalid = await withSilencedApiLogs(() =>
+    request((app) => app.get("/test/:cpf", recentByCpf), {
+      path: "/test/11111111111",
+    })
+  );
+
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.code, "VALIDATION_ERROR");
+
+  const technical = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findMany: async () => {
+            throw new Error("recent visits failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.get("/test/:cpf", recentByCpf), {
+          path: `/test/${visitorCpf}`,
+        })
+    )
+  );
+
+  assert.equal(technical.status, 500);
+  assert.equal(technical.body.code, "INTERNAL_ERROR");
+});
+
+test("visits recent success keeps cpf and items response", async () => {
+  const items = [{ id: 40, visitCode: "12345678" }];
+  const response = await withPrismaMocks(
+    {
+      visit: {
+        findMany: async () => items,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", recentByCpf), {
+        path: `/test/${visitorCpf}?limit=5`,
+      })
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { cpf: visitorCpf, items });
+});
+
+test("visits label token success, safe 404, and JWT errors keep their contracts", async () => {
+  const success = await withJwtSignMock(
+    () => "label-token",
+    () =>
+      withPrismaMocks(
+        {
+          visit: {
+            findUnique: async () => ({ id: 77, branchId: 2 }),
+          },
+        },
+        () =>
+          request((app) => app.post("/test/:id/label-token", labelToken), {
+            method: "POST",
+            path: "/test/77/label-token",
+          })
+      )
+  );
+
+  assert.equal(success.status, 200);
+  assert.equal(success.body.token, "label-token");
+  assert.equal(Number.isInteger(success.body.expiresInSeconds), true);
+
+  const missing = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.post("/test/:id/label-token", labelToken), {
+        method: "POST",
+        path: "/test/77/label-token",
+      })
+  );
+
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "VISIT_NOT_FOUND");
+
+  const jwtFailure = await withSilencedApiLogs(() =>
+    withJwtSignMock(
+      () => {
+        throw new Error("jwt sign failed with stack");
+      },
+      () =>
+        withPrismaMocks(
+          {
+            visit: {
+              findUnique: async () => ({ id: 77, branchId: 2 }),
+            },
+          },
+          () =>
+            request((app) => app.post("/test/:id/label-token", labelToken), {
+              method: "POST",
+              path: "/test/77/label-token",
+            })
+        )
+    )
+  );
+
+  assert.equal(jwtFailure.status, 500);
+  assert.equal(jwtFailure.body.code, "INTERNAL_ERROR");
+});
+
+test("visits get by ID success, safe 404, and technical error go through current contracts", async () => {
+  const visit = { id: 88, branch: { id: 2 }, visitor: { id: 55 } };
+  const success = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => visit,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:id", getVisitById), {
+        path: "/test/88",
+      })
+  );
+
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, visit);
+
+  const missing = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:id", getVisitById), {
+        path: "/test/88",
+      })
+  );
+
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "VISIT_NOT_FOUND");
+
+  const technical = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findUnique: async () => {
+            throw new Error("visit detail failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.get("/test/:id", getVisitById), {
+          path: "/test/88",
+        })
+    )
+  );
+
+  assert.equal(technical.status, 500);
+  assert.equal(technical.body.code, "INTERNAL_ERROR");
+});
+
+test("visits checkout success, operational 404, Zod, and Prisma errors keep their contracts", async () => {
+  const checkedOut = { id: 91, visitCode: "12345678", checkoutAt: "now" };
+  const success = await withPrismaMocks(
+    {
+      visit: {
+        findFirst: async () => ({ id: 91 }),
+        update: async () => checkedOut,
+      },
+    },
+    () =>
+      request((app) => app.post("/test", checkout), {
+        method: "POST",
+        body: { visitCode: "12345678" },
+      })
+  );
+
+  assert.equal(success.status, 200);
+  assert.deepEqual(success.body, checkedOut);
+
+  const missing = await withPrismaMocks(
+    {
+      visit: {
+        findFirst: async () => null,
+        update: async () => ({}),
+      },
+    },
+    () =>
+      request((app) => app.post("/test", checkout), {
+        method: "POST",
+        body: { visitCode: "12345678" },
+      })
+  );
+
+  assert.equal(missing.status, 404);
+  assert.equal(missing.body.code, "OPEN_VISIT_NOT_FOUND");
+
+  const invalid = await withSilencedApiLogs(() =>
+    request((app) => app.post("/test", checkout), {
+      method: "POST",
+      body: { visitCode: "123" },
+    })
+  );
+
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.code, "VALIDATION_ERROR");
+
+  const prismaError = new Prisma.PrismaClientKnownRequestError("Record missing", {
+    code: "P2025",
+    clientVersion: "test",
+  });
+  const failure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findFirst: async () => ({ id: 91 }),
+          update: async () => {
+            throw prismaError;
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", checkout), {
+          method: "POST",
+          body: { visitCode: "12345678" },
+        })
+    )
+  );
+
+  assert.equal(failure.status, 404);
+  assert.deepEqual(failure.body, {
+    message: "Registro n\u00e3o encontrado",
+    code: "RESOURCE_NOT_FOUND",
+    details: null,
+  });
+  assert.equal(JSON.stringify(failure.body).includes("stack"), false);
 });

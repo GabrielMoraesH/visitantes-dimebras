@@ -2,15 +2,6 @@ import QRCode from "qrcode";
 import { randomBytes } from "crypto";
 import * as visitService from "../services/visit.service.js";
 
-function zodToIssues(err) {
-  return (
-    err?.issues?.map((i) => ({
-      path: i.path?.join(".") || "",
-      message: i.message,
-    })) || []
-  );
-}
-
 function escapeHtml(value = "") {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -176,39 +167,27 @@ function buildLabelHtml({ visit, qrDataUrl, scriptNonce }) {
 `;
 }
 
-export async function labelToken(req, res) {
+export async function labelToken(req, res, next) {
   try {
     const result = await visitService.createLabelToken({ user: req.user, visitId: req.params.id });
 
     if (!result.ok) return sendServiceError(res, result);
 
     return res.json({ token: result.token, expiresInSeconds: result.expiresInSeconds });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function checkin(req, res) {
+export async function checkin(req, res, next) {
   try {
     const result = await visitService.checkin({ user: req.user, input: req.body });
 
     if (!result.ok) return sendServiceError(res, result);
 
     return res.status(201).json(result.visit);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inválidos",
-        issues: err.issues.map((i) => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
-    }
-
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
@@ -250,31 +229,29 @@ export async function label(req, res) {
   }
 }
 
-export async function openByCpf(req, res) {
+export async function openByCpf(req, res, next) {
   try {
     const result = await visitService.findOpenByCpf({ user: req.user, cpf: req.params.cpf });
 
     if (!result.ok) return sendServiceError(res, result);
 
     return res.json(result.visit);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function statsByCpf(req, res) {
+export async function statsByCpf(req, res, next) {
   try {
     const stats = await visitService.getStatsByCpf({ user: req.user, cpf: req.params.cpf });
 
     return res.json(stats);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro ao carregar estatísticas" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function recentByCpf(req, res) {
+export async function recentByCpf(req, res, next) {
   try {
     const recent = await visitService.getRecentByCpf({
       user: req.user,
@@ -283,51 +260,41 @@ export async function recentByCpf(req, res) {
     });
 
     return res.json(recent);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro ao carregar últimas visitas" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function checkout(req, res) {
+export async function checkout(req, res, next) {
   try {
     const result = await visitService.checkout({ user: req.user, input: req.body });
 
     if (!result.ok) return sendServiceError(res, result);
 
     return res.json(result.visit);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inválidos",
-        issues: zodToIssues(err),
-      });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function getVisitById(req, res) {
+export async function getVisitById(req, res, next) {
   try {
     const result = await visitService.getById({ user: req.user, visitId: req.params.id });
 
     if (!result.ok) return sendServiceError(res, result);
 
     return res.json(result.visit);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function getOpenVisitsMyBranch(req, res) {
+export async function getOpenVisitsMyBranch(req, res, next) {
   try {
     const result = await visitService.listOpen({ user: req.user });
 
     return res.json({ items: result.items });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro ao carregar check-ins em aberto" });
+  } catch (error) {
+    return next(error);
   }
 }
