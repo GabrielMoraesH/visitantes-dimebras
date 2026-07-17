@@ -145,7 +145,7 @@ export async function updateVisitorFiles(req, res, next) {
   }
 }
 
-export async function getVisitorPhoto(req, res) {
+export async function getVisitorPhoto(req, res, next) {
   try {
     const result = await VisitorService.getPhoto({
       user: req.user,
@@ -159,13 +159,12 @@ export async function getVisitorPhoto(req, res) {
     sendSensitiveFileHeaders(res, visitor.photoMime);
     res.setHeader("Content-Length", visitor.photoBytes.length);
     return res.send(visitor.photoBytes);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).end();
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function getVisitorDocFront(req, res) {
+export async function getVisitorDocFront(req, res, next) {
   try {
     const result = await VisitorService.getDocumentFront({
       user: req.user,
@@ -179,13 +178,12 @@ export async function getVisitorDocFront(req, res) {
     sendSensitiveFileHeaders(res, visitor.documentFrontMime);
     res.setHeader("Content-Length", visitor.documentFrontBytes.length);
     return res.send(visitor.documentFrontBytes);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).end();
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function getVisitorDocBack(req, res) {
+export async function getVisitorDocBack(req, res, next) {
   try {
     const result = await VisitorService.getDocumentBack({
       user: req.user,
@@ -199,8 +197,7 @@ export async function getVisitorDocBack(req, res) {
     sendSensitiveFileHeaders(res, visitor.documentBackMime);
     res.setHeader("Content-Length", visitor.documentBackBytes.length);
     return res.send(visitor.documentBackBytes);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).end();
+  } catch (error) {
+    return next(error);
   }
 }

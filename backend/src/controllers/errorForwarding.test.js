@@ -27,6 +27,9 @@ import {
   createVisitor,
   updateVisitor,
   updateVisitorFiles,
+  getVisitorPhoto,
+  getVisitorDocFront,
+  getVisitorDocBack,
   deleteIncompleteVisitorFromCurrentAttempt,
 } from "./visitors.controller.js";
 
@@ -134,6 +137,40 @@ async function request(route, options = {}) {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     return { status: response.status, body: await response.json() };
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+async function requestBinary(route, options = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use(normalizeErrorResponses);
+  app.use((req, res, next) => {
+    req.user = options.user || { id: 7, role: "ADMIN", branchId: 2 };
+    next();
+  });
+  route(app);
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  const server = app.listen(0);
+  try {
+    const { port } = server.address();
+    const response = await fetch(`http://127.0.0.1:${port}${options.path || "/test"}`, {
+      method: options.method || "GET",
+      headers: options.headers || {},
+      body: options.body,
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    const bytes = Buffer.from(await response.arrayBuffer());
+    let body = null;
+    if (contentType.includes("application/json") && bytes.length > 0) {
+      body = JSON.parse(bytes.toString("utf8"));
+    }
+
+    return { status: response.status, headers: response.headers, bytes, body };
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -1206,6 +1243,192 @@ test("visitors file upload unexpected error is normalized globally without stack
     details: null,
   });
   assert.equal(JSON.stringify(response.body).includes("stack"), false);
+});
+
+function assertVisitorFileHeaders(response, { contentType, contentLength }) {
+  assert.equal(response.headers.get("content-type"), contentType);
+  assert.equal(response.headers.get("content-length"), String(contentLength));
+  assert.equal(response.headers.get("content-disposition"), "inline");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+  assert.equal(response.headers.get("pragma"), "no-cache");
+  assert.equal(response.headers.get("expires"), null);
+}
+
+const visitorFileEndpointCases = [
+  {
+    name: "photo",
+    path: "/test/55/photo",
+    handler: getVisitorPhoto,
+    route: "/test/:id/photo",
+    bytesKey: "photoBytes",
+    mimeKey: "photoMime",
+    mime: "image/jpeg",
+    bytes: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+  },
+  {
+    name: "document front",
+    path: "/test/55/doc-front",
+    handler: getVisitorDocFront,
+    route: "/test/:id/doc-front",
+    bytesKey: "documentFrontBytes",
+    mimeKey: "documentFrontMime",
+    mime: "image/png",
+    bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+  },
+  {
+    name: "document back",
+    path: "/test/55/doc-back",
+    handler: getVisitorDocBack,
+    route: "/test/:id/doc-back",
+    bytesKey: "documentBackBytes",
+    mimeKey: "documentBackMime",
+    mime: "image/webp",
+    bytes: Buffer.from([0x52, 0x49, 0x46, 0x46, 0x01]),
+  },
+];
+
+for (const fileCase of visitorFileEndpointCases) {
+  test(`visitors ${fileCase.name} binary success keeps headers and bytes`, async () => {
+    let fileReadCalled = false;
+    const response = await withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async (args) => {
+            if (args.select?.createdInBranchId) {
+              return { id: 55, createdInBranchId: 2 };
+            }
+
+            fileReadCalled = true;
+            return {
+              [fileCase.bytesKey]: fileCase.bytes,
+              [fileCase.mimeKey]: fileCase.mime,
+            };
+          },
+        },
+      },
+      () => requestBinary((app) => app.get(fileCase.route, fileCase.handler), { path: fileCase.path })
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.bytes, fileCase.bytes);
+    assertVisitorFileHeaders(response, {
+      contentType: fileCase.mime,
+      contentLength: fileCase.bytes.length,
+    });
+    assert.equal(fileReadCalled, true);
+  });
+}
+
+test("visitors binary missing file keeps empty 404 without file headers", async () => {
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async (args) => {
+          if (args.select?.createdInBranchId) {
+            return { id: 55, createdInBranchId: 2 };
+          }
+
+          return { photoBytes: null, photoMime: null };
+        },
+      },
+    },
+    () => requestBinary((app) => app.get("/test/:id/photo", getVisitorPhoto), { path: "/test/55/photo" })
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(response.bytes.length, 0);
+  assert.equal(response.body, null);
+  assert.equal(response.headers.get("content-type"), null);
+  assert.equal(response.headers.get("content-disposition"), null);
+  assert.equal(response.headers.get("x-content-type-options"), null);
+  assert.equal(response.headers.get("cache-control"), null);
+  assert.equal(response.headers.get("pragma"), null);
+});
+
+test("visitors binary invalid ID keeps global JSON format and no file read", async () => {
+  let findCalled = false;
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => {
+          findCalled = true;
+          return null;
+        },
+      },
+    },
+    () => requestBinary((app) => app.get("/test/:id/photo", getVisitorPhoto), { path: "/test/abc/photo" })
+  );
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(response.body, {
+    message: "ID inv\u00e1lido",
+    code: "BAD_REQUEST",
+    details: null,
+  });
+  assert.equal(findCalled, false);
+  assert.equal(response.headers.get("content-disposition"), null);
+});
+
+test("visitors binary Prisma error before headers is normalized globally without stack", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => {
+            throw new Error("select photoBytes from visitor with stack");
+          },
+        },
+      },
+      () => requestBinary((app) => app.get("/test/:id/photo", getVisitorPhoto), { path: "/test/55/photo" })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(response.body).includes("stack"), false);
+  assert.equal(JSON.stringify(response.body).includes("select"), false);
+  assert.equal(response.headers.get("content-disposition"), null);
+});
+
+test("visitors binary denied access keeps 404 JSON and does not send buffer", async () => {
+  let fileReadCalled = false;
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async (args) => {
+          if (args.select?.createdInBranchId) {
+            return { id: 55, createdInBranchId: 99 };
+          }
+
+          fileReadCalled = true;
+          return { photoBytes: Buffer.from("secret"), photoMime: "image/jpeg" };
+        },
+      },
+      visit: {
+        findFirst: async () => null,
+      },
+    },
+    () =>
+      requestBinary((app) => app.get("/test/:id/photo", getVisitorPhoto), {
+        path: "/test/55/photo",
+        user: { id: 7, role: "RECEPCAO", branchId: 2 },
+      })
+  );
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    message: "Visitante n\u00e3o encontrado.",
+    code: "VISITOR_NOT_FOUND",
+    details: null,
+  });
+  assert.equal(fileReadCalled, false);
+  assert.equal(response.bytes.includes(Buffer.from("secret")), false);
+  assert.equal(response.headers.get("content-disposition"), null);
 });
 
 test("visitors incomplete compensation success remains preserved", async () => {
