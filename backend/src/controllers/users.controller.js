@@ -1,54 +1,38 @@
 import * as userService from "../services/user.service.js";
 
-function zodIssues(err) {
-  return err?.issues?.map((i) => ({
-    path: i.path?.join(".") || "",
-    message: i.message,
-  })) || [];
-}
-
-export async function createUser(req, res) {
+export async function createUser(req, res, next) {
   try {
     const result = await userService.createUser({ actor: req.user, input: req.body });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.status(201).json(result.user);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function listUsers(req, res) {
+export async function listUsers(req, res, next) {
   try {
     const users = await userService.listUsers();
 
     return res.json(users);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function disableUser(req, res) {
+export async function disableUser(req, res, next) {
   try {
     const result = await userService.disableUser({ actor: req.user, userId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
-    }
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function enableUser(req, res) {
+export async function enableUser(req, res, next) {
   try {
     const result = await userService.enableUser({ actor: req.user, userId: req.params });
     if (!result.ok) {
@@ -56,19 +40,12 @@ export async function enableUser(req, res) {
     }
 
     return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inválidos",
-        issues: zodIssues(err),
-      });
-    }
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function updateUser(req, res) {
+export async function updateUser(req, res, next) {
   try {
     const result = await userService.updateUser({
       actor: req.user,
@@ -78,11 +55,7 @@ export async function updateUser(req, res) {
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     return res.json(result.user);
-  } catch (err) {
-    console.error(err);
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inválidos", issues: zodIssues(err) });
-    }
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }

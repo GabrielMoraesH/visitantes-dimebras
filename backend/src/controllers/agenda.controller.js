@@ -1,14 +1,5 @@
 import * as agendaService from "../services/agenda.service.js";
 
-function zodToIssues(err) {
-  return (
-    err?.issues?.map((i) => ({
-      path: i.path?.join(".") || "",
-      message: i.message,
-    })) || []
-  );
-}
-
 function agendaErrorStatus(result) {
   if (result.reason === "not-found" || result.reason === "branch-not-found") return 404;
   return 400;
@@ -18,7 +9,7 @@ function agendaErrorStatus(result) {
 // LISTAR EVENTOS
 // ==========================
 
-export async function listEvents(req, res) {
+export async function listEvents(req, res, next) {
   try {
     const events = await agendaService.listEvents({
       user: req.user,
@@ -26,16 +17,12 @@ export async function listEvents(req, res) {
     });
 
     return res.json(events);
-  } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Erro interno.",
-    });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function listPublicTvNowEvents(req, res) {
+export async function listPublicTvNowEvents(req, res, next) {
   try {
     const result = await agendaService.listPublicTvNowEvents({
       query: req.query,
@@ -48,19 +35,8 @@ export async function listPublicTvNowEvents(req, res) {
     }
 
     return res.json(result.events);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Parametros invalidos.",
-        issues: zodToIssues(err),
-      });
-    }
-
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Erro interno.",
-    });
+  } catch (error) {
+    return next(error);
   }
 }
 
@@ -68,7 +44,7 @@ export async function listPublicTvNowEvents(req, res) {
 // CRIAR EVENTO
 // ==========================
 
-export async function createEvent(req, res) {
+export async function createEvent(req, res, next) {
   try {
     const result = await agendaService.createEvent({
       user: req.user,
@@ -82,23 +58,12 @@ export async function createEvent(req, res) {
     }
 
     return res.status(201).json(result.event);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({
-        message: "Dados inv\u00e1lidos.",
-        issues: zodToIssues(err),
-      });
-    }
-
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Erro interno.",
-    });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function updateEvent(req, res) {
+export async function updateEvent(req, res, next) {
   try {
     const result = await agendaService.updateEvent({
       user: req.user,
@@ -113,16 +78,12 @@ export async function updateEvent(req, res) {
     }
 
     return res.json(result.event);
-  } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Erro ao atualizar agendamento.",
-    });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function cancelEvent(req, res) {
+export async function cancelEvent(req, res, next) {
   try {
     const result = await agendaService.cancelEvent({
       user: req.user,
@@ -136,11 +97,7 @@ export async function cancelEvent(req, res) {
     }
 
     return res.json(result.event);
-  } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      message: "Erro ao cancelar agendamento.",
-    });
+  } catch (error) {
+    return next(error);
   }
 }
