@@ -191,7 +191,7 @@ export async function checkin(req, res, next) {
   }
 }
 
-export async function label(req, res) {
+export async function label(req, res, next) {
   try {
     const result = await visitService.getLabelData({
       authorization: req.headers.authorization,
@@ -223,9 +223,8 @@ export async function label(req, res) {
       ].join("; ")
     );
     return res.send(html);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).send("Erro ao gerar etiqueta");
+  } catch (error) {
+    return next(error);
   }
 }
 

@@ -4,6 +4,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
+import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { normalizeErrorResponses, notFoundHandler, errorHandler } from "../middlewares/errorHandler.js";
@@ -37,6 +38,7 @@ import {
   checkout,
   getOpenVisitsMyBranch,
   getVisitById,
+  label,
   labelToken,
   openByCpf,
   recentByCpf,
@@ -109,6 +111,17 @@ function withJwtSignMock(replacement, fn) {
     .then(fn)
     .finally(() => {
       jwt.sign = originalSign;
+    });
+}
+
+function withQRCodeToDataURLMock(replacement, fn) {
+  const originalToDataURL = QRCode.toDataURL;
+  QRCode.toDataURL = replacement;
+
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      QRCode.toDataURL = originalToDataURL;
     });
 }
 
@@ -1905,6 +1918,313 @@ test("visits label token success, safe 404, and JWT errors keep their contracts"
 
   assert.equal(jwtFailure.status, 500);
   assert.equal(jwtFailure.body.code, "INTERNAL_ERROR");
+});
+
+test("visits label success with Bearer keeps HTML, QR, escaping, CSP, and headers", async () => {
+  const token = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const visit = {
+    id: 77,
+    branchId: 2,
+    visitCode: "ABC<123>&",
+    checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+    attendedBy: "Joao <Atende> & \"Time\"",
+    visitor: {
+      name: "Maria <Silva> & \"Ana\"",
+      cpf: "52998224725",
+      company: "Empresa <script>alert(1)</script>",
+    },
+    branch: { id: 2, name: "Filial <Centro> & Oeste" },
+  };
+  let qrArgs;
+
+  const response = await withQRCodeToDataURLMock(
+    async (...args) => {
+      qrArgs = args;
+      return "data:image/png;base64,QRDATA";
+    },
+    () =>
+      withPrismaMocks(
+        {
+          visit: {
+            findUnique: async () => visit,
+          },
+          user: {
+            findUnique: async () => ({
+              id: 10,
+              role: "ADMIN",
+              branchId: 999,
+              isActive: true,
+            }),
+          },
+        },
+        () =>
+          requestBinary((app) => app.get("/test/:id/label", label), {
+            path: "/test/77/label",
+            headers: { authorization: `Bearer ${token}` },
+          })
+      )
+  );
+
+  const html = response.bytes.toString("utf8");
+  const csp = response.headers.get("content-security-policy");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+  assert.equal(response.headers.get("cache-control"), null);
+  assert.deepEqual(qrArgs, ["ABC<123>&", { margin: 0, scale: 8 }]);
+  assert.match(csp, /^default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'nonce-[A-Za-z0-9+/=]+'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'$/);
+  assert.match(html, /^\s*<!doctype html>/);
+  assert.match(html, /<html>/);
+  assert.match(html, /<meta charset="utf-8" \/>/);
+  assert.match(html, /<title>Etiqueta<\/title>/);
+  assert.match(html, /<button id="print-button" type="button">IMPRIMIR<\/button>/);
+  assert.match(html, /<button id="close-button" type="button" class="secondary">/);
+  assert.match(html, /<p><b>Nome:<\/b> Maria &lt;Silva&gt; &amp; &quot;Ana&quot;<\/p>/);
+  assert.match(html, /<p><b>CPF:<\/b> 52998224725<\/p>/);
+  assert.match(html, /<p><b>Empresa:<\/b> Empresa &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/p>/);
+  assert.match(html, /<p><b>Falar com:<\/b> Joao &lt;Atende&gt; &amp; &quot;Time&quot;<\/p>/);
+  assert.match(html, /<p class="small"><b>Unidade:<\/b> Filial &lt;Centro&gt; &amp; Oeste<\/p>/);
+  assert.match(html, /<p class="small"><b>Entrada:<\/b> /);
+  assert.match(html, /<p class="code"><b>Código:<\/b> ABC&lt;123&gt;&amp;<\/p>/);
+  assert.match(html, /<img class="qr" src="data:image\/png;base64,QRDATA" alt="QR Code da visita" \/>/);
+  assert.match(html, /<script nonce="[A-Za-z0-9+/=]+">/);
+  assert.equal(html.includes("<script>alert(1)</script>"), false);
+});
+
+test("visits label success with label token preserves token access contract", async () => {
+  const token = jwt.sign(
+    { purpose: "visit-label", visitId: 78, branchId: 4 },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  const response = await withQRCodeToDataURLMock(
+    async () => "data:image/png;base64,TOKENQR",
+    () =>
+      withPrismaMocks(
+        {
+          visit: {
+            findUnique: async () => ({
+              id: 78,
+              branchId: 4,
+              visitCode: "87654321",
+              checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+              attendedBy: "Maria",
+              visitor: { name: "Visitante", cpf: "52998224725", company: "Dimebras" },
+              branch: { id: 4, name: "Filial B" },
+            }),
+          },
+        },
+        () =>
+          requestBinary((app) => app.get("/test/:id/label", label), {
+            path: `/test/78/label?token=${encodeURIComponent(token)}`,
+          })
+      )
+  );
+
+  const html = response.bytes.toString("utf8");
+  assert.equal(response.status, 200);
+  assert.match(html, /<p><b>Nome:<\/b> Visitante<\/p>/);
+  assert.match(html, /<p><b>CPF:<\/b> 52998224725<\/p>/);
+  assert.match(html, /src="data:image\/png;base64,TOKENQR"/);
+});
+
+test("visits label operational denials keep current plain responses", async () => {
+  const baseVisit = {
+    id: 79,
+    branchId: 5,
+    visitCode: "12345678",
+    checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+    attendedBy: "Maria",
+    visitor: { name: "Visitante", cpf: "52998224725", company: "Dimebras" },
+    branch: { id: 5, name: "Filial C" },
+  };
+  const invalidToken = "not-a-valid-token";
+  const expiredToken = jwt.sign(
+    { purpose: "visit-label", visitId: 79, branchId: 5, exp: Math.floor(Date.now() / 1000) - 60 },
+    process.env.JWT_SECRET
+  );
+  const otherVisitToken = jwt.sign(
+    { purpose: "visit-label", visitId: 999, branchId: 5 },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+  const inactiveBearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+  async function labelRequest(path, userFindUnique = async () => null) {
+    return withPrismaMocks(
+      {
+        visit: {
+          findUnique: async () => baseVisit,
+        },
+        user: {
+          findUnique: userFindUnique,
+        },
+      },
+      () => requestBinary((app) => app.get("/test/:id/label", label), { path })
+    );
+  }
+
+  const missingToken = await labelRequest("/test/79/label");
+  assert.equal(missingToken.status, 404);
+  assert.equal(missingToken.bytes.toString("utf8"), "Visita nao encontrada");
+
+  const invalid = await labelRequest(`/test/79/label?token=${encodeURIComponent(invalidToken)}`);
+  assert.equal(invalid.status, 404);
+  assert.equal(invalid.bytes.toString("utf8"), "Visita nao encontrada");
+
+  const expired = await labelRequest(`/test/79/label?token=${encodeURIComponent(expiredToken)}`);
+  assert.equal(expired.status, 404);
+  assert.equal(expired.bytes.toString("utf8"), "Visita nao encontrada");
+
+  const otherVisit = await labelRequest(`/test/79/label?token=${encodeURIComponent(otherVisitToken)}`);
+  assert.equal(otherVisit.status, 404);
+  assert.equal(otherVisit.bytes.toString("utf8"), "Visita nao encontrada");
+
+  const inactive = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => baseVisit,
+      },
+      user: {
+        findUnique: async () => ({ id: 10, role: "RECEPCAO", branchId: 5, isActive: false }),
+      },
+    },
+    () =>
+      requestBinary((app) => app.get("/test/:id/label", label), {
+        path: "/test/79/label",
+        headers: { authorization: `Bearer ${inactiveBearer}` },
+      })
+  );
+  assert.equal(inactive.status, 404);
+  assert.equal(inactive.bytes.toString("utf8"), "Visita nao encontrada");
+
+  const missingVisit = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => null,
+      },
+    },
+    () => requestBinary((app) => app.get("/test/:id/label", label), { path: "/test/999/label" })
+  );
+  assert.equal(missingVisit.status, 404);
+  assert.equal(missingVisit.bytes.toString("utf8"), "Visita não encontrada");
+});
+
+test("visits label technical failures go through the global error handler", async () => {
+  const prismaFailure = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visit: {
+          findUnique: async () => {
+            throw new Error("select cpf from visits with stack");
+          },
+        },
+      },
+      () => requestBinary((app) => app.get("/test/:id/label", label), { path: "/test/80/label" })
+    )
+  );
+
+  assert.equal(prismaFailure.status, 500);
+  assert.deepEqual(prismaFailure.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(prismaFailure.body).includes("stack"), false);
+  assert.equal(JSON.stringify(prismaFailure.body).includes("select cpf"), false);
+
+  const bearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const qrFailure = await withSilencedApiLogs(() =>
+    withQRCodeToDataURLMock(
+      async () => {
+        throw new Error("qr generation failed with stack");
+      },
+      () =>
+        withPrismaMocks(
+          {
+            visit: {
+              findUnique: async () => ({
+                id: 80,
+                branchId: 2,
+                visitCode: "12345678",
+                checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+                attendedBy: "Maria",
+                visitor: { name: "Visitante", cpf: "52998224725", company: "Dimebras" },
+                branch: { id: 2, name: "Filial B" },
+              }),
+            },
+            user: {
+              findUnique: async () => ({ id: 10, role: "ADMIN", branchId: 2, isActive: true }),
+            },
+          },
+          () =>
+            requestBinary((app) => app.get("/test/:id/label", label), {
+              path: "/test/80/label",
+              headers: { authorization: `Bearer ${bearer}` },
+            })
+        )
+    )
+  );
+
+  assert.equal(qrFailure.status, 500);
+  assert.equal(qrFailure.body.code, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(qrFailure.body).includes("qr generation failed"), false);
+});
+
+test("visits label forwards send errors after headers are sent", async () => {
+  const bearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const sendError = new Error("socket write failed");
+  const req = {
+    params: { id: "81" },
+    query: {},
+    headers: { authorization: `Bearer ${bearer}` },
+  };
+  const res = {
+    headersSent: false,
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name] = value;
+      return this;
+    },
+    send() {
+      this.headersSent = true;
+      throw sendError;
+    },
+  };
+  let forwardedError;
+
+  await withQRCodeToDataURLMock(
+    async () => "data:image/png;base64,QRDATA",
+    () =>
+      withPrismaMocks(
+        {
+          visit: {
+            findUnique: async () => ({
+              id: 81,
+              branchId: 2,
+              visitCode: "12345678",
+              checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+              attendedBy: "Maria",
+              visitor: { name: "Visitante", cpf: "52998224725", company: "Dimebras" },
+              branch: { id: 2, name: "Filial B" },
+            }),
+          },
+          user: {
+            findUnique: async () => ({ id: 10, role: "ADMIN", branchId: 2, isActive: true }),
+          },
+        },
+        () =>
+          label(req, res, (error) => {
+            forwardedError = error;
+          })
+      )
+  );
+
+  assert.equal(forwardedError, sendError);
+  assert.equal(res.headersSent, true);
+  assert.equal(res.headers["Content-Type"], "text/html; charset=utf-8");
+  assert.ok(res.headers["Content-Security-Policy"]);
 });
 
 test("visits get by ID success, safe 404, and technical error go through current contracts", async () => {
