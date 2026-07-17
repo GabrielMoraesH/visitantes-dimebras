@@ -324,6 +324,7 @@ test("updateVisitor rejects protected fields from body", async () => {
   };
   const res = createRes();
   let updateCalled = false;
+  let forwardedError;
 
   await withPrismaMocks(
     {
@@ -335,9 +336,11 @@ test("updateVisitor rejects protected fields from body", async () => {
         },
       },
     },
-    () => updateVisitor(req, res)
+    () => updateVisitor(req, res, (error) => {
+      forwardedError = error;
+    })
   );
 
-  assert.equal(res.statusCode, 400);
+  assert.equal(forwardedError?.name, "ZodError");
   assert.equal(updateCalled, false);
 });

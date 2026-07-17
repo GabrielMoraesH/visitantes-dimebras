@@ -4,6 +4,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { normalizeErrorResponses, notFoundHandler, errorHandler } from "../middlewares/errorHandler.js";
 import { login } from "./auth.controller.js";
@@ -21,6 +22,13 @@ import {
   updateUser,
   disableUser,
 } from "./users.controller.js";
+import {
+  getByCpf,
+  createVisitor,
+  updateVisitor,
+  updateVisitorFiles,
+  deleteIncompleteVisitorFromCurrentAttempt,
+} from "./visitors.controller.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -33,6 +41,11 @@ const activeUser = {
   isActive: true,
   branch: { id: 3, name: "Dimebras SP" },
 };
+
+const visitorCpf = "52998224725";
+const visitorFileBytes = Buffer.from([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9,
+]);
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];
@@ -770,4 +783,496 @@ test("users Prisma failure returns the safe global 500 without stack or password
   });
   assert.equal(JSON.stringify(response.body).includes("stack"), false);
   assert.equal(JSON.stringify(response.body).includes("passwordHash"), false);
+});
+
+test("visitors by CPF success keeps the visitor JSON shape", async () => {
+  const visitor = { id: 55, cpf: visitorCpf, name: "Maria Silva" };
+  let findCalls = 0;
+
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async (args) => {
+          findCalls += 1;
+          if (args.where?.cpf) return visitor;
+          return { id: 55, createdInBranchId: 2 };
+        },
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", getByCpf), {
+        path: `/test/${visitorCpf}`,
+      })
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, visitor);
+  assert.equal(findCalls, 2);
+});
+
+test("visitors by CPF operational 404 remains preserved", async () => {
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.get("/test/:cpf", getByCpf), {
+        path: `/test/${visitorCpf}`,
+      })
+  );
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    message: "Visitante não encontrado",
+    code: "VISITOR_NOT_FOUND",
+    details: null,
+  });
+});
+
+test("visitors by CPF Zod validation is normalized globally", async () => {
+  let findCalled = false;
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => {
+            findCalled = true;
+            return null;
+          },
+        },
+      },
+      () =>
+        request((app) => app.get("/test/:cpf", getByCpf), {
+          path: "/test/11111111111",
+        })
+    )
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "Dados inválidos.");
+  assert.equal(response.body.code, "VALIDATION_ERROR");
+  assert.equal(Array.isArray(response.body.details), true);
+  assert.equal("issues" in response.body, false);
+  assert.equal(findCalled, false);
+});
+
+test("visitors by CPF technical error is normalized globally", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => {
+            throw new Error("select cpf from visitor with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.get("/test/:cpf", getByCpf), {
+          path: `/test/${visitorCpf}`,
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(response.body).includes("stack"), false);
+  assert.equal(JSON.stringify(response.body).includes("select"), false);
+});
+
+test("visitors create success keeps the 201 visitor response", async () => {
+  const created = {
+    id: 56,
+    name: "Maria Silva",
+    cpf: visitorCpf,
+    phone: "45999999999",
+    company: "Dimebras",
+    createdAt: "2099-01-01T00:00:00.000Z",
+  };
+
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        create: async () => created,
+      },
+    },
+    () =>
+      request((app) => app.post("/test", createVisitor), {
+        method: "POST",
+        body: {
+          name: "Maria Silva",
+          cpf: visitorCpf,
+          phone: "45999999999",
+          company: "Dimebras",
+        },
+      })
+  );
+
+  assert.equal(response.status, 201);
+  assert.deepEqual(response.body, created);
+});
+
+test("visitors create CPF conflict remains friendly through global Prisma translation", async () => {
+  const conflict = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "test",
+    meta: { target: ["cpf"] },
+  });
+
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          create: async () => {
+            throw conflict;
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", createVisitor), {
+          method: "POST",
+          body: {
+            name: "Maria Silva",
+            cpf: visitorCpf,
+            phone: "45999999999",
+          },
+        })
+    )
+  );
+
+  assert.equal(response.status, 409);
+  assert.deepEqual(response.body, {
+    message: "CPF já cadastrado",
+    code: "VISITOR_CPF_CONFLICT",
+    details: null,
+  });
+});
+
+test("visitors create Zod validation is normalized globally", async () => {
+  let createCalled = false;
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          create: async () => {
+            createCalled = true;
+            return {};
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", createVisitor), {
+          method: "POST",
+          body: {
+            name: "M",
+            cpf: visitorCpf,
+            phone: "45999999999",
+            createdById: 99,
+          },
+        })
+    )
+  );
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "Dados inválidos.");
+  assert.equal(response.body.code, "VALIDATION_ERROR");
+  assert.equal(Array.isArray(response.body.details), true);
+  assert.equal("issues" in response.body, false);
+  assert.equal(createCalled, false);
+});
+
+test("visitors create unexpected Prisma failure returns the safe global 500", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          create: async () => {
+            throw new Error("prisma visitor create failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.post("/test", createVisitor), {
+          method: "POST",
+          body: {
+            name: "Maria Silva",
+            cpf: visitorCpf,
+            phone: "45999999999",
+          },
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+});
+
+test("visitors update success keeps the visitor JSON response", async () => {
+  const visitor = { id: 55, phone: "45999999999", company: "Nova", updatedAt: "2099-01-01" };
+
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => ({ id: 55, createdInBranchId: 2 }),
+        update: async () => visitor,
+      },
+    },
+    () =>
+      request((app) => app.put("/test/:id", updateVisitor), {
+        method: "PUT",
+        path: "/test/55",
+        body: { phone: "45999999999", company: "Nova" },
+      })
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, visitor);
+});
+
+test("visitors update operational 404 remains preserved", async () => {
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => null,
+      },
+    },
+    () =>
+      request((app) => app.put("/test/:id", updateVisitor), {
+        method: "PUT",
+        path: "/test/55",
+        body: { company: "Nova" },
+      })
+  );
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    message: "Visitante nao encontrado",
+    code: "VISITOR_NOT_FOUND",
+    details: null,
+  });
+});
+
+test("visitors update technical error is normalized globally", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => ({ id: 55, createdInBranchId: 2 }),
+          update: async () => {
+            throw new Error("update visitor leaked stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.put("/test/:id", updateVisitor), {
+          method: "PUT",
+          path: "/test/55",
+          body: { company: "Nova" },
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+});
+
+test("visitors file upload JSON success keeps the visitor response", async () => {
+  const visitor = { id: 55, cpf: visitorCpf, photoUpdatedAt: "2099-01-01T00:00:00.000Z" };
+  let updateData;
+
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => ({ id: 55, createdInBranchId: 2 }),
+        update: async (args) => {
+          updateData = args.data;
+          return visitor;
+        },
+      },
+    },
+    () =>
+      request(
+        (app) =>
+          app.put(
+            "/test/:id/files",
+            (req, res, next) => {
+              req.files = {
+                photo: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+              };
+              next();
+            },
+            updateVisitorFiles
+          ),
+        {
+          method: "PUT",
+          path: "/test/55/files",
+          body: undefined,
+        }
+      )
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, visitor);
+  assert.ok(updateData.photoBytes);
+});
+
+test("visitors file upload operational file validation remains preserved", async () => {
+  let updateCalled = false;
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () => ({ id: 55, createdInBranchId: 2 }),
+        update: async () => {
+          updateCalled = true;
+          return {};
+        },
+      },
+    },
+    () =>
+      request(
+        (app) =>
+          app.put(
+            "/test/:id/files",
+            (req, res, next) => {
+              req.files = {
+                documentFront: [{ buffer: Buffer.from("not an image"), mimetype: "image/jpeg" }],
+              };
+              next();
+            },
+            updateVisitorFiles
+          ),
+        {
+          method: "PUT",
+          path: "/test/55/files",
+          body: undefined,
+        }
+      )
+  );
+
+  assert.equal(response.status, 415);
+  assert.equal(response.body.code, "UPLOAD_INVALID_TYPE");
+  assert.equal(updateCalled, false);
+});
+
+test("visitors file upload unexpected error is normalized globally without stack", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          findUnique: async () => {
+            throw new Error("file access stack details");
+          },
+        },
+      },
+      () =>
+        request(
+          (app) =>
+            app.put(
+              "/test/:id/files",
+              (req, res, next) => {
+                req.files = {
+                  photo: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+                };
+                next();
+              },
+              updateVisitorFiles
+            ),
+          {
+            method: "PUT",
+            path: "/test/55/files",
+            body: undefined,
+          }
+        )
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
+  assert.equal(JSON.stringify(response.body).includes("stack"), false);
+});
+
+test("visitors incomplete compensation success remains preserved", async () => {
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        deleteMany: async () => ({ count: 1 }),
+      },
+    },
+    () =>
+      request((app) => app.delete("/test/:id/incomplete-created", deleteIncompleteVisitorFromCurrentAttempt), {
+        method: "DELETE",
+        path: "/test/55/incomplete-created",
+        body: undefined,
+      })
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { ok: true });
+});
+
+test("visitors incomplete compensation safe 404 remains preserved", async () => {
+  const response = await withPrismaMocks(
+    {
+      visitor: {
+        deleteMany: async () => ({ count: 0 }),
+      },
+    },
+    () =>
+      request((app) => app.delete("/test/:id/incomplete-created", deleteIncompleteVisitorFromCurrentAttempt), {
+        method: "DELETE",
+        path: "/test/55/incomplete-created",
+        body: undefined,
+      })
+  );
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, {
+    message: "Visitante nao encontrado",
+    code: "VISITOR_NOT_FOUND",
+    details: null,
+  });
+});
+
+test("visitors incomplete compensation Prisma error is normalized globally", async () => {
+  const response = await withSilencedApiLogs(() =>
+    withPrismaMocks(
+      {
+        visitor: {
+          deleteMany: async () => {
+            throw new Error("deleteMany failed with stack");
+          },
+        },
+      },
+      () =>
+        request((app) => app.delete("/test/:id/incomplete-created", deleteIncompleteVisitorFromCurrentAttempt), {
+          method: "DELETE",
+          path: "/test/55/incomplete-created",
+          body: undefined,
+        })
+    )
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    message: "Erro interno",
+    code: "INTERNAL_ERROR",
+    details: null,
+  });
 });

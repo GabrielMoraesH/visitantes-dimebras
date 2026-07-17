@@ -39,7 +39,7 @@ function sendFileAccessError(res, result) {
   return false;
 }
 
-export async function getByCpf(req, res) {
+export async function getByCpf(req, res, next) {
   try {
     const result = await VisitorService.findByCpf({
       user: req.user,
@@ -52,13 +52,12 @@ export async function getByCpf(req, res) {
     }
 
     return res.json(result.visitor);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function createVisitor(req, res) {
+export async function createVisitor(req, res, next) {
   try {
     const created = await VisitorService.create({
       user: req.user,
@@ -66,19 +65,12 @@ export async function createVisitor(req, res) {
     });
 
     return res.status(201).json(created);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inv\u00e1lidos", issues: err.issues });
-    }
-    if (err?.code === "P2002") {
-      return res.status(409).json({ message: "CPF j\u00e1 cadastrado" });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function deleteIncompleteVisitorFromCurrentAttempt(req, res) {
+export async function deleteIncompleteVisitorFromCurrentAttempt(req, res, next) {
   try {
     const result = await VisitorService.deleteIncompleteFromCurrentAttempt({
       user: req.user,
@@ -90,13 +82,12 @@ export async function deleteIncompleteVisitorFromCurrentAttempt(req, res) {
     }
 
     return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function updateVisitor(req, res) {
+export async function updateVisitor(req, res, next) {
   try {
     const result = await VisitorService.update({
       user: req.user,
@@ -113,16 +104,12 @@ export async function updateVisitor(req, res) {
     }
 
     return res.json(result.visitor);
-  } catch (err) {
-    if (err?.name === "ZodError") {
-      return res.status(400).json({ message: "Dados inv\u00e1lidos", issues: err.issues });
-    }
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
-export async function updateVisitorFiles(req, res) {
+export async function updateVisitorFiles(req, res, next) {
   try {
     const id = await ensureVisitorFileAccess(req, res);
     if (!id) return;
@@ -153,9 +140,8 @@ export async function updateVisitorFiles(req, res) {
     }
 
     return res.json(result.visitor);
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erro interno" });
+  } catch (error) {
+    return next(error);
   }
 }
 
