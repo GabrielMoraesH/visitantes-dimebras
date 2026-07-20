@@ -119,6 +119,13 @@ Arquivos de TV de producao serao salvos em:
 D:\VisitantesStorage\tv
 ```
 
+## Observabilidade
+
+- Toda resposta do backend inclui `X-Request-Id`. Se o cliente enviar um UUID valido em `X-Request-Id`, ele sera preservado; valores invalidos sao substituidos.
+- Logs do backend sao emitidos em uma linha JSON por evento, via stdout/stderr, com `timestamp`, `level`, `event` e `requestId` quando a requisicao passa pelo middleware.
+- `GET /health` permanece como liveness simples e publico.
+- `GET /health/ready` verifica banco e storage de TV, retorna `200` quando pronto e `503` quando banco ou storage estiver indisponivel. A resposta nao expoe host, usuario, URL de banco ou caminhos absolutos.
+
 A URL publica permanece no formato:
 
 ```text

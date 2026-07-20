@@ -16,6 +16,7 @@ import {
   strictBoolean,
   trimmedString,
 } from "../utils/validation.js";
+import { logWarn } from "../utils/logger.js";
 
 const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const VIDEO_MIMES = new Set(["video/mp4", "video/webm"]);
@@ -157,7 +158,7 @@ async function removeFileInside(rootDir, filePath) {
     await fs.promises.unlink(resolved);
   } catch (err) {
     if (err.code !== "ENOENT") {
-      console.error("tv-file-remove-error", { code: err.code });
+      logWarn("tv_file_remove_failed", { code: err.code });
     }
   }
 }

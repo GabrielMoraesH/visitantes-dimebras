@@ -56,7 +56,8 @@ Nao execute este checklist diretamente sem validar os itens marcados como `A CON
 - [ ] Processo frontend em PM2: `visitantes-frontend` em `PRODUCAO.md`; finalidade exata `A CONFIRMAR`.
 - [ ] Banco: PostgreSQL, acessado pelo Prisma via `DATABASE_URL`.
 - [ ] Migrations: `backend/prisma/migrations`, aplicadas por `npx prisma migrate deploy`.
-- [ ] Health check: `GET /health`.
+- [ ] Health check liveness: `GET /health`.
+- [ ] Health check readiness: `GET /health/ready`.
 - [ ] CORS: em producao, backend exige `FRONTEND_URL`.
 - [ ] Uploads de TV: filesystem em `UPLOAD_ROOT/tv`, exposto pelo backend em `/uploads/tv`.
 - [ ] Temporarios de TV: `UPLOAD_ROOT/tmp/tv`.
@@ -106,7 +107,7 @@ Nao versionar `.env` e nao registrar valores reais em evidencias.
 - [ ] Checksum do backup planejado.
 - [ ] Plano para copia externa segura do backup.
 - [ ] Lista de smoke tests impressa ou registrada em ticket operacional.
-- [ ] Observabilidade/logs acessiveis ao responsavel.
+- [ ] Observabilidade/logs JSON acessiveis ao responsavel, com `X-Request-Id` preservado nas evidencias.
 - [ ] Artefato ou build anterior do frontend preservado.
 
 ### Opcional
@@ -404,6 +405,7 @@ Arquivos de proxy nao estao versionados. Validar no ambiente real:
 ### Publico
 
 - [ ] `GET /health`: espera `200` e `ok: true`.
+- [ ] `GET /health/ready`: espera `200` com `database: "up"` e `storage: "up"`; se indisponivel, espera `503` sem detalhes internos.
 - [ ] `POST /auth/login` com credencial invalida: espera `401` ou erro controlado, sem stack trace.
 - [ ] `GET /agenda/public/tv-now`: espera `200` com lista ou resposta vazia valida.
 - [ ] `GET /tv-content/public/active?branchId=<ID_FILIAL_TESTE>`: espera `200` com lista ou resposta vazia valida.

@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { randomBytes } from "crypto";
 import * as visitService from "../services/visit.service.js";
+import { logInfo, logWarn } from "../utils/logger.js";
 
 function escapeHtml(value = "") {
   return String(value)
@@ -13,6 +14,11 @@ function escapeHtml(value = "") {
 
 function sendServiceError(res, result) {
   return res.status(result.status).json({ message: result.message });
+}
+
+function positiveIntOrNull(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 function buildLabelHtml({ visit, qrDataUrl, scriptNonce }) {
@@ -183,7 +189,25 @@ export async function checkin(req, res, next) {
   try {
     const result = await visitService.checkin({ user: req.user, input: req.body });
 
-    if (!result.ok) return sendServiceError(res, result);
+    if (!result.ok) {
+      if (result.status === 400 && String(result.message || "").includes("visita em andamento")) {
+        logWarn("visit_checkin_conflict", {
+          requestId: req.requestId,
+          visitorId: positiveIntOrNull(req.body?.visitorId),
+          branchId: req.user?.branchId ?? null,
+          userId: req.user?.id ?? null,
+        });
+      }
+      return sendServiceError(res, result);
+    }
+
+    logInfo("visit_checkin_created", {
+      requestId: req.requestId,
+      visitId: result.visit.id,
+      visitorId: result.visit.visitorId,
+      branchId: result.visit.branchId,
+      userId: req.user?.id ?? null,
+    });
 
     return res.status(201).json(result.visit);
   } catch (error) {
@@ -268,7 +292,24 @@ export async function checkout(req, res, next) {
   try {
     const result = await visitService.checkout({ user: req.user, input: req.body });
 
-    if (!result.ok) return sendServiceError(res, result);
+    if (!result.ok) {
+      if (result.status === 404) {
+        logWarn("visit_checkout_not_found", {
+          requestId: req.requestId,
+          branchId: req.user?.branchId ?? null,
+          userId: req.user?.id ?? null,
+        });
+      }
+      return sendServiceError(res, result);
+    }
+
+    logInfo("visit_checkout_completed", {
+      requestId: req.requestId,
+      visitId: result.visit.id,
+      visitorId: result.visit.visitorId,
+      branchId: result.visit.branchId,
+      userId: req.user?.id ?? null,
+    });
 
     return res.json(result.visit);
   } catch (error) {

@@ -9,6 +9,7 @@ import {
 } from "../utils/fileSecurity.js";
 import { toErrorPayload } from "../utils/errors.js";
 import * as tvContentService from "../services/tvContent.service.js";
+import { logInfo, logWarn } from "../utils/logger.js";
 
 fs.mkdirSync(tvTempUploadDir, { recursive: true });
 
@@ -59,6 +60,12 @@ export function handleTvUploadErrors(req, res, next) {
     if (!err) return next();
 
     if (err instanceof multer.MulterError) {
+      logWarn("tv_content_upload_failed", {
+        requestId: req.requestId,
+        reason: err.code || "multer_error",
+        userId: req.user?.id ?? null,
+        branchId: req.user?.branchId ?? null,
+      });
       if (err.code === "LIMIT_FILE_SIZE") {
         return sendError(res, 413, "Arquivo excede o limite de 200MB.", "UPLOAD_FILE_TOO_LARGE");
       }
@@ -69,9 +76,21 @@ export function handleTvUploadErrors(req, res, next) {
     }
 
     if (Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 500) {
+      logWarn("tv_content_upload_failed", {
+        requestId: req.requestId,
+        reason: err.code || "invalid_upload",
+        userId: req.user?.id ?? null,
+        branchId: req.user?.branchId ?? null,
+      });
       return sendError(res, err.statusCode, err.message || "Upload invalido.", err.code);
     }
 
+    logWarn("tv_content_upload_failed", {
+      requestId: req.requestId,
+      reason: "technical_error",
+      userId: req.user?.id ?? null,
+      branchId: req.user?.branchId ?? null,
+    });
     return next(err);
   });
 }
@@ -116,8 +135,21 @@ export async function createTvContent(req, res, next) {
     });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
+    logInfo("tv_content_created", {
+      requestId: req.requestId,
+      tvContentId: result.content.id,
+      userId: req.user?.id ?? null,
+      branchId: req.user?.branchId ?? null,
+    });
+
     return res.status(201).json(result.content);
   } catch (err) {
+    logWarn("tv_content_upload_failed", {
+      requestId: req.requestId,
+      reason: "technical_error",
+      userId: req.user?.id ?? null,
+      branchId: req.user?.branchId ?? null,
+    });
     return forwardError(err, next);
   }
 }
@@ -151,6 +183,13 @@ export async function deleteTvContent(req, res, next) {
   try {
     const result = await tvContentService.deleteTvContent({ contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
+
+    logInfo("tv_content_deleted", {
+      requestId: req.requestId,
+      tvContentId: Number(req.params.id),
+      userId: req.user?.id ?? null,
+      branchId: req.user?.branchId ?? null,
+    });
 
     return res.json({ ok: true });
   } catch (err) {
