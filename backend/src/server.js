@@ -10,6 +10,7 @@ import usersRoutes from "./routes/users.routes.js";
 import branchesRoutes from "./routes/branches.routes.js";
 import agendaRoutes from "./routes/agenda.routes.js";
 import tvContentRoutes from "./routes/tvContent.routes.js";
+import healthRoutes from "./routes/health.routes.js";
 import { tvPublicPrefix, tvUploadDir } from "./config/uploads.js";
 import prisma from "./lib/prisma.js";
 import {
@@ -17,6 +18,9 @@ import {
   normalizeErrorResponses,
   notFoundHandler,
 } from "./middlewares/errorHandler.js";
+import { httpLogger } from "./middlewares/httpLogger.js";
+import { requestContext } from "./middlewares/requestContext.js";
+import { logError, logInfo } from "./utils/logger.js";
 
 const app = express();
 
@@ -32,11 +36,14 @@ const allowedOrigins = isProduction
   : ["http://localhost:5173"];
 
 if (isProduction && !process.env.FRONTEND_URL) {
-  console.error(
-    "Erro de configuracao: FRONTEND_URL deve ser definida em producao para configurar o CORS."
-  );
+  logError("server_config_error", {
+    code: "FRONTEND_URL_REQUIRED",
+    nodeEnv: process.env.NODE_ENV || "development",
+  });
 }
 
+app.use(requestContext);
+app.use(httpLogger);
 app.use(helmet());
 app.use(
   cors({
@@ -92,9 +99,7 @@ const staticUploadOptions = {
 };
 app.use(tvPublicPrefix, allowOnlyTvMediaFiles, express.static(tvUploadDir, staticUploadOptions));
 
-app.get("/health", (req, res) => {
-  res.json({ ok: true, message: "Backend rodando ✅" });
-});
+app.use("/health", healthRoutes);
 
 app.use("/auth", authRoutes);
 app.use("/visitors", visitorsRoutes);
@@ -112,9 +117,12 @@ const PORT = process.env.PORT || 3001;
 
 if (process.env.NODE_ENV !== "test") {
   app.listen(PORT, () => {
-    console.log(`API rodando em http://localhost:${PORT}`);
-    console.log(`Uploads TV em: ${tvUploadDir}`);
-    console.log(`URL publica TV: http://localhost:${PORT}${tvPublicPrefix}`);
+    logInfo("server_started", {
+      port: Number(PORT),
+      nodeEnv: process.env.NODE_ENV || "development",
+      storageConfigured: Boolean(tvUploadDir),
+      tvPublicPrefix,
+    });
   });
 }
 

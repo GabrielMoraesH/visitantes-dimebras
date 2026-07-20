@@ -46,9 +46,6 @@ export async function listHistory({ actor, query }) {
   const skip = (page - 1) * limit;
   const where = buildHistoryWhere({ cpf, status, branchName, date });
 
-  const shouldMeasureQuery = process.env.NODE_ENV !== "production";
-  const queryStartedAt = shouldMeasureQuery ? performance.now() : 0;
-
   const [total, items] = await Promise.all([
     prisma.visit.count({ where }),
     prisma.visit.findMany({
@@ -87,11 +84,6 @@ export async function listHistory({ actor, query }) {
       },
     }),
   ]);
-
-  if (shouldMeasureQuery) {
-    const queryDurationMs = performance.now() - queryStartedAt;
-    console.log(`history-query: ${queryDurationMs.toFixed(2)}ms`);
-  }
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 

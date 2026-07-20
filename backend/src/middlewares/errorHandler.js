@@ -9,6 +9,7 @@ import {
   serviceUnavailable,
   toErrorPayload,
 } from "../utils/errors.js";
+import { logError, logWarn } from "../utils/logger.js";
 
 const GENERIC_INTERNAL_MESSAGE = "Erro interno";
 
@@ -128,6 +129,15 @@ function translateError(error) {
   return appError(GENERIC_INTERNAL_MESSAGE, 500, "INTERNAL_ERROR");
 }
 
+function routePath(req) {
+  const baseUrl = req.baseUrl || "";
+  const route = req.route?.path;
+
+  if (typeof route === "string") return `${baseUrl}${route}` || "/";
+  if (route instanceof RegExp) return `${baseUrl}${route.toString()}`;
+  return "[unmatched]";
+}
+
 function safeLog(error, operationalError, req) {
   const statusCode = operationalError.statusCode || 500;
   const cwdPattern = new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
@@ -140,26 +150,29 @@ function safeLog(error, operationalError, req) {
     return text;
   };
   const base = {
-    timestamp: new Date().toISOString(),
+    requestId: req.requestId,
     method: req.method,
-    route: req.originalUrl || req.url,
+    route: routePath(req),
     status: statusCode,
     code: operationalError.code || "INTERNAL_ERROR",
+    errorName: error?.name || operationalError?.name,
+    durationMs: req.requestStartedAt
+      ? Math.round((performance.now() - req.requestStartedAt) * 100) / 100
+      : undefined,
     userId: req.user?.id ?? null,
     branchId: req.user?.branchId ?? null,
   };
 
   if (statusCode >= 500) {
-    console.error("api-error", {
+    logError("api_error", {
       ...base,
-      name: error?.name,
       message: sanitizeLogText(error?.message),
       stack: sanitizeLogText(error?.stack),
     });
     return;
   }
 
-  console.warn("api-error", base);
+  logWarn("api_error", base);
 }
 
 export function errorHandler(error, req, res, next) {

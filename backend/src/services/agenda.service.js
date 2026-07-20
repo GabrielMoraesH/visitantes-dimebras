@@ -138,8 +138,6 @@ export async function listEvents({ user, query }) {
   const { date } = listEventsQuerySchema.parse(query);
   const { startOfDay, endOfDay } = buildDayRange(date);
 
-  console.log("Filtro:", startOfDay, endOfDay);
-
   const events = await prisma.agendaEvent.findMany({
     where: {
       branchId: user.branchId,
@@ -152,8 +150,6 @@ export async function listEvents({ user, query }) {
       eventDateTime: "asc",
     },
   });
-
-  console.log("Encontrados:", events.length);
 
   return events;
 }
