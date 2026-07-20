@@ -49,10 +49,11 @@ Este projeto tem um backend Node.js/Express com Prisma e um frontend React/Vite.
 7. Inicie a API com um gerenciador de processo, systemd, container ou servico da plataforma:
 
    ```bash
-   NODE_ENV=production npm run dev
+   NODE_ENV=production npm start
    ```
 
-   Para producao, prefira um script dedicado de start ou um process manager configurado para executar `node src/server.js`.
+   Para producao, nao use `npm run dev`, pois esse script executa `nodemon`.
+   Configure o process manager para executar `npm start` ou `node src/server.js`.
 
 ## Frontend
 
