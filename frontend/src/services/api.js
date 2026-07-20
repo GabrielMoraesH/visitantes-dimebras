@@ -1,10 +1,44 @@
 import axios from "axios";
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:3001").replace(/\/$/, "");
+export const API_BASE_URL = (import.meta.env?.VITE_API_URL || "http://localhost:3001").replace(/\/$/, "");
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
 });
+
+let isRedirectingToLogin = false;
+
+export function clearStoredSession() {
+  if (typeof localStorage === "undefined") return;
+
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+}
+
+function getRequestPath(config) {
+  try {
+    return new URL(config?.url || "", config?.baseURL || API_BASE_URL).pathname.replace(/\/$/, "") || "/";
+  } catch {
+    return String(config?.url || "").split("?")[0].replace(/\/$/, "") || "/";
+  }
+}
+
+function isLoginRequest(config) {
+  return String(config?.method || "get").toLowerCase() === "post" && getRequestPath(config) === "/auth/login";
+}
+
+function isAlreadyOnLogin() {
+  if (typeof window === "undefined") return false;
+
+  return window.location.pathname.replace(/\/$/, "") === "/login";
+}
+
+function redirectToLogin() {
+  if (typeof window === "undefined" || isRedirectingToLogin) return;
+
+  isRedirectingToLogin = true;
+  window.location.assign("/login");
+}
 
 export function visitLabelUrl(visitId) {
   return `${API_BASE_URL}/visits/${visitId}/label`;
@@ -39,7 +73,7 @@ export function openVisitLabel(visitId) {
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -48,6 +82,21 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearStoredSession();
+
+      if (!isLoginRequest(error.config) && !isAlreadyOnLogin()) {
+        redirectToLogin();
+      }
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 export default api;
