@@ -3,17 +3,9 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { useConfirm } from "../components/Feedback/ConfirmProvider";
 import { useToast } from "../components/Feedback/ToastProvider";
+import { FALLBACK_BRANCHES } from "../constants/branches";
 import { getToken, getUser } from "../services/session";
 import "../styles/adminUsers.css";
-
-
-const FALLBACK_BRANCHES = [
-  { id: 1, name: "Dimebras PR" },
-  { id: 2, name: "Dimebras MT" },
-  { id: 3, name: "Dimebras MS" },
-  { id: 4, name: "Dimebras SC" },
-  { id: 5, name: "Alfamed MS" },
-];
 
 function PencilIcon({ size = 18 }) {
   return (

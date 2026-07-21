@@ -20,10 +20,10 @@ function fmt(dt) {
 const BRANCHES = [
   "all",
   "Dimebras PR",
+  "Alfamed MS",
   "Dimebras MT",
   "Dimebras MS",
   "Dimebras SC",
-  "Alfamed MS",
 ];
 
 export default function History() {

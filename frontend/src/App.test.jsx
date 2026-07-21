@@ -31,7 +31,15 @@ vi.mock("./pages/Checkin", () => lazyMocks.checkin);
 vi.mock("./pages/AdminUsers", () => lazyMocks.adminUsers);
 
 vi.mock("./pages/TvDisplay", () => ({
-  default: () => <div>TV publica mock</div>,
+  default: () => {
+    return (
+      <div>
+        TV publica mock
+        <span data-testid="tv-path">{window.location.pathname}</span>
+        <span data-testid="tv-search">{window.location.search}</span>
+      </div>
+    );
+  },
 }));
 
 vi.mock("./pages/History", () => ({
@@ -143,6 +151,36 @@ describe("App routes and lazy loading", () => {
 
     expect(await screen.findByText("TV publica mock")).toBeInTheDocument();
   });
+
+  it.each(["/tv1", "/tv2", "/tv3", "/tv5", "/tv6"])(
+    "mantem rota curta de TV publica acessivel sem token em %s",
+    async (path) => {
+      renderAppAt(path);
+
+      expect(await screen.findByText("TV publica mock")).toBeInTheDocument();
+      expect(screen.getByTestId("tv-path")).toHaveTextContent(path);
+    }
+  );
+
+  it("nao captura /tv-content como rota curta da TV publica", async () => {
+    setSession("ADMIN");
+
+    renderAppAt("/tv-content");
+
+    expect(await screen.findByText("TV content mock")).toBeInTheDocument();
+    expect(screen.queryByText("TV publica mock")).not.toBeInTheDocument();
+  });
+
+  it.each(["/tv-config", "/tv-relatorio", "/tvabc", "/tv1abc", "/tv-1", "/tv/1"])(
+    "nao captura rota textual ou futura %s como TV publica",
+    async (path) => {
+      renderAppAt(path);
+
+      await waitFor(() => expect(window.location.pathname).toBe("/login"));
+      expect(screen.getByText("Login mock")).toBeInTheDocument();
+      expect(screen.queryByText("TV publica mock")).not.toBeInTheDocument();
+    }
+  );
 
   it("redireciona rota desconhecida para login", async () => {
     renderAppAt("/rota-inexistente");

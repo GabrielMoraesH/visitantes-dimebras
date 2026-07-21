@@ -458,49 +458,51 @@ test("cancelEvent preserves current behavior for already cancelled event", async
   assert.equal(updateCalled, true);
 });
 
-test("listPublicTvNowEvents validates branch and preserves public query shape", async () => {
-  let branchFindArgs;
-  let findManyArgs;
-  const events = [{ id: 70, visitorName: "Visitante", eventDateTime: new Date() }];
+test("listPublicTvNowEvents validates all official TV branch IDs and excludes ID 4", async () => {
+  for (const officialBranchId of [1, 2, 3, 5, 6]) {
+    let branchFindArgs;
+    let findManyArgs;
+    const events = [{ id: 70, visitorName: "Visitante", eventDateTime: new Date() }];
 
-  const result = await withFixedDate("2026-07-16T15:00:00", () =>
-    withPrismaMocks(
-      {
-        branch: {
-          findUnique: async (args) => {
-            branchFindArgs = args;
-            return { id: 3 };
+    const result = await withFixedDate("2026-07-16T15:00:00", () =>
+      withPrismaMocks(
+        {
+          branch: {
+            findUnique: async (args) => {
+              branchFindArgs = args;
+              return { id: officialBranchId };
+            },
+          },
+          agendaEvent: {
+            findMany: async (args) => {
+              findManyArgs = args;
+              return events;
+            },
           },
         },
-        agendaEvent: {
-          findMany: async (args) => {
-            findManyArgs = args;
-            return events;
-          },
-        },
-      },
-      () => listPublicTvNowEvents({ query: { branchId: "3" } })
-    )
-  );
+        () => listPublicTvNowEvents({ query: { branchId: String(officialBranchId) } })
+      )
+    );
 
-  assert.deepEqual(result, { ok: true, events });
-  assert.deepEqual(branchFindArgs, { where: { id: 3 }, select: { id: true } });
-  assert.equal(findManyArgs.where.status, "AGENDADO");
-  assert.equal(findManyArgs.where.branchId, 3);
-  assert.equal(
-    findManyArgs.where.eventDateTime.gte.getTime(),
-    new Date("2026-07-16T14:50:00").getTime()
-  );
-  assert.equal(
-    findManyArgs.where.eventDateTime.lte.getTime(),
-    new Date("2026-07-16T15:10:00").getTime()
-  );
-  assert.deepEqual(findManyArgs.orderBy, [{ eventDateTime: "asc" }, { visitorName: "asc" }]);
-  assert.deepEqual(findManyArgs.select, {
-    id: true,
-    visitorName: true,
-    eventDateTime: true,
-  });
+    assert.deepEqual(result, { ok: true, events });
+    assert.deepEqual(branchFindArgs, { where: { id: officialBranchId }, select: { id: true } });
+    assert.equal(findManyArgs.where.status, "AGENDADO");
+    assert.equal(findManyArgs.where.branchId, officialBranchId);
+    assert.equal(
+      findManyArgs.where.eventDateTime.gte.getTime(),
+      new Date("2026-07-16T14:50:00").getTime()
+    );
+    assert.equal(
+      findManyArgs.where.eventDateTime.lte.getTime(),
+      new Date("2026-07-16T15:10:00").getTime()
+    );
+    assert.deepEqual(findManyArgs.orderBy, [{ eventDateTime: "asc" }, { visitorName: "asc" }]);
+    assert.deepEqual(findManyArgs.select, {
+      id: true,
+      visitorName: true,
+      eventDateTime: true,
+    });
+  }
 });
 
 test("listPublicTvNowEvents rejects invalid branch before Prisma", async () => {
@@ -554,7 +556,7 @@ test("listPublicTvNowEvents returns current errors for missing or nonexistent br
         },
       },
     },
-    () => listPublicTvNowEvents({ query: { branchId: "999" } })
+    () => listPublicTvNowEvents({ query: { branchId: "4" } })
   );
 
   assert.deepEqual(nonexistent, {

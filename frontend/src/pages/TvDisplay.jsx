@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { API_BASE_URL } from "../services/api";
 import { getTvWelcomeVisitors } from "../services/agendaService";
 import { getPublicActiveTvContents } from "../services/tvContentService";
+import { resolveTvBranchId } from "../utils/tvBranchRoute";
 import "../styles/tvDisplay.css";
 
 const IMAGE_DURATION_MS = 10000;
@@ -44,12 +46,6 @@ function welcomeSignature(items) {
   );
 }
 
-function getTvBranchId() {
-  const params = new URLSearchParams(window.location.search);
-  const branchId = Number(params.get("branchId"));
-  return Number.isInteger(branchId) && branchId > 0 ? branchId : undefined;
-}
-
 function formatClock(date) {
   return date.toLocaleString("pt-BR", {
     weekday: "short",
@@ -61,6 +57,7 @@ function formatClock(date) {
 }
 
 export default function TvDisplay() {
+  const location = useLocation();
   const videoRef = useRef(null);
   const itemsRef = useRef([]);
   const welcomeVisitorsRef = useRef([]);
@@ -68,6 +65,7 @@ export default function TvDisplay() {
   const pollingIntervalRef = useRef(null);
   const playlistLoadingRef = useRef(false);
   const welcomeLoadingRef = useRef(false);
+  const branchIdRef = useRef(undefined);
   const playlistLastRefreshRef = useRef(0);
   const welcomeLastRefreshRef = useRef(0);
   const initialPlaylistLoadedRef = useRef(false);
@@ -80,7 +78,16 @@ export default function TvDisplay() {
   const [welcomeError, setWelcomeError] = useState("");
   const [now, setNow] = useState(() => new Date());
 
-  const branchId = useMemo(() => getTvBranchId(), []);
+  const tvBranch = useMemo(
+    () =>
+      resolveTvBranchId({
+        pathname: location.pathname,
+        search: location.search,
+      }),
+    [location.pathname, location.search]
+  );
+  const branchId = tvBranch.branchId;
+  branchIdRef.current = branchId;
   const currentItem = items[currentIndex] || null;
   const currentMediaUrl = useMemo(() => mediaUrl(currentItem?.fileUrl), [currentItem]);
   const hasWelcomeVisitors = welcomeVisitors.length > 0;
@@ -90,6 +97,25 @@ export default function TvDisplay() {
     visibleWelcomeVisitors.length,
     6
   )}`;
+
+  useLayoutEffect(() => {
+    itemsRef.current = [];
+    welcomeVisitorsRef.current = [];
+    currentIndexRef.current = 0;
+    playlistLoadingRef.current = false;
+    welcomeLoadingRef.current = false;
+    playlistLastRefreshRef.current = 0;
+    welcomeLastRefreshRef.current = 0;
+    initialPlaylistLoadedRef.current = false;
+
+    setItems([]);
+    setWelcomeVisitors([]);
+    setCurrentIndex(0);
+    setPlaybackCycle((cycle) => cycle + 1);
+    setInitialError("");
+    setWelcomeError("");
+    setLoading(Boolean(branchId));
+  }, [branchId]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -115,9 +141,12 @@ export default function TvDisplay() {
     if (!branchId) return;
     if (playlistLoadingRef.current) return;
 
+    const requestBranchId = branchId;
     try {
       playlistLoadingRef.current = true;
-      const { data } = await getPublicActiveTvContents(branchId);
+      const { data } = await getPublicActiveTvContents(requestBranchId);
+      if (branchIdRef.current !== requestBranchId) return;
+
       const nextItems = Array.isArray(data) ? data : [];
       const previousItems = itemsRef.current;
 
@@ -132,13 +161,16 @@ export default function TvDisplay() {
       setPlaybackCycle((cycle) => cycle + 1);
       setItems(nextItems);
     } catch {
+      if (branchIdRef.current !== requestBranchId) return;
       if (initial || itemsRef.current.length === 0) {
         setInitialError("Erro ao carregar conteudo da TV");
       }
     } finally {
-      playlistLoadingRef.current = false;
-      if (initial) initialPlaylistLoadedRef.current = true;
-      if (initial) setLoading(false);
+      if (branchIdRef.current === requestBranchId) {
+        playlistLoadingRef.current = false;
+        if (initial) initialPlaylistLoadedRef.current = true;
+        if (initial) setLoading(false);
+      }
     }
   }, [branchId]);
 
@@ -146,9 +178,12 @@ export default function TvDisplay() {
     if (!branchId) return;
     if (welcomeLoadingRef.current) return;
 
+    const requestBranchId = branchId;
     try {
       welcomeLoadingRef.current = true;
-      const data = await getTvWelcomeVisitors(branchId);
+      const data = await getTvWelcomeVisitors(requestBranchId);
+      if (branchIdRef.current !== requestBranchId) return;
+
       const nextVisitors = Array.isArray(data) ? data : [];
       const previousVisitors = welcomeVisitorsRef.current;
 
@@ -159,12 +194,15 @@ export default function TvDisplay() {
 
       setWelcomeVisitors(nextVisitors);
     } catch {
+      if (branchIdRef.current !== requestBranchId) return;
       setWelcomeVisitors([]);
       if (itemsRef.current.length === 0) {
         setWelcomeError("Nao foi possivel consultar visitantes agendados.");
       }
     } finally {
-      welcomeLoadingRef.current = false;
+      if (branchIdRef.current === requestBranchId) {
+        welcomeLoadingRef.current = false;
+      }
     }
   }, [branchId]);
 
@@ -262,8 +300,8 @@ export default function TvDisplay() {
     return (
       <main className="tvDisplay-page">
         <section className="tvDisplay-status" aria-live="polite">
-          <h1>Filial não informada</h1>
-          <p>Use um endereço no formato: /tv?branchId=1</p>
+          <h1>{tvBranch.source === "missing" ? "Filial não informada" : "Filial não encontrada"}</h1>
+          <p>Use um endereço no formato: /tv1 ou /tv?branchId=1</p>
         </section>
       </main>
     );

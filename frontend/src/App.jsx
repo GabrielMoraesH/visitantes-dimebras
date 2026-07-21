@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ToastProvider } from "./components/Feedback/ToastProvider";
@@ -21,6 +21,15 @@ function RouteLoading() {
       Carregando...
     </div>
   );
+}
+
+function UnknownRoute() {
+  const location = useLocation();
+  if (/^\/tv\d+$/.test(location.pathname)) {
+    return <TvDisplay />;
+  }
+
+  return <Navigate to="/login" replace />;
 }
 
 export default function App() {
@@ -49,7 +58,7 @@ export default function App() {
                   path="/tv-content"
                   element={<ProtectedRoute roles={["ADMIN"]}><TvContent /></ProtectedRoute>}
                 />
-                <Route path="*" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<UnknownRoute />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

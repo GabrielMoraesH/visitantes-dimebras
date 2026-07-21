@@ -119,7 +119,7 @@ test("listPublicActiveTvContents preserves missing and nonexistent branch respon
         findUnique: async () => null,
       },
     },
-    () => listPublicActiveTvContents({ query: { branchId: "99" } })
+    () => listPublicActiveTvContents({ query: { branchId: "4" } })
   );
 
   assert.deepEqual(nonexistent, {
@@ -129,47 +129,49 @@ test("listPublicActiveTvContents preserves missing and nonexistent branch respon
   });
 });
 
-test("listPublicActiveTvContents returns only active content linked to branch with public select", async () => {
-  let findManyArgs;
+test("listPublicActiveTvContents supports all official TV branch IDs and excludes ID 4", async () => {
+  for (const officialBranchId of [1, 2, 3, 5, 6]) {
+    let findManyArgs;
 
-  const result = await withPrismaMocks(
-    {
-      branch: {
-        findUnique: async (args) => {
-          assert.deepEqual(args, { where: { id: 7 }, select: { id: true } });
-          return { id: 7 };
+    const result = await withPrismaMocks(
+      {
+        branch: {
+          findUnique: async (args) => {
+            assert.deepEqual(args, { where: { id: officialBranchId }, select: { id: true } });
+            return { id: officialBranchId };
+          },
+        },
+        tvContent: {
+          findMany: async (args) => {
+            findManyArgs = args;
+            return [{ id: 3, title: "TV", type: "IMAGE", fileUrl: "/uploads/tv/a.png", order: 0 }];
+          },
         },
       },
-      tvContent: {
-        findMany: async (args) => {
-          findManyArgs = args;
-          return [{ id: 3, title: "TV", type: "IMAGE", fileUrl: "/uploads/tv/a.png", order: 0 }];
+      () => listPublicActiveTvContents({ query: { branchId: String(officialBranchId) } })
+    );
+
+    assert.deepEqual(findManyArgs, {
+      where: {
+        isActive: true,
+        branches: {
+          some: { branchId: officialBranchId },
         },
       },
-    },
-    () => listPublicActiveTvContents({ query: { branchId: "7" } })
-  );
-
-  assert.deepEqual(findManyArgs, {
-    where: {
-      isActive: true,
-      branches: {
-        some: { branchId: 7 },
+      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        fileUrl: true,
+        order: true,
       },
-    },
-    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    select: {
-      id: true,
-      title: true,
-      type: true,
-      fileUrl: true,
-      order: true,
-    },
-  });
-  assert.deepEqual(result, {
-    ok: true,
-    items: [{ id: 3, title: "TV", type: "IMAGE", fileUrl: "/uploads/tv/a.png", order: 0 }],
-  });
+    });
+    assert.deepEqual(result, {
+      ok: true,
+      items: [{ id: 3, title: "TV", type: "IMAGE", fileUrl: "/uploads/tv/a.png", order: 0 }],
+    });
+  }
 });
 
 test("createTvContent persists metadata from validated file and removes promoted file on database failure", async () => {

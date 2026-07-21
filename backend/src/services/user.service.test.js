@@ -49,10 +49,10 @@ const safeUser = {
   id: 2,
   username: "recepcao",
   role: "RECEPCAO",
-  branchId: 1,
+  branchId: 2,
   isActive: true,
   createdAt: new Date("2026-07-16T12:00:00Z"),
-  branch: { name: "Dimebras PR" },
+  branch: { name: "Alfamed MS" },
 };
 
 test("listUsers uses id ascending order and safe select without passwordHash", async () => {
@@ -160,7 +160,7 @@ test("createUser hashes password, persists only allowed fields and returns safe 
         },
       },
       branch: {
-        findUnique: async () => ({ id: 1 }),
+        findUnique: async () => ({ id: 2 }),
       },
     },
     () =>
@@ -169,7 +169,7 @@ test("createUser hashes password, persists only allowed fields and returns safe 
           username: "recepcao",
           password: "123456",
           role: "RECEPCAO",
-          branchId: 1,
+          branchId: 2,
         },
       })
   );
@@ -274,13 +274,13 @@ test("updateUser without password preserves passwordHash and uses safe select", 
             },
           },
           branch: {
-            findUnique: async () => ({ id: 1 }),
+            findUnique: async () => ({ id: 2 }),
           },
         },
         () =>
           updateUser({
             userId: { id: "2" },
-            input: { username: "novo", role: "ADMIN", branchId: 1 },
+            input: { username: "novo", role: "ADMIN", branchId: 2 },
           })
       );
 
@@ -290,7 +290,7 @@ test("updateUser without password preserves passwordHash and uses safe select", 
   );
 
   assert.equal(result.ok, true);
-  assert.deepEqual(updateArgs.data, { username: "novo", role: "ADMIN", branchId: 1 });
+  assert.deepEqual(updateArgs.data, { username: "novo", role: "ADMIN", branchId: 2 });
   assert.equal(updateArgs.data.passwordHash, undefined);
   assert.equal(updateArgs.select.passwordHash, undefined);
 });

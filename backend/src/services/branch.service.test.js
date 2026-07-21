@@ -24,7 +24,13 @@ function withPrismaMocks(mocks, fn) {
 
 test("listBranches uses id ascending order and returns only id and name", async () => {
   let findManyArgs;
-  const branches = [{ id: 1, name: "Dimebras PR" }];
+  const branches = [
+    { id: 1, name: "Dimebras PR" },
+    { id: 2, name: "Alfamed MS" },
+    { id: 3, name: "Dimebras MT" },
+    { id: 5, name: "Dimebras MS" },
+    { id: 6, name: "Dimebras SC" },
+  ];
 
   const result = await withPrismaMocks(
     {
@@ -39,6 +45,7 @@ test("listBranches uses id ascending order and returns only id and name", async 
   );
 
   assert.deepEqual(result, branches);
+  assert.equal(result.some((branch) => branch.id === 4), false);
   assert.deepEqual(findManyArgs, {
     orderBy: { id: "asc" },
     select: { id: true, name: true },
