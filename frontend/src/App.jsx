@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { ToastProvider } from "./components/Feedback/ToastProvider";
 import { ConfirmProvider } from "./components/Feedback/ConfirmProvider";
 
@@ -12,29 +13,6 @@ const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const Agenda = lazy(() => import("./pages/Agenda"));
 const TvContent = lazy(() => import("./pages/TvContent"));
 const TvDisplay = lazy(() => import("./pages/TvDisplay"));
-
-function getStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem("user") || "null");
-  } catch {
-    return null;
-  }
-}
-
-function ProtectedRoute({ children, roles }) {
-  const token = localStorage.getItem("token");
-  const user = getStoredUser();
-
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (roles?.length && !roles.includes(user?.role)) {
-    return <Navigate to="/checkin" replace />;
-  }
-
-  return children;
-}
 
 function RouteLoading() {
   return (

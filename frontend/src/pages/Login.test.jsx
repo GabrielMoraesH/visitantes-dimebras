@@ -1,0 +1,121 @@
+import { Route, Routes, MemoryRouter, useLocation } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import Login from "./Login";
+import api from "../services/api";
+
+vi.mock("../services/api", () => ({
+  default: {
+    post: vi.fn(),
+  },
+}));
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}</div>;
+}
+
+function renderLogin() {
+  return render(
+    <MemoryRouter initialEntries={["/login"]}>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <>
+              <LocationProbe />
+              <Login />
+            </>
+          }
+        />
+        <Route
+          path="/checkin"
+          element={
+            <>
+              <LocationProbe />
+              <div>Checkin destino</div>
+            </>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+async function fillLoginForm() {
+  const user = userEvent.setup();
+
+  await user.type(screen.getByPlaceholderText(/usu.rio/i), "operador");
+  await user.type(screen.getByPlaceholderText(/senha/i), "senha-teste");
+
+  return user;
+}
+
+describe("Login", () => {
+  it("renderiza campos principais e botao de entrada", () => {
+    renderLogin();
+
+    expect(screen.getByPlaceholderText(/usu.rio/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/senha/i)).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: /acessar sistema/i })).toBeInTheDocument();
+  });
+
+  it("salva token e usuario e navega para checkin em login bem-sucedido", async () => {
+    api.post.mockResolvedValue({
+      data: {
+        token: "token-resposta",
+        user: { id: 2, username: "operador", role: "RECEPCAO" },
+      },
+    });
+
+    renderLogin();
+    const user = await fillLoginForm();
+    await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
+
+    await screen.findByText("Checkin destino");
+    expect(api.post).toHaveBeenCalledWith("/auth/login", {
+      username: "operador",
+      password: "senha-teste",
+    });
+    expect(localStorage.getItem("token")).toBe("token-resposta");
+    expect(JSON.parse(localStorage.getItem("user"))).toEqual({
+      id: 2,
+      username: "operador",
+      role: "RECEPCAO",
+    });
+    expect(localStorage.getItem("password")).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/checkin");
+  });
+
+  it("exibe mensagem de credenciais invalidas sem persistir sessao", async () => {
+    api.post.mockRejectedValue({
+      response: { status: 401, data: { message: "Credenciais invalidas" } },
+    });
+
+    renderLogin();
+    const user = await fillLoginForm();
+    await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
+
+    expect(await screen.findByText("Credenciais invalidas")).toBeInTheDocument();
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(localStorage.getItem("user")).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
+  });
+
+  it("exibe mensagem padrao em falha tecnica e permite nova tentativa", async () => {
+    api.post.mockRejectedValueOnce({ response: { status: 500 } });
+
+    renderLogin();
+    const user = await fillLoginForm();
+    const button = screen.getByRole("button", { name: /acessar sistema/i });
+
+    await user.click(button);
+
+    expect(await screen.findByText("Erro no login")).toBeInTheDocument();
+    expect(button).toBeEnabled();
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem("token")).toBeNull();
+    expect(localStorage.getItem("user")).toBeNull();
+  });
+});
