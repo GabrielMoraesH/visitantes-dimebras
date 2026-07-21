@@ -6,10 +6,6 @@ import { useToast } from "../components/Feedback/ToastProvider";
 import { getToken, getUser } from "../services/session";
 import "../styles/adminUsers.css";
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 const FALLBACK_BRANCHES = [
   { id: 1, name: "Dimebras PR" },
@@ -86,7 +82,7 @@ export default function AdminUsers() {
 
   async function loadBranches() {
     try {
-      const { data } = await api.get("/branches", { headers: authHeader() });
+      const { data } = await api.get("/branches");
       if (Array.isArray(data) && data.length > 0) {
         setBranches(data);
         setBranchId((prev) => (prev ? prev : String(data[0].id)));
@@ -100,7 +96,7 @@ export default function AdminUsers() {
   async function loadUsers() {
     setMsg("");
     try {
-      const { data } = await api.get("/users", { headers: authHeader() });
+      const { data } = await api.get("/users");
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
       setMsg(err?.response?.data?.message || "Erro ao carregar usuários");
@@ -127,11 +123,12 @@ export default function AdminUsers() {
     try {
       setLoading(true);
 
-      await api.post(
-        "/users",
-        { username: u, password, role, branchId: Number(branchId) },
-        { headers: authHeader() }
-      );
+      await api.post("/users", {
+        username: u,
+        password,
+        role,
+        branchId: Number(branchId),
+      });
 
       setUsername("");
       setPassword("");
@@ -170,11 +167,7 @@ export default function AdminUsers() {
       try {
         setEditLoading(true);
 
-        await api.put(
-          `/users/${editUserId}`,
-          { password: editPassword },
-          { headers: authHeader() }
-        );
+        await api.put(`/users/${editUserId}`, { password: editPassword });
 
         showToast("Senha do ADMIN atualizada!");
         setEditOpen(false);
@@ -211,7 +204,7 @@ export default function AdminUsers() {
       };
       if (editPassword) body.password = editPassword;
 
-      await api.put(`/users/${editUserId}`, body, { headers: authHeader() });
+      await api.put(`/users/${editUserId}`, body);
 
       showToast("Usuário atualizado!");
       setEditOpen(false);
@@ -255,14 +248,10 @@ export default function AdminUsers() {
       setDisableLoading(true);
 
       if (u.isActive) {
-        await api.patch(`/users/${u.id}/disable`, null, {
-          headers: authHeader(),
-        });
+        await api.patch(`/users/${u.id}/disable`, null);
         showToast("Usuario desativado!");
       } else {
-        await api.patch(`/users/${u.id}/enable`, null, {
-          headers: authHeader(),
-        });
+        await api.patch(`/users/${u.id}/enable`, null);
         showToast("Usuario reativado!");
       }
 

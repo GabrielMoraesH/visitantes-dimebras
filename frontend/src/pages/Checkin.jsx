@@ -8,10 +8,6 @@ import { useToast } from "../components/Feedback/ToastProvider";
 import { clearSession, getToken, getUser } from "../services/session";
 import "../styles/checkin.css";
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 function onlyDigits(v = "") {
   return String(v).replace(/\D/g, "");
@@ -139,7 +135,7 @@ export default function Checkin() {
         setLoadingOpenVisits(true);
       }
 
-      const { data } = await api.get("/visits/open", { headers: authHeader() });
+      const { data } = await api.get("/visits/open");
       setOpenVisits(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
       if (!silent) setOpenVisits([]);
@@ -164,8 +160,8 @@ export default function Checkin() {
     try {
       setLoadingExtras(true);
       const [s, r] = await Promise.all([
-        api.get(`/visits/stats-by-cpf/${cpfDigits}`, { headers: authHeader() }),
-        api.get(`/visits/recent-by-cpf/${cpfDigits}?limit=5`, { headers: authHeader() }),
+        api.get(`/visits/stats-by-cpf/${cpfDigits}`),
+        api.get(`/visits/recent-by-cpf/${cpfDigits}?limit=5`),
       ]);
 
       setVisitStats(s.data);
@@ -300,7 +296,6 @@ export default function Checkin() {
 
   async function fetchBlobAsUrl(endpoint) {
     const res = await api.get(endpoint, {
-      headers: authHeader(),
       responseType: "blob",
     });
     return URL.createObjectURL(res.data);
@@ -378,9 +373,7 @@ export default function Checkin() {
 
   async function buscarVisitaAberta(cpfDigits) {
     try {
-      const { data } = await api.get(`/visits/open-by-cpf/${cpfDigits}`, {
-        headers: authHeader(),
-      });
+      const { data } = await api.get(`/visits/open-by-cpf/${cpfDigits}`);
       setOpenVisitId(data.id);
       return data;
     } catch {
@@ -402,9 +395,7 @@ export default function Checkin() {
     setPhotoPreviewUrl("");
 
     try {
-      const { data } = await api.get(`/visitors/by-cpf/${cpfDigits}`, {
-        headers: authHeader(),
-      });
+      const { data } = await api.get(`/visitors/by-cpf/${cpfDigits}`);
 
       setVisitor(data);
 
@@ -429,9 +420,7 @@ export default function Checkin() {
 
   async function refreshVisitor() {
     if (!visitor?.cpf) return;
-    const { data } = await api.get(`/visitors/by-cpf/${onlyDigits(visitor.cpf)}`, {
-      headers: authHeader(),
-    });
+    const { data } = await api.get(`/visitors/by-cpf/${onlyDigits(visitor.cpf)}`);
     setVisitor(data);
 
     setCompanyEdit(data.company || "");
@@ -460,7 +449,7 @@ export default function Checkin() {
       fd.set("photo", photoFile);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
-        headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       setCameraOpen(false);
@@ -496,7 +485,7 @@ export default function Checkin() {
       fd.set("documentFront", file);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
-        headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       setCameraOpen(false);
@@ -530,7 +519,7 @@ export default function Checkin() {
       fd.set("documentBack", file);
 
       await api.put(`/visitors/${visitor.id}/files`, fd, {
-        headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       setCameraOpen(false);
@@ -572,14 +561,10 @@ export default function Checkin() {
       setMsg("");
       setFieldErrors([]);
 
-      await api.put(
-        `/visitors/${visitor.id}`,
-        {
-          company: companyEdit?.trim() || "",
-          phone: onlyDigits(phoneEdit),
-        },
-        { headers: authHeader() }
-      );
+      await api.put(`/visitors/${visitor.id}`, {
+        company: companyEdit?.trim() || "",
+        phone: onlyDigits(phoneEdit),
+      });
 
       showToast("Dados atualizados!", "success");
       await refreshVisitor();
@@ -604,9 +589,7 @@ export default function Checkin() {
         serviceType: serviceType ?? "",
       };
 
-      const { data } = await api.post("/visits/checkin", payload, {
-        headers: authHeader(),
-      });
+      const { data } = await api.post("/visits/checkin", payload);
 
       setOpenVisitId(null);
       showToast("Check-in concluído! Etiqueta gerada.", "success");

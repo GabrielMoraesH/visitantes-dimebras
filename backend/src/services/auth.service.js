@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { ALL_USER_ROLES } from "../constants/roles.js";
+import { getJwtSecret, sessionJwtSignOptions } from "../config/auth.js";
 import { passwordSchema, usernameSchema } from "../utils/validation.js";
 
 const INVALID_CREDENTIALS = "Usuário ou senha inválidos";
@@ -35,16 +36,7 @@ export async function login({ input }) {
     return { ok: false, status: 401, message: INVALID_CREDENTIALS };
   }
 
-  const token = jwt.sign(
-    {
-      sub: String(user.id),
-      role: user.role,
-      branchId: user.branchId,
-      branchName: user.branch?.name || null,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "8h" }
-  );
+  const token = jwt.sign({}, getJwtSecret(), sessionJwtSignOptions(user.id));
 
   return {
     ok: true,

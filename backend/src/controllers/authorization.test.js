@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
+import { sessionJwtSignOptions } from "../config/auth.js";
 import { getByCpf, updateVisitor } from "./visitors.controller.js";
 import { checkin, checkout, getVisitById, label } from "./visits.controller.js";
 
@@ -277,7 +278,7 @@ test("ADMIN can access visitor by CPF", async () => {
 });
 
 test("inactive user cannot access label with Bearer token", async () => {
-  const token = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const token = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
   const req = {
     params: { id: "99" },
     query: {},

@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import { login } from "./auth.service.js";
+import { SESSION_JWT } from "../config/auth.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -224,7 +225,7 @@ test("login returns secure invalid credentials for invalid stored role", async (
   );
 });
 
-test("login signs JWT with the preserved payload and options", async () => {
+test("login signs session JWT with explicit safe options", async () => {
   await withBcryptCompareMock(
     async () => true,
     (compareCalls) =>
@@ -244,17 +245,47 @@ test("login signs JWT with the preserved payload and options", async () => {
           assert.equal(result.token, "signed-token");
           assert.deepEqual(compareCalls, [["123456", "stored-hash"]]);
           assert.deepEqual(signCalls[0], [
-            {
-              sub: "7",
-              role: "RECEPCAO",
-              branchId: 3,
-              branchName: "Dimebras SP",
-            },
+            {},
             process.env.JWT_SECRET,
-            { expiresIn: "8h" },
+            {
+              algorithm: SESSION_JWT.algorithm,
+              expiresIn: SESSION_JWT.expiresIn,
+              issuer: SESSION_JWT.issuer,
+              audience: SESSION_JWT.audience,
+              subject: "7",
+            },
           ]);
         }
       )
+  );
+});
+
+test("login session JWT contains subject and no password or authorization claims", async () => {
+  await withBcryptCompareMock(
+    async () => true,
+    async () => {
+      const result = await withPrismaMocks(
+        {
+          user: {
+            findUnique: async () => activeUser,
+          },
+        },
+        () => login({ input: { username: "recepcao", password: "123456" } })
+      );
+
+      const decoded = jwt.decode(result.token, { complete: true });
+
+      assert.equal(decoded.header.alg, "HS256");
+      assert.equal(decoded.payload.iss, SESSION_JWT.issuer);
+      assert.equal(decoded.payload.aud, SESSION_JWT.audience);
+      assert.equal(decoded.payload.sub, "7");
+      assert.equal(decoded.payload.role, undefined);
+      assert.equal(decoded.payload.branchId, undefined);
+      assert.equal(decoded.payload.branchName, undefined);
+      assert.equal(decoded.payload.password, undefined);
+      assert.equal(decoded.payload.passwordHash, undefined);
+      assert.equal(decoded.payload.exp - decoded.payload.iat, 8 * 60 * 60);
+    }
   );
 });
 

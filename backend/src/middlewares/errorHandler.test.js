@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { auth, authorizeRoles } from "./auth.js";
+import { sessionJwtSignOptions } from "../config/auth.js";
 import {
   errorHandler,
   normalizeErrorResponses,
@@ -136,7 +137,10 @@ test("missing token returns standardized 401", async () => {
 });
 
 test("expired token returns standardized 401", async () => {
-  const token = jwt.sign({ sub: "1" }, process.env.JWT_SECRET, { expiresIn: "-1s" });
+  const token = jwt.sign({}, process.env.JWT_SECRET, {
+    ...sessionJwtSignOptions(1),
+    expiresIn: "-1s",
+  });
   const { status, body } = await request(
     (app) => {
       app.get("/test", auth, (req, res) => res.json({ ok: true }));

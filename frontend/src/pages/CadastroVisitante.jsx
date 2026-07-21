@@ -5,10 +5,6 @@ import CameraModal from "../components/CameraModal";
 import { getToken } from "../services/session";
 import "../styles/cadastro.css";
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 function onlyDigits(value = "") {
   return String(value).replace(/\D/g, "");
@@ -178,15 +174,13 @@ export default function CadastroVisitante() {
 
   async function uploadVisitorFiles(visitorId) {
     return api.put(`/visitors/${visitorId}/files`, buildVisitorFilesFormData(), {
-      headers: { ...authHeader(), "Content-Type": "multipart/form-data" },
+      headers: { "Content-Type": "multipart/form-data" },
     });
   }
 
   async function cleanupIncompleteVisitor(visitorId) {
     try {
-      await api.delete(`/visitors/${visitorId}/incomplete-created`, {
-        headers: authHeader(),
-      });
+      await api.delete(`/visitors/${visitorId}/incomplete-created`);
       return true;
     } catch {
       console.warn("Falha ao executar compensacao de visitante incompleto.");
@@ -220,7 +214,7 @@ export default function CadastroVisitante() {
     setCpfLookup({ status: "checking", message: "Verificando CPF..." });
 
     try {
-      await api.get(`/visitors/by-cpf/${digits}`, { headers: authHeader() });
+      await api.get(`/visitors/by-cpf/${digits}`);
 
       setCpfLookup({ status: "exists", message: "CPF já cadastrado. Indo para o check-in..." });
 
@@ -283,24 +277,18 @@ export default function CadastroVisitante() {
     try {
       let created;
       try {
-        const response = await api.post(
-          "/visitors",
-          {
-            name: name.trim(),
-            cpf: cpfDigits,
-            phone: onlyDigits(phoneDisplay),
-            company: company.trim(),
-          },
-          { headers: authHeader() }
-        );
+        const response = await api.post("/visitors", {
+          name: name.trim(),
+          cpf: cpfDigits,
+          phone: onlyDigits(phoneDisplay),
+          company: company.trim(),
+        });
         created = response.data;
         createdVisitorId = created.id;
       } catch (createErr) {
         if (createErr?.response?.status !== 409) throw createErr;
 
-        const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`, {
-          headers: authHeader(),
-        });
+        const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`);
         created = existing.data;
       }
 

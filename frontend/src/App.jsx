@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ToastProvider } from "./components/Feedback/ToastProvider";
 import { ConfirmProvider } from "./components/Feedback/ConfirmProvider";
+import { AuthProvider } from "./services/authContext";
 
 const Checkin = lazy(() => import("./pages/Checkin"));
 const History = lazy(() => import("./pages/History"));
@@ -26,31 +27,33 @@ export default function App() {
   return (
     <ToastProvider>
       <ConfirmProvider>
-        <BrowserRouter>
-          <Suspense fallback={<RouteLoading />}>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/tv" element={<TvDisplay />} />
-              <Route path="/checkin" element={<ProtectedRoute><Checkin /></ProtectedRoute>} />
-              <Route
-                path="/history"
-                element={<ProtectedRoute roles={["ADMIN"]}><History /></ProtectedRoute>}
-              />
-              <Route path="/visit/:id" element={<ProtectedRoute><VisitDetails /></ProtectedRoute>} />
-              <Route path="/cadastro" element={<ProtectedRoute><CadastroVisitante /></ProtectedRoute>} />
-              <Route
-                path="/admin/users"
-                element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>}
-              />
-              <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-              <Route
-                path="/tv-content"
-                element={<ProtectedRoute roles={["ADMIN"]}><TvContent /></ProtectedRoute>}
-              />
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter>
+            <Suspense fallback={<RouteLoading />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/tv" element={<TvDisplay />} />
+                <Route path="/checkin" element={<ProtectedRoute><Checkin /></ProtectedRoute>} />
+                <Route
+                  path="/history"
+                  element={<ProtectedRoute roles={["ADMIN"]}><History /></ProtectedRoute>}
+                />
+                <Route path="/visit/:id" element={<ProtectedRoute><VisitDetails /></ProtectedRoute>} />
+                <Route path="/cadastro" element={<ProtectedRoute><CadastroVisitante /></ProtectedRoute>} />
+                <Route
+                  path="/admin/users"
+                  element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>}
+                />
+                <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+                <Route
+                  path="/tv-content"
+                  element={<ProtectedRoute roles={["ADMIN"]}><TvContent /></ProtectedRoute>}
+                />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </AuthProvider>
       </ConfirmProvider>
     </ToastProvider>
   );

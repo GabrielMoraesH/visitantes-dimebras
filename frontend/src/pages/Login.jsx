@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { useAuth } from "../services/authState";
 import { setSession } from "../services/session";
 import "../styles/login.css";
 
 export default function Login() {
   const nav = useNavigate();
+  const { acceptSession } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -18,6 +20,7 @@ export default function Login() {
       const { data } = await api.post("/auth/login", { username, password });
 
       setSession(data.token, data.user);
+      acceptSession(data.user);
 
       nav("/checkin");
     } catch (err) {

@@ -12,6 +12,7 @@ import agendaRoutes from "./routes/agenda.routes.js";
 import tvContentRoutes from "./routes/tvContent.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import { tvPublicPrefix, tvUploadDir } from "./config/uploads.js";
+import { validateJwtSecret } from "./config/auth.js";
 import prisma from "./lib/prisma.js";
 import {
   errorHandler,
@@ -23,6 +24,8 @@ import { requestContext } from "./middlewares/requestContext.js";
 import { logError, logInfo } from "./utils/logger.js";
 
 const app = express();
+
+validateJwtSecret();
 
 app.set("trust proxy", 1);
 

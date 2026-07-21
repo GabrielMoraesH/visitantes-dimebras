@@ -5,10 +5,6 @@ import Header from "../components/Header";
 import { clearSession, getToken } from "../services/session";
 import "../styles/checkin.css"; // pode reutilizar estilos, ou criar outro depois
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 function fmt(dt) {
   if (!dt) return "-";
@@ -31,7 +27,6 @@ function formatCPF(value) {
 
 async function fetchBlobAsUrl(endpoint) {
   const res = await api.get(endpoint, {
-    headers: authHeader(),
     responseType: "blob",
   });
   return URL.createObjectURL(res.data);
@@ -87,7 +82,7 @@ export default function VisitDetails() {
       setDocBackUrl("");
 
       try {
-        const { data } = await api.get(`/visits/${id}`, { headers: authHeader() });
+        const { data } = await api.get(`/visits/${id}`);
         if (cancelled) return;
 
         setVisit(data);

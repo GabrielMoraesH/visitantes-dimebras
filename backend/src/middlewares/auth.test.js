@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { auth, authorizeRoles } from "./auth.js";
 import prisma from "../lib/prisma.js";
 import { errorHandler } from "./errorHandler.js";
+import { sessionJwtSignOptions } from "../config/auth.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
@@ -39,6 +40,14 @@ async function runAuth(headers = {}) {
   return { req, res, nextCalled };
 }
 
+function signSessionToken(userId, options = {}) {
+  const { payload = {}, ...jwtOptions } = options;
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    ...sessionJwtSignOptions(userId),
+    ...jwtOptions,
+  });
+}
+
 test("auth returns 401 when token is missing", async () => {
   const { res, nextCalled } = await runAuth();
 
@@ -54,7 +63,7 @@ test("auth returns 401 when token is invalid", async () => {
 });
 
 test("auth returns 401 when token is expired", async () => {
-  const token = jwt.sign({ sub: "1" }, process.env.JWT_SECRET, { expiresIn: "-1s" });
+  const token = signSessionToken(1, { expiresIn: "-1s" });
   const { res, nextCalled } = await runAuth({ authorization: `Bearer ${token}` });
 
   assert.equal(res.statusCode, 401);
@@ -73,11 +82,7 @@ test("auth allows active users and exposes trusted database data", async () => {
   });
 
   try {
-    const token = jwt.sign(
-      { sub: "7", role: "ADMIN", branchId: 999 },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    const token = signSessionToken(7, { payload: { role: "ADMIN", branchId: 999 } });
     const { req, res, nextCalled } = await runAuth({ authorization: `Bearer ${token}` });
 
     assert.equal(res.statusCode, 200);
@@ -99,7 +104,52 @@ test("auth returns 401 for inactive or missing users", async () => {
   prisma.user.findUnique = async () => null;
 
   try {
-    const token = jwt.sign({ sub: "7" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = signSessionToken(7);
+    const { res, nextCalled } = await runAuth({ authorization: `Bearer ${token}` });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(nextCalled, false);
+  } finally {
+    prisma.user.findUnique = originalFindUnique;
+  }
+});
+
+test("auth rejects tokens with invalid signature, algorithm, issuer, audience, or subject", async () => {
+  const cases = [
+    jwt.sign({}, "wrong-secret", sessionJwtSignOptions(7)),
+    jwt.sign({}, process.env.JWT_SECRET, { ...sessionJwtSignOptions(7), algorithm: "HS384" }),
+    jwt.sign({}, process.env.JWT_SECRET, { ...sessionJwtSignOptions(7), issuer: "outro" }),
+    jwt.sign({}, process.env.JWT_SECRET, { ...sessionJwtSignOptions(7), audience: "outro" }),
+    jwt.sign({}, process.env.JWT_SECRET, {
+      algorithm: "HS256",
+      expiresIn: "1h",
+      issuer: "visitantes-dimebras",
+      audience: "visitantes-dimebras-frontend",
+    }),
+    jwt.sign({}, process.env.JWT_SECRET, { ...sessionJwtSignOptions("abc") }),
+  ];
+
+  for (const token of cases) {
+    const { res, nextCalled } = await runAuth({ authorization: `Bearer ${token}` });
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(nextCalled, false);
+  }
+});
+
+test("auth returns 401 for invalid stored role", async () => {
+  const originalFindUnique = prisma.user.findUnique;
+  prisma.user.findUnique = async () => ({
+    id: 7,
+    username: "recepcao",
+    role: "SUPPORT",
+    branchId: 2,
+    isActive: true,
+    branch: { name: "Filial Teste" },
+  });
+
+  try {
+    const token = signSessionToken(7);
     const { res, nextCalled } = await runAuth({ authorization: `Bearer ${token}` });
 
     assert.equal(res.statusCode, 401);

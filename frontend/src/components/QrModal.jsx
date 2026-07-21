@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import api from "../services/api";
-import { getToken } from "../services/session";
 import "../styles/qrmodal.css";
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 export default function QrModal({ onClose, onToast, onCheckoutDone }) {
   const qrRef = useRef(null);
@@ -52,7 +47,7 @@ export default function QrModal({ onClose, onToast, onCheckoutDone }) {
     handledRef.current = true;
 
     try {
-      await api.post("/visits/checkout", { visitCode: code }, { headers: authHeader() });
+      await api.post("/visits/checkout", { visitCode: code });
 
       onToast?.("Checkout concluído!");
       onCheckoutDone?.();

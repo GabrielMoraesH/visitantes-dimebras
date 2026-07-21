@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
+import { getJwtSecret, sessionJwtVerifyOptions } from "../config/auth.js";
 import { userCanAccessVisitor } from "../utils/visitorAccess.js";
 import {
   boundedLimitQuery,
@@ -119,8 +120,12 @@ async function getBearerUserFromToken(authorization) {
   if (!header || !header.startsWith("Bearer ")) return null;
 
   try {
-    const payload = jwt.verify(header.slice("Bearer ".length), process.env.JWT_SECRET);
-    const id = Number(payload.sub ?? payload.id);
+    const payload = jwt.verify(
+      header.slice("Bearer ".length),
+      getJwtSecret(),
+      sessionJwtVerifyOptions()
+    );
+    const id = Number(payload.sub);
 
     if (!Number.isInteger(id) || id <= 0) return null;
 

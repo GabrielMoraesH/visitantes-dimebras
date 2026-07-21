@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import App from "./App";
+import { getCurrentUser } from "./services/auth";
 import { setSession as storeSession } from "./services/session";
 
 const lazyMocks = vi.hoisted(() => {
@@ -53,6 +54,10 @@ vi.mock("./pages/TvContent", () => ({
   default: () => <div>TV content mock</div>,
 }));
 
+vi.mock("./services/auth", () => ({
+  getCurrentUser: vi.fn(),
+}));
+
 function CheckinMock() {
   const location = useLocation();
 
@@ -75,6 +80,7 @@ function AdminUsersMock() {
 
 function setSession(role) {
   storeSession("token-teste", { id: 1, username: role.toLowerCase(), role });
+  getCurrentUser.mockResolvedValue({ id: 1, username: role.toLowerCase(), role });
 }
 
 function renderAppAt(path) {
@@ -83,13 +89,17 @@ function renderAppAt(path) {
 }
 
 describe("App routes and lazy loading", () => {
+  beforeEach(() => {
+    getCurrentUser.mockReset();
+  });
+
   it("exibe fallback acessivel e preserva query string em rota lazy comum", async () => {
     setSession("RECEPCAO");
 
     renderAppAt("/checkin?cpf=12345678901");
 
-    const fallback = screen.getByRole("status");
-    expect(fallback).toHaveTextContent("Carregando...");
+    const fallback = await screen.findByRole("status");
+    expect(fallback).toHaveTextContent("Carregando sessao...");
     expect(fallback).toHaveAttribute("aria-live", "polite");
 
     lazyMocks.resolveCheckin({ default: CheckinMock });
@@ -105,7 +115,7 @@ describe("App routes and lazy loading", () => {
 
     renderAppAt("/admin/users");
 
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando...");
+    expect(await screen.findByRole("status")).toHaveTextContent("Carregando sessao...");
     lazyMocks.resolveAdminUsers({ default: AdminUsersMock });
 
     expect(await screen.findByText("Admin users lazy mock")).toBeInTheDocument();

@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../services/api";
-import { getToken, getUser } from "../services/session";
+import { getUser } from "../services/session";
 import "../styles/history.css";
 
-function authHeader() {
-  const token = getToken();
-  return { Authorization: `Bearer ${token}` };
-}
 
 function onlyDigits(v = "") {
   return String(v).replace(/\D/g, "");
@@ -86,9 +82,7 @@ export default function History() {
 
       const url = `/history?${params.toString()}`;
 
-      const { data } = await api.get(url, {
-        headers: authHeader(),
-      });
+      const { data } = await api.get(url);
 
       setItems(
         Array.isArray(data?.items)

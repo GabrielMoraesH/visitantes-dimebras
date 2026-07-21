@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
-import { USER_ROLES } from "../constants/roles.js";
+import { ALL_USER_ROLES, USER_ROLES } from "../constants/roles.js";
+import { getJwtSecret, sessionJwtVerifyOptions } from "../config/auth.js";
 import { forbidden, unauthorized } from "../utils/errors.js";
 
 export async function auth(req, res, next) {
@@ -14,7 +15,7 @@ export async function auth(req, res, next) {
   let payload;
 
   try {
-    payload = jwt.verify(token, process.env.JWT_SECRET);
+    payload = jwt.verify(token, getJwtSecret(), sessionJwtVerifyOptions());
   } catch (err) {
     if (err?.name === "TokenExpiredError") {
       return next(unauthorized("Token expirado", "TOKEN_EXPIRED"));
@@ -23,7 +24,7 @@ export async function auth(req, res, next) {
   }
 
   try {
-    const id = Number(payload.sub ?? payload.id);
+    const id = Number(payload.sub);
 
     if (!Number.isInteger(id) || id <= 0) {
       return next(unauthorized("Token invalido", "INVALID_TOKEN"));
@@ -46,6 +47,10 @@ export async function auth(req, res, next) {
     });
 
     if (!user || user.isActive !== true) {
+      return next(unauthorized("Usuario nao autorizado", "USER_INACTIVE"));
+    }
+
+    if (!ALL_USER_ROLES.includes(user.role)) {
       return next(unauthorized("Usuario nao autorizado", "USER_INACTIVE"));
     }
 

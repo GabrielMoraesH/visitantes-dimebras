@@ -11,6 +11,7 @@ import multer from "multer";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { tvTempUploadDir, tvUploadDir } from "../config/uploads.js";
+import { sessionJwtSignOptions } from "../config/auth.js";
 import { normalizeErrorResponses, notFoundHandler, errorHandler } from "../middlewares/errorHandler.js";
 import { login } from "./auth.controller.js";
 import { listBranches } from "./branches.controller.js";
@@ -2478,7 +2479,7 @@ test("visits label token success, safe 404, and JWT errors keep their contracts"
 });
 
 test("visits label success with Bearer keeps HTML, QR, escaping, CSP, and headers", async () => {
-  const token = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const token = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
   const visit = {
     id: 77,
     branchId: 2,
@@ -2606,7 +2607,7 @@ test("visits label operational denials keep current plain responses", async () =
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
-  const inactiveBearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const inactiveBearer = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
 
   async function labelRequest(path, userFindUnique = async () => null) {
     return withPrismaMocks(
@@ -2691,7 +2692,7 @@ test("visits label technical failures go through the global error handler", asyn
   assert.equal(JSON.stringify(prismaFailure.body).includes("stack"), false);
   assert.equal(JSON.stringify(prismaFailure.body).includes("select cpf"), false);
 
-  const bearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const bearer = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
   const qrFailure = await withSilencedApiLogs(() =>
     withQRCodeToDataURLMock(
       async () => {
@@ -2730,7 +2731,7 @@ test("visits label technical failures go through the global error handler", asyn
 });
 
 test("visits label forwards send errors after headers are sent", async () => {
-  const bearer = jwt.sign({ sub: "10" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  const bearer = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
   const sendError = new Error("socket write failed");
   const req = {
     params: { id: "81" },

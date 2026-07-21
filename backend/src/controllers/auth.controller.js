@@ -23,3 +23,17 @@ export async function login(req, res, next) {
     return next(err);
   }
 }
+
+export function me(req, res) {
+  return res.json({
+    user: {
+      id: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      branch: {
+        id: req.user.branchId,
+        name: req.user.branchName,
+      },
+    },
+  });
+}
