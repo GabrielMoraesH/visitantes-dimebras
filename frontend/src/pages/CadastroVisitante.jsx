@@ -2,10 +2,11 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState, useRef } from "react";
 import api from "../services/api";
 import CameraModal from "../components/CameraModal";
+import { getToken } from "../services/session";
 import "../styles/cadastro.css";
 
 function authHeader() {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -120,7 +121,7 @@ export default function CadastroVisitante() {
   }, [photoPreview, docFrontPreview, docBackPreview]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) navigate("/login");
   }, [navigate]);
 

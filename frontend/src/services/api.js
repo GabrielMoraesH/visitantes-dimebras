@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearSession, getToken } from "./session";
 
 export const API_BASE_URL = (import.meta.env?.VITE_API_URL || "http://localhost:3001").replace(/\/$/, "");
 
@@ -7,13 +8,6 @@ export const api = axios.create({
 });
 
 let isRedirectingToLogin = false;
-
-export function clearStoredSession() {
-  if (typeof localStorage === "undefined") return;
-
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-}
 
 function getRequestPath(config) {
   try {
@@ -73,7 +67,7 @@ export function openVisitLabel(visitId) {
 
 api.interceptors.request.use(
   (config) => {
-    const token = typeof localStorage !== "undefined" ? localStorage.getItem("token") : null;
+    const token = getToken();
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -88,7 +82,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      clearStoredSession();
+      clearSession();
 
       if (!isLoginRequest(error.config) && !isAlreadyOnLogin()) {
         redirectToLogin();

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import ProtectedRoute from "./ProtectedRoute";
 import { renderWithRouter } from "../test/renderWithRouter";
+import { getToken, getUser, setSession as storeSession } from "../services/session";
 
 function LocationProbe() {
   const location = useLocation();
@@ -24,10 +25,7 @@ function ProtectedContent({ onMount = () => {} }) {
 }
 
 function setSession(user) {
-  localStorage.setItem("token", "token-teste");
-  if (user) {
-    localStorage.setItem("user", JSON.stringify(user));
-  }
+  storeSession("token-teste", user);
 }
 
 function renderProtected({ roles, path = "/private", onMount } = {}) {
@@ -105,21 +103,42 @@ describe("ProtectedRoute", () => {
     expect(screen.getByText("Conteudo protegido")).toBeInTheDocument();
   });
 
-  it("mantem comportamento atual quando token existe sem usuario em rota sem role", () => {
+  it("limpa sessao e redireciona quando ha token sem usuario", () => {
     localStorage.setItem("token", "token-teste");
 
     renderProtected();
 
-    expect(screen.getByText("Conteudo protegido")).toBeInTheDocument();
+    expect(screen.getByText("Login destino")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(getToken()).toBeNull();
+    expect(getUser()).toBeNull();
   });
 
-  it("bloqueia estado inconsistente com token sem usuario em rota ADMIN", () => {
+  it("limpa sessao e redireciona quando ha user sem token", () => {
     const onMount = vi.fn();
-    localStorage.setItem("token", "token-teste");
+    localStorage.setItem("user", JSON.stringify({ id: 1, username: "admin", role: "ADMIN" }));
 
     renderProtected({ roles: ["ADMIN"], onMount });
 
-    expect(screen.getByText("Checkin destino")).toBeInTheDocument();
+    expect(screen.getByText("Login destino")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
     expect(onMount).not.toHaveBeenCalled();
+    expect(getToken()).toBeNull();
+    expect(getUser()).toBeNull();
+  });
+
+  it("limpa sessao e redireciona quando user salvo tem JSON invalido", () => {
+    const onMount = vi.fn();
+    localStorage.setItem("token", "token-teste");
+    localStorage.setItem("user", "{");
+
+    renderProtected({ roles: ["ADMIN"], onMount });
+
+    expect(screen.getByText("Login destino")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    expect(onMount).not.toHaveBeenCalled();
+    expect(getToken()).toBeNull();
+    expect(getUser()).toBeNull();
   });
 });

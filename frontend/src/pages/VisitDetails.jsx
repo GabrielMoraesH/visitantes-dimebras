@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api, { openVisitLabel } from "../services/api";
 import Header from "../components/Header";
+import { clearSession, getToken } from "../services/session";
 import "../styles/checkin.css"; // pode reutilizar estilos, ou criar outro depois
 
 function authHeader() {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   return { Authorization: `Bearer ${token}` };
 }
 
@@ -58,7 +59,7 @@ export default function VisitDetails() {
   const [docBackUrl, setDocBackUrl] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) navigate("/login");
   }, [navigate]);
 
@@ -139,7 +140,7 @@ export default function VisitDetails() {
   const visitor = visit?.visitor;
 
   function logout() {
-    localStorage.removeItem("token");
+    clearSession();
     navigate("/login");
   }
 

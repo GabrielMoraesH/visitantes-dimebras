@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import App from "./App";
+import { setSession as storeSession } from "./services/session";
 
 const lazyMocks = vi.hoisted(() => {
   let resolveCheckin;
@@ -73,8 +74,7 @@ function AdminUsersMock() {
 }
 
 function setSession(role) {
-  localStorage.setItem("token", "token-teste");
-  localStorage.setItem("user", JSON.stringify({ id: 1, username: role.toLowerCase(), role }));
+  storeSession("token-teste", { id: 1, username: role.toLowerCase(), role });
 }
 
 function renderAppAt(path) {

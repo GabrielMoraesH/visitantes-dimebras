@@ -3,35 +3,12 @@ import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { useConfirm } from "../components/Feedback/ConfirmProvider";
 import { useToast } from "../components/Feedback/ToastProvider";
+import { getToken, getUser } from "../services/session";
 import "../styles/adminUsers.css";
 
 function authHeader() {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   return { Authorization: `Bearer ${token}` };
-}
-
-function parseJwt(token) {
-  try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-function getUserFromToken() {
-  const token = localStorage.getItem("token");
-  if (!token) return null;
-  const user = parseJwt(token);
-  const id = Number(user?.id ?? user?.sub);
-  return { ...user, id };
 }
 
 const FALLBACK_BRANCHES = [
@@ -68,7 +45,7 @@ export default function AdminUsers() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
-  const user = useMemo(() => getUserFromToken(), []);
+  const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
 
   const [loading, setLoading] = useState(false);
@@ -79,7 +56,7 @@ export default function AdminUsers() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) return navigate("/login");
     if (!isAdmin) return navigate("/checkin");
   }, [navigate, isAdmin]);

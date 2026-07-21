@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL } from "../services/api";
+import { getToken, getUser } from "../services/session";
 import {
   createTvContent,
   deleteTvContent,
@@ -16,39 +17,6 @@ import "../styles/tvContent.css";
 const TV_MAX_FILE_SIZE = 200 * 1024 * 1024;
 const TV_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
 const TV_ALLOWED_MIMES = new Set(TV_ACCEPT.split(","));
-
-function parseJwt(token) {
-  try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join("")
-    );
-    return JSON.parse(jsonPayload);
-  } catch {
-    return null;
-  }
-}
-
-function getUserFromStorage() {
-  const raw = localStorage.getItem("user");
-  if (raw) {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      // fallback to token
-    }
-  }
-
-  const token = localStorage.getItem("token");
-  if (!token) return null;
-  const user = parseJwt(token);
-  const id = Number(user?.id ?? user?.sub);
-  return { ...user, id };
-}
 
 function mediaUrl(fileUrl) {
   if (!fileUrl) return "";
@@ -196,7 +164,7 @@ export default function TvContent() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
-  const user = useMemo(() => getUserFromStorage(), []);
+  const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
 
   const [items, setItems] = useState([]);
@@ -249,7 +217,7 @@ export default function TvContent() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) {
       navigate("/login", { replace: true });
       return;

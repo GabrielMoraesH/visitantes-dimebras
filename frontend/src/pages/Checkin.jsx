@@ -5,21 +5,12 @@ import QrModal from "../components/QrModal";
 import CameraModal from "../components/CameraModal";
 import Header from "../components/Header";
 import { useToast } from "../components/Feedback/ToastProvider";
+import { clearSession, getToken, getUser } from "../services/session";
 import "../styles/checkin.css";
 
 function authHeader() {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   return { Authorization: `Bearer ${token}` };
-}
-
-function getUserFromStorage() {
-  const raw = localStorage.getItem("user");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
 }
 
 function onlyDigits(v = "") {
@@ -76,7 +67,7 @@ export default function Checkin() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const user = useMemo(() => getUserFromStorage(), []);
+  const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
 
   const [showQr, setShowQr] = useState(false);
@@ -243,7 +234,7 @@ export default function Checkin() {
   }, [loadOpenVisits]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getToken();
     if (!token) navigate("/login");
   }, [navigate]);
 
@@ -259,7 +250,7 @@ export default function Checkin() {
   }, []);
 
   function logout() {
-    localStorage.removeItem("token");
+    clearSession();
     navigate("/login");
   }
 

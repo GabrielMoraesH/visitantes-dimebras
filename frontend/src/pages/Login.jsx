@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import { setSession } from "../services/session";
 import "../styles/login.css";
 
 export default function Login() {
@@ -16,11 +17,7 @@ export default function Login() {
     try {
       const { data } = await api.post("/auth/login", { username, password });
 
-      localStorage.setItem("token", data.token);
-
-      if (data?.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-      }
+      setSession(data.token, data.user);
 
       nav("/checkin");
     } catch (err) {

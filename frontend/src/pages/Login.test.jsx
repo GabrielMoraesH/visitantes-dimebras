@@ -1,15 +1,25 @@
 import { Route, Routes, MemoryRouter, useLocation } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Login from "./Login";
 import api from "../services/api";
+import { getToken, getUser, setSession } from "../services/session";
 
 vi.mock("../services/api", () => ({
   default: {
     post: vi.fn(),
   },
 }));
+
+vi.mock("../services/session", async (importOriginal) => {
+  const actual = await importOriginal();
+
+  return {
+    ...actual,
+    setSession: vi.fn(actual.setSession),
+  };
+});
 
 function LocationProbe() {
   const location = useLocation();
@@ -53,6 +63,10 @@ async function fillLoginForm() {
 }
 
 describe("Login", () => {
+  afterEach(() => {
+    setSession.mockClear();
+  });
+
   it("renderiza campos principais e botao de entrada", () => {
     renderLogin();
 
@@ -65,7 +79,7 @@ describe("Login", () => {
     api.post.mockResolvedValue({
       data: {
         token: "token-resposta",
-        user: { id: 2, username: "operador", role: "RECEPCAO" },
+        user: { id: 2, username: "operador", role: "RECEPCAO", password: "nao-salvar" },
       },
     });
 
@@ -78,13 +92,18 @@ describe("Login", () => {
       username: "operador",
       password: "senha-teste",
     });
-    expect(localStorage.getItem("token")).toBe("token-resposta");
-    expect(JSON.parse(localStorage.getItem("user"))).toEqual({
+    expect(setSession).toHaveBeenCalledWith("token-resposta", {
+      id: 2,
+      username: "operador",
+      role: "RECEPCAO",
+      password: "nao-salvar",
+    });
+    expect(getToken()).toBe("token-resposta");
+    expect(getUser()).toEqual({
       id: 2,
       username: "operador",
       role: "RECEPCAO",
     });
-    expect(localStorage.getItem("password")).toBeNull();
     expect(screen.getByTestId("location")).toHaveTextContent("/checkin");
   });
 
@@ -98,8 +117,9 @@ describe("Login", () => {
     await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
 
     expect(await screen.findByText("Credenciais invalidas")).toBeInTheDocument();
-    expect(localStorage.getItem("token")).toBeNull();
-    expect(localStorage.getItem("user")).toBeNull();
+    expect(getToken()).toBeNull();
+    expect(getUser()).toBeNull();
+    expect(setSession).not.toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
   });
 
@@ -115,7 +135,8 @@ describe("Login", () => {
     expect(await screen.findByText("Erro no login")).toBeInTheDocument();
     expect(button).toBeEnabled();
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
-    expect(localStorage.getItem("token")).toBeNull();
-    expect(localStorage.getItem("user")).toBeNull();
+    expect(getToken()).toBeNull();
+    expect(getUser()).toBeNull();
+    expect(setSession).not.toHaveBeenCalled();
   });
 });
