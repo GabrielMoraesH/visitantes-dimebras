@@ -266,7 +266,7 @@ test("createEvent rejects invalid date before Prisma", async () => {
           },
         },
       },
-      () => createEvent({ user, input: { ...futureInput, eventDateTime: "data-invalida" } })
+      () => createEvent({ user, input: { ...futureInput, eventDateTime: "data-inválida" } })
     ),
     { name: "ZodError" }
   );

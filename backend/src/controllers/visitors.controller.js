@@ -47,7 +47,7 @@ export async function getByCpf(req, res, next) {
     });
 
     if (!result.found) {
-      const message = result.inaccessible ? "Visitante nao encontrado" : "Visitante n\u00e3o encontrado";
+      const message = result.inaccessible ? "Visitante não encontrado" : "Visitante n\u00e3o encontrado";
       return res.status(404).json({ message });
     }
 
@@ -78,7 +78,7 @@ export async function deleteIncompleteVisitorFromCurrentAttempt(req, res, next) 
     });
 
     if (!result.deleted) {
-      return res.status(404).json({ message: "Visitante nao encontrado" });
+      return res.status(404).json({ message: "Visitante não encontrado" });
     }
 
     return res.json({ ok: true });
@@ -100,7 +100,7 @@ export async function updateVisitor(req, res, next) {
         return res.status(400).json({ message: "ID inv\u00e1lido" });
       }
 
-      return res.status(404).json({ message: "Visitante nao encontrado" });
+      return res.status(404).json({ message: "Visitante não encontrado" });
     }
 
     return res.json(result.visitor);

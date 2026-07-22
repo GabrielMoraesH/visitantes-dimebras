@@ -126,7 +126,7 @@ test("visitor upload rejects unexpected file field", async () => {
   const response = await sendMultipart([["avatar", "foto.jpg"]]);
 
   assert.equal(response.status, 400);
-  assert.equal(response.body.message, "Campo de arquivo nao reconhecido.");
+  assert.equal(response.body.message, "Campo de arquivo não reconhecido.");
 });
 
 test("updateVisitorFiles persists all three valid files", async () => {

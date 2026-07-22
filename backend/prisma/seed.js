@@ -74,7 +74,7 @@ export async function main() {
 
   if (!adminSeedPassword) {
     throw new Error(
-      "ADMIN_SEED_PASSWORD nao definida. Configure essa variavel no ambiente antes de executar o seed."
+      "ADMIN_SEED_PASSWORD não definida. Configure essa variavel no ambiente antes de executar o seed."
     );
   }
 
@@ -99,8 +99,8 @@ export async function main() {
 
   console.log(
     existingAdmin
-      ? "Seed OK: filial padrao verificada; usuario admin existente preservado."
-      : "Seed OK: filial padrao verificada; usuario admin criado."
+      ? "Seed OK: filial padrão verificada; usuário admin existente preservado."
+      : "Seed OK: filial padrão verificada; usuário admin criado."
   );
 }
 

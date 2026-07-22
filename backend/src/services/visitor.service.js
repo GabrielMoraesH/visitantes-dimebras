@@ -11,7 +11,7 @@ import {
 } from "../utils/validation.js";
 
 const createVisitorSchema = z.object({
-  name: trimmedString(LIMITS.name, "Nome invalido").min(2, "Nome invalido"),
+  name: trimmedString(LIMITS.name, "Nome inválido").min(2, "Nome inválido"),
   cpf: cpfSchema,
   phone: phoneSchema,
   company: optionalTrimmedString(LIMITS.company),

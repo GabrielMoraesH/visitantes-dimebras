@@ -53,7 +53,7 @@ function isOpenVisitUniqueConflict(error) {
 }
 
 const checkinSchema = z.object({
-  visitorId: positiveIntBody("Visitante invalido"),
+  visitorId: positiveIntBody("Visitante inválido"),
 
   areaToVisit: z.preprocess(asString, trimmedString(LIMITS.visitText, "Selecione o setor.")),
 
@@ -78,8 +78,8 @@ const checkoutSchema = z.object({
   visitCode: z
     .string()
     .trim()
-    .min(6, "QR invalido (codigo muito curto)")
-    .max(LIMITS.visitCode, "QR invalido"),
+    .min(6, "QR inválido (código muito curto)")
+    .max(LIMITS.visitCode, "QR inválido"),
 }).strict();
 
 function userCanAccessVisit(user, visit) {
@@ -176,7 +176,7 @@ export async function createLabelToken({ user, visitId }) {
     select: { id: true, branchId: true },
   });
 
-  if (!visit) return { ok: false, status: 404, message: "Visita nao encontrada" };
+  if (!visit) return { ok: false, status: 404, message: "Visita não encontrada" };
   if (!userCanAccessVisit(user, visit)) {
     return { ok: false, status: 403, message: "Acesso negado" };
   }
@@ -212,7 +212,7 @@ export async function checkin({ user, input }) {
 
   const canAccessVisitor = await userCanAccessVisitor(user, visitor.id);
   if (!canAccessVisitor) {
-    return { ok: false, status: 404, message: "Visitante nao encontrado" };
+    return { ok: false, status: 404, message: "Visitante não encontrado" };
   }
 
   const branch = await prisma.branch.findUnique({
@@ -288,7 +288,7 @@ export async function getLabelData({ authorization, visitId, labelToken }) {
   const hasTokenAccess = verifyLabelToken(labelToken, visit);
 
   if (!hasBearerAccess && !hasTokenAccess) {
-    return { ok: false, status: 404, message: "Visita nao encontrada" };
+    return { ok: false, status: 404, message: "Visita não encontrada" };
   }
 
   return { ok: true, visit };
@@ -414,7 +414,7 @@ export async function getById({ user, visitId }) {
   const sameBranch = Number(user?.branchId) === Number(visit.branch?.id);
 
   if (!isAdmin && !sameBranch) {
-    return { ok: false, status: 404, message: "Visita nao encontrada" };
+    return { ok: false, status: 404, message: "Visita não encontrada" };
   }
 
   return { ok: true, visit };

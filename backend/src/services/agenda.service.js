@@ -24,7 +24,7 @@ const createAgendaSchema = z.object({
   ),
   eventWith: z.preprocess(
     asString,
-    trimmedString(LIMITS.agendaText, "Informe com quem sera o evento.").min(2, "Informe com quem sera o evento.")
+    trimmedString(LIMITS.agendaText, "Informe com quem será o evento.").min(2, "Informe com quem será o evento.")
   ),
   department: z.preprocess(
     asString,

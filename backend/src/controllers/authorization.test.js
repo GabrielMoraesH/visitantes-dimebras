@@ -218,7 +218,7 @@ test("RECEPCAO cannot access visit details from another branch by ID", async () 
   );
 
   assert.equal(res.statusCode, 404);
-  assert.equal(res.body.message, "Visita nao encontrada");
+  assert.equal(res.body.message, "Visita não encontrada");
 });
 
 test("checkin rejects protected branchId from body before creating visit", async () => {

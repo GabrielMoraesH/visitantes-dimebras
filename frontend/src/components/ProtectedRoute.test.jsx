@@ -27,7 +27,7 @@ function ProtectedContent({ onMount = () => {} }) {
     onMount();
   }, [onMount]);
 
-  return <div>Conteudo protegido</div>;
+  return <div>Conteúdo protegido</div>;
 }
 
 function setSession(user) {
@@ -97,20 +97,20 @@ describe("ProtectedRoute", () => {
     getCurrentUser.mockReset();
   });
 
-  it("redireciona para login quando nao ha token", () => {
+  it("redireciona para login quando não há token", () => {
     renderProtected();
 
     expect(screen.getByText("Login destino")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
-    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(screen.queryByText("Conteúdo protegido")).not.toBeInTheDocument();
   });
 
-  it("renderiza conteudo protegido quando ha token e perfil valido", () => {
+  it("renderiza conteúdo protegido quando há token e perfil válido", () => {
     setSession({ id: 1, username: "admin", role: "ADMIN" });
 
     renderProtected({ roles: ["ADMIN"] });
 
-    expect(screen.getByText("Conteudo protegido")).toBeInTheDocument();
+    expect(screen.getByText("Conteúdo protegido")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/private");
   });
 
@@ -122,7 +122,7 @@ describe("ProtectedRoute", () => {
 
     expect(screen.getByText("Checkin destino")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/checkin");
-    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(screen.queryByText("Conteúdo protegido")).not.toBeInTheDocument();
     expect(onMount).not.toHaveBeenCalled();
   });
 
@@ -131,22 +131,22 @@ describe("ProtectedRoute", () => {
 
     renderProtected({ roles: ["ADMIN"] });
 
-    expect(screen.getByText("Conteudo protegido")).toBeInTheDocument();
+    expect(screen.getByText("Conteúdo protegido")).toBeInTheDocument();
   });
 
-  it("limpa sessao e redireciona quando ha token sem usuario", () => {
+  it("limpa sessão e redireciona quando há token sem usuário", () => {
     localStorage.setItem("token", "token-teste");
 
     renderProtected();
 
     expect(screen.getByText("Login destino")).toBeInTheDocument();
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
-    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(screen.queryByText("Conteúdo protegido")).not.toBeInTheDocument();
     expect(getToken()).toBeNull();
     expect(getUser()).toBeNull();
   });
 
-  it("limpa sessao e redireciona quando ha user sem token", () => {
+  it("limpa sessão e redireciona quando há user sem token", () => {
     const onMount = vi.fn();
     localStorage.setItem("user", JSON.stringify({ id: 1, username: "admin", role: "ADMIN" }));
 
@@ -159,7 +159,7 @@ describe("ProtectedRoute", () => {
     expect(getUser()).toBeNull();
   });
 
-  it("limpa sessao e redireciona quando user salvo tem JSON invalido", () => {
+  it("limpa sessão e redireciona quando user salvo tem JSON inválido", () => {
     const onMount = vi.fn();
     localStorage.setItem("token", "token-teste");
     localStorage.setItem("user", "{");
@@ -173,7 +173,7 @@ describe("ProtectedRoute", () => {
     expect(getUser()).toBeNull();
   });
 
-  it("aguarda bootstrap e nao monta conteudo antes da validacao", async () => {
+  it("aguarda bootstrap e não monta conteúdo antes da validação", async () => {
     const onMount = vi.fn();
     let resolveUser;
     getCurrentUser.mockReturnValue(
@@ -185,8 +185,8 @@ describe("ProtectedRoute", () => {
 
     renderProtectedWithBootstrap({ roles: ["ADMIN"], onMount });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando sessao...");
-    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando sessão...");
+    expect(screen.queryByText("Conteúdo protegido")).not.toBeInTheDocument();
     expect(onMount).not.toHaveBeenCalled();
 
     resolveUser({
@@ -196,7 +196,7 @@ describe("ProtectedRoute", () => {
       branch: { id: 2, name: "Matriz" },
     });
 
-    expect(await screen.findByText("Conteudo protegido")).toBeInTheDocument();
+    expect(await screen.findByText("Conteúdo protegido")).toBeInTheDocument();
     expect(onMount).toHaveBeenCalledTimes(1);
     expect(getCurrentUser).toHaveBeenCalledTimes(1);
     expect(getUser()).toEqual({
@@ -207,7 +207,7 @@ describe("ProtectedRoute", () => {
     });
   });
 
-  it("usa role atualizada pelo backend para autorizar apos bootstrap", async () => {
+  it("usa role atualizada pelo backend para autorizar após bootstrap", async () => {
     const onMount = vi.fn();
     getCurrentUser.mockResolvedValue({
       id: 2,
@@ -225,7 +225,7 @@ describe("ProtectedRoute", () => {
     expect(getUser()?.branch).toEqual({ id: 3, name: "Filial" });
   });
 
-  it("401 no bootstrap limpa sessao e redireciona para login", async () => {
+  it("401 no bootstrap limpa sessão e redireciona para login", async () => {
     getCurrentUser.mockRejectedValue({ response: { status: 401 } });
     setSession({ id: 1, username: "admin", role: "ADMIN" });
 
@@ -236,21 +236,21 @@ describe("ProtectedRoute", () => {
     expect(getUser()).toBeNull();
   });
 
-  it("erro temporario no bootstrap nao apaga sessao nem monta conteudo", async () => {
+  it("erro temporário no bootstrap não apaga sessão nem monta conteúdo", async () => {
     const onMount = vi.fn();
     getCurrentUser.mockRejectedValue({ response: { status: 500 } });
     setSession({ id: 1, username: "admin", role: "ADMIN" });
 
     renderProtectedWithBootstrap({ roles: ["ADMIN"], onMount });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Nao foi possivel validar");
-    expect(screen.queryByText("Conteudo protegido")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível validar");
+    expect(screen.queryByText("Conteúdo protegido")).not.toBeInTheDocument();
     expect(onMount).not.toHaveBeenCalled();
     expect(getToken()).toBe("token-teste");
     expect(getUser()?.role).toBe("ADMIN");
   });
 
-  it("sem sessao local completa nao chama /auth/me", () => {
+  it("sem sessão local completa não chama /auth/me", () => {
     renderProtectedWithBootstrap();
 
     expect(screen.getByText("Login destino")).toBeInTheDocument();

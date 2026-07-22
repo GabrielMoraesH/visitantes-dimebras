@@ -65,7 +65,7 @@ function renderNavigableTvAt(path) {
 function playlistItem(id, fileUrl) {
   return {
     id,
-    title: `Conteudo ${id}`,
+    title: `Conteúdo ${id}`,
     type: "IMAGE",
     fileUrl,
     order: id,
@@ -153,7 +153,7 @@ describe("TvDisplay branch routes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Ir TV 2" }));
 
-    expect(screen.getByText("Carregando conteudo")).toBeInTheDocument();
+    expect(screen.getByText("Carregando conteúdo")).toBeInTheDocument();
     expect(document.querySelector('img[src$="/branch-1.jpg"]')).not.toBeInTheDocument();
 
     branchTwoPlaylist.resolve({ data: [playlistItem(2, "/branch-2.jpg")] });

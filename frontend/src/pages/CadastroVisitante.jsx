@@ -59,7 +59,7 @@ function uploadErrorMessage(err) {
   const status = err?.response?.status;
   const code = err?.response?.data?.code;
   if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Imagem excede o limite permitido.";
-  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Imagem em formato nao permitido.";
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Imagem em formato não permitido.";
   const message = err?.response?.data?.message || "Erro ao salvar visitante";
   if (err?.cleanupFailed) {
     return `${message}. O cadastro pode ter ficado incompleto; busque o CPF novamente para continuar.`;

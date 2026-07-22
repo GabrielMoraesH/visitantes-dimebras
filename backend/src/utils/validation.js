@@ -22,7 +22,7 @@ export function positiveIntParam(field = "id") {
     .object({
       [field]: z
         .string()
-        .regex(/^[1-9]\d*$/, `${field} invalido`)
+        .regex(/^[1-9]\d*$/, `${field} inválido`)
         .transform((value) => Number(value))
         .pipe(z.number().int().positive()),
     })
@@ -31,21 +31,21 @@ export function positiveIntParam(field = "id") {
 
 export const idParamSchema = positiveIntParam("id");
 
-export function positiveIntBody(message = "ID invalido") {
+export function positiveIntBody(message = "ID inválido") {
   return z.number().int(message).positive(message);
 }
 
 export function positiveIntQuery(field) {
   return z
     .string()
-    .regex(/^[1-9]\d*$/, `${field} invalido`)
+    .regex(/^[1-9]\d*$/, `${field} inválido`)
     .transform((value) => Number(value))
     .pipe(z.number().int().positive());
 }
 
 export const boundedPageQuery = z
   .string()
-  .regex(/^[1-9]\d*$/, "page invalida")
+  .regex(/^[1-9]\d*$/, "page inválida")
   .transform((value) => Number(value))
   .pipe(z.number().int().min(1).max(10000));
 
@@ -54,11 +54,11 @@ export const boundedLimitQuery = (max = 100, defaultValue = 25) =>
     .string()
     .optional()
     .default(String(defaultValue))
-    .refine((value) => /^[1-9]\d*$/.test(value), "limit invalido")
+    .refine((value) => /^[1-9]\d*$/.test(value), "limit inválido")
     .transform((value) => Number(value))
     .pipe(z.number().int().min(1).max(max));
 
-export function trimmedString(max, message = "Campo invalido") {
+export function trimmedString(max, message = "Campo inválido") {
   return z.string().trim().min(1, message).max(max, message);
 }
 
@@ -76,8 +76,8 @@ export function optionalTrimmedString(max) {
 export const cpfSchema = z
   .string()
   .transform(onlyDigits)
-  .refine((value) => value.length === 11, "CPF invalido")
-  .refine((value) => !/^(\d)\1{10}$/.test(value), "CPF invalido");
+  .refine((value) => value.length === 11, "CPF inválido")
+  .refine((value) => !/^(\d)\1{10}$/.test(value), "CPF inválido");
 
 export const phoneSchema = z
   .string()
@@ -88,24 +88,24 @@ export const phoneSchema = z
     return digits || null;
   })
   .refine((value) => value === null || (value.length >= 10 && value.length <= 11), {
-    message: "Telefone invalido",
+    message: "Telefone inválido",
   });
 
 export const usernameSchema = z
   .string()
   .trim()
-  .min(3, "Usuario deve ter no minimo 3 caracteres")
-  .max(LIMITS.username, "Usuario muito longo")
-  .regex(/^[A-Za-z0-9._-]+$/, "Usuario contem caracteres invalidos");
+  .min(3, "Usuário deve ter no mínimo 3 caracteres")
+  .max(LIMITS.username, "Usuário muito longo")
+  .regex(/^[A-Za-z0-9._-]+$/, "Usuário contém caracteres inválidos");
 
 export const passwordSchema = z
   .string()
-  .min(6, "Senha deve ter no minimo 6 caracteres")
+  .min(6, "Senha deve ter no mínimo 6 caracteres")
   .max(LIMITS.password, "Senha muito longa");
 
 export const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data invalida")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
   .refine((value) => {
     const [year, month, day] = value.split("-").map(Number);
     const date = new Date(year, month - 1, day);
@@ -115,12 +115,12 @@ export const dateOnlySchema = z
       date.getMonth() === month - 1 &&
       date.getDate() === day
     );
-  }, "Data invalida");
+  }, "Data inválida");
 
 export const dateTimeSchema = z.string().refine((value) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
-}, "Data invalida");
+}, "Data inválida");
 
 export const strictBoolean = z.union([z.boolean(), z.literal("true"), z.literal("false")]).transform((value) => {
   if (value === "true") return true;

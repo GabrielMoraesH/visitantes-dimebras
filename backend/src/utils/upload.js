@@ -34,7 +34,7 @@ export const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (!allowedFields.includes(file.fieldname)) {
-      return cb(uploadError("Campo de arquivo invalido.", 400), false);
+      return cb(uploadError("Campo de arquivo inválido.", 400), false);
     }
 
     const declared = validateDeclaredFile(file, VISITOR_IMAGE_MIMES);
@@ -59,13 +59,13 @@ export function handleVisitorUploadErrors(req, res, next) {
         return sendUploadError(res, 413, "Arquivo excede o limite permitido.", "UPLOAD_FILE_TOO_LARGE");
       }
       if (err.code === "LIMIT_FILE_COUNT") {
-        return sendUploadError(res, 400, "O limite maximo e de tres arquivos, um por campo.", "UPLOAD_TOO_MANY_FILES");
+        return sendUploadError(res, 400, "O limite máximo é de três arquivos, um por campo.", "UPLOAD_TOO_MANY_FILES");
       }
       if (err.code === "LIMIT_PART_COUNT") {
-        return sendUploadError(res, 400, "O limite maximo e de tres arquivos, um por campo.", "UPLOAD_TOO_MANY_FILES");
+        return sendUploadError(res, 400, "O limite máximo é de três arquivos, um por campo.", "UPLOAD_TOO_MANY_FILES");
       }
       if (err.code === "LIMIT_FIELD_COUNT") {
-        return sendUploadError(res, 400, "Campos de texto nao sao aceitos neste upload.", "UPLOAD_TEXT_FIELDS_NOT_ALLOWED");
+        return sendUploadError(res, 400, "Campos de texto não são aceitos neste upload.", "UPLOAD_TEXT_FIELDS_NOT_ALLOWED");
       }
       if (err.code === "LIMIT_UNEXPECTED_FILE") {
         if (allowedFields.includes(err.field)) {
@@ -77,15 +77,15 @@ export function handleVisitorUploadErrors(req, res, next) {
           );
         }
 
-        return sendUploadError(res, 400, "Campo de arquivo nao reconhecido.", "UPLOAD_UNEXPECTED_FIELD");
+        return sendUploadError(res, 400, "Campo de arquivo não reconhecido.", "UPLOAD_UNEXPECTED_FIELD");
       }
-      return sendUploadError(res, 400, "Upload invalido.", "UPLOAD_INVALID");
+      return sendUploadError(res, 400, "Upload inválido.", "UPLOAD_INVALID");
     }
 
     return sendUploadError(
       res,
       err.statusCode || 400,
-      err.message || "Upload invalido.",
+      err.message || "Upload inválido.",
       err.code
     );
   });

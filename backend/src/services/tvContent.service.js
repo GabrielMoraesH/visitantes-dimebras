@@ -1,4 +1,4 @@
-﻿import fs from "fs";
+import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
@@ -22,7 +22,7 @@ const IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const VIDEO_MIMES = new Set(["video/mp4", "video/webm"]);
 
 const createSchema = z.object({
-  title: trimmedString(LIMITS.tvTitle, "Titulo obrigatorio"),
+  title: trimmedString(LIMITS.tvTitle, "Título obrigatorio"),
   order: z.coerce.number().int().optional().default(0),
   isActive: z
     .preprocess((value) => {
@@ -37,7 +37,7 @@ const createSchema = z.object({
 
 const updateSchema = z
   .object({
-    title: trimmedString(LIMITS.tvTitle, "Titulo nao pode ficar vazio").optional(),
+    title: trimmedString(LIMITS.tvTitle, "Título não pode ficar vazio").optional(),
     order: z.coerce.number().int().optional(),
     isActive: strictBoolean.optional(),
     branchIds: z.any().optional(),
@@ -107,7 +107,7 @@ function parseBranchIds(rawValue) {
   });
 
   if (branchIds.some((id) => !Number.isInteger(id) || id <= 0)) {
-    const error = new Error("Filiais invalidas.");
+    const error = new Error("Filiais inválidas.");
     error.statusCode = 400;
     throw error;
   }
@@ -130,7 +130,7 @@ async function validateBranchIds(rawValue, tx = prisma) {
   });
 
   if (branches.length !== branchIds.length) {
-    const error = new Error("Uma ou mais filiais nao existem.");
+    const error = new Error("Uma ou mais filiais não existem.");
     error.statusCode = 400;
     throw error;
   }
@@ -170,7 +170,7 @@ async function removeTempFile(filePath) {
 async function promoteTvUpload(file) {
   const tempPath = assertPathInside(tvTempUploadDir, file?.path);
   if (!tempPath) {
-    const error = new Error("Upload invalido.");
+    const error = new Error("Upload inválido.");
     error.statusCode = 400;
     throw error;
   }
@@ -188,7 +188,7 @@ async function promoteTvUpload(file) {
   const finalPath = assertPathInside(tvUploadDir, path.join(tvUploadDir, filename));
   if (!filename || !finalPath) {
     await removeTempFile(tempPath);
-    const error = new Error("Upload invalido.");
+    const error = new Error("Upload inválido.");
     error.statusCode = 400;
     throw error;
   }
@@ -351,7 +351,7 @@ export async function updateTvContent({ contentId, input }) {
   }
 
   const exists = await findAllowedContent(id);
-  if (!exists) return { ok: false, status: 404, message: "Conteudo nao encontrado" };
+  if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   const updated = await prisma.$transaction(async (tx) => {
     const updateData = {};
@@ -391,7 +391,7 @@ export async function updateTvContent({ contentId, input }) {
 export async function toggleTvContent({ contentId }) {
   const id = parseContentId(contentId);
   const exists = await findAllowedContent(id);
-  if (!exists) return { ok: false, status: 404, message: "Conteudo nao encontrado" };
+  if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   const updated = await prisma.tvContent.update({
     where: { id },
@@ -404,7 +404,7 @@ export async function toggleTvContent({ contentId }) {
 export async function deleteTvContent({ contentId }) {
   const id = parseContentId(contentId);
   const exists = await findAllowedContent(id);
-  if (!exists) return { ok: false, status: 404, message: "Conteudo nao encontrado" };
+  if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   await prisma.tvContent.delete({ where: { id } });
   await removeFileInside(tvUploadDir, filePathFromUrl(exists.fileUrl));

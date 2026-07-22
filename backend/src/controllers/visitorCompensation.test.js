@@ -72,7 +72,7 @@ test("compensation does not remove visitor from another user", async () => {
 
   assert.equal(where.createdById, 7);
   assert.equal(res.statusCode, 404);
-  assert.equal(res.body.message, "Visitante nao encontrado");
+  assert.equal(res.body.message, "Visitante não encontrado");
 });
 
 test("compensation does not remove visitor from another branch", async () => {
@@ -124,7 +124,7 @@ test("compensation returns safe response for nonexistent visitor", async () => {
   const { res } = await runCompensation({ count: 0 });
 
   assert.equal(res.statusCode, 404);
-  assert.equal(res.body.message, "Visitante nao encontrado");
+  assert.equal(res.body.message, "Visitante não encontrado");
 });
 
 test("compensation returns safe response for invalid id", async () => {

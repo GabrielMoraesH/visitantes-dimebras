@@ -221,14 +221,14 @@ export default function AdminUsers() {
     if (!u?.id) return;
 
     if (Number(u.id) === 1) {
-      return showToast("Nao e permitido alterar o ADMIN (id=1).", "error");
+      return showToast("Não é permitido alterar o ADMIN (id=1).", "error");
     }
 
     const approved = await confirm({
-      title: u.isActive ? "Desativar usuario" : "Reativar usuario",
+      title: u.isActive ? "Desativar usuário" : "Reativar usuário",
       message: `Tem certeza que deseja ${
         u.isActive ? "desativar" : "reativar"
-      } o usuario "${u.username}" (ID ${u.id})?`,
+      } o usuário "${u.username}" (ID ${u.id})?`,
       confirmText: u.isActive ? "Desativar" : "Reativar",
       cancelText: "Cancelar",
       type: u.isActive ? "danger" : "default",
@@ -241,15 +241,15 @@ export default function AdminUsers() {
 
       if (u.isActive) {
         await api.patch(`/users/${u.id}/disable`, null);
-        showToast("Usuario desativado!");
+        showToast("Usuário desativado!");
       } else {
         await api.patch(`/users/${u.id}/enable`, null);
-        showToast("Usuario reativado!");
+        showToast("Usuário reativado!");
       }
 
       await loadUsers();
     } catch (err) {
-      const m = err?.response?.data?.message || "Erro ao alterar usuario";
+      const m = err?.response?.data?.message || "Erro ao alterar usuário";
       showToast(m, "error");
     } finally {
       setDisableLoading(false);

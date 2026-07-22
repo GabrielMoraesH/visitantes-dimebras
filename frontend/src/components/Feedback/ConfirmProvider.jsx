@@ -14,7 +14,7 @@ const ConfirmContext = createContext(null);
 
 const initialState = {
   open: false,
-  title: "Confirmar acao",
+  title: "Confirmar ação",
   message: "",
   confirmText: "Confirmar",
   cancelText: "Cancelar",

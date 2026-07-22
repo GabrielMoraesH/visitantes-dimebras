@@ -67,7 +67,7 @@ describe("Login", () => {
     setSession.mockClear();
   });
 
-  it("renderiza campos principais e botao de entrada", () => {
+  it("renderiza campos principais e botão de entrada", () => {
     renderLogin();
 
     expect(screen.getByPlaceholderText(/usu.rio/i)).toBeInTheDocument();
@@ -75,11 +75,11 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: /acessar sistema/i })).toBeInTheDocument();
   });
 
-  it("salva token e usuario e navega para checkin em login bem-sucedido", async () => {
+  it("salva token e usuário e navega para checkin em login bem-sucedido", async () => {
     api.post.mockResolvedValue({
       data: {
         token: "token-resposta",
-        user: { id: 2, username: "operador", role: "RECEPCAO", password: "nao-salvar" },
+        user: { id: 2, username: "operador", role: "RECEPCAO", password: "não-salvar" },
       },
     });
 
@@ -96,7 +96,7 @@ describe("Login", () => {
       id: 2,
       username: "operador",
       role: "RECEPCAO",
-      password: "nao-salvar",
+      password: "não-salvar",
     });
     expect(getToken()).toBe("token-resposta");
     expect(getUser()).toEqual({
@@ -107,23 +107,23 @@ describe("Login", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/checkin");
   });
 
-  it("exibe mensagem de credenciais invalidas sem persistir sessao", async () => {
+  it("exibe mensagem de credenciais inválidas sem persistir sessão", async () => {
     api.post.mockRejectedValue({
-      response: { status: 401, data: { message: "Credenciais invalidas" } },
+      response: { status: 401, data: { message: "Credenciais inválidas" } },
     });
 
     renderLogin();
     const user = await fillLoginForm();
     await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
 
-    expect(await screen.findByText("Credenciais invalidas")).toBeInTheDocument();
+    expect(await screen.findByText("Credenciais inválidas")).toBeInTheDocument();
     expect(getToken()).toBeNull();
     expect(getUser()).toBeNull();
     expect(setSession).not.toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
   });
 
-  it("exibe mensagem padrao em falha tecnica e permite nova tentativa", async () => {
+  it("exibe mensagem padrão em falha técnica e permite nova tentativa", async () => {
     api.post.mockRejectedValueOnce({ response: { status: 500 } });
 
     renderLogin();

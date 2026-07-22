@@ -18,14 +18,14 @@ const createUserSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
   role: z.enum(ALL_USER_ROLES).optional().default("RECEPCAO"),
-  branchId: z.number().int().positive("branchId invalido"),
+  branchId: z.number().int().positive("branchId inválido"),
 }).strict();
 
 const updateUserSchema = z.object({
   username: usernameSchema.optional(),
   password: passwordSchema.optional(),
   role: z.enum(ALL_USER_ROLES).optional(),
-  branchId: z.number().int().positive("branchId invalido").optional(),
+  branchId: z.number().int().positive("branchId inválido").optional(),
 }).strict();
 
 function parseUserId(userId) {

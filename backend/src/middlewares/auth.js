@@ -20,14 +20,14 @@ export async function auth(req, res, next) {
     if (err?.name === "TokenExpiredError") {
       return next(unauthorized("Token expirado", "TOKEN_EXPIRED"));
     }
-    return next(unauthorized("Token invalido", "INVALID_TOKEN"));
+    return next(unauthorized("Token inválido", "INVALID_TOKEN"));
   }
 
   try {
     const id = Number(payload.sub);
 
     if (!Number.isInteger(id) || id <= 0) {
-      return next(unauthorized("Token invalido", "INVALID_TOKEN"));
+      return next(unauthorized("Token inválido", "INVALID_TOKEN"));
     }
 
     const user = await prisma.user.findUnique({
@@ -47,11 +47,11 @@ export async function auth(req, res, next) {
     });
 
     if (!user || user.isActive !== true) {
-      return next(unauthorized("Usuario nao autorizado", "USER_INACTIVE"));
+      return next(unauthorized("Usuário não autorizado", "USER_INACTIVE"));
     }
 
     if (!ALL_USER_ROLES.includes(user.role)) {
-      return next(unauthorized("Usuario nao autorizado", "USER_INACTIVE"));
+      return next(unauthorized("Usuário não autorizado", "USER_INACTIVE"));
     }
 
     req.user = {

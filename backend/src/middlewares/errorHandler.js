@@ -101,9 +101,9 @@ function translateError(error) {
       return appError("Quantidade de arquivos excedida.", 400, "UPLOAD_TOO_MANY_FILES");
     }
     if (error.code === "LIMIT_UNEXPECTED_FILE") {
-      return appError("Campo de arquivo nao reconhecido.", 400, "UPLOAD_UNEXPECTED_FIELD");
+      return appError("Campo de arquivo não reconhecido.", 400, "UPLOAD_UNEXPECTED_FIELD");
     }
-    return appError("Upload invalido.", 400, "UPLOAD_INVALID");
+    return appError("Upload inválido.", 400, "UPLOAD_INVALID");
   }
 
   if (error instanceof jwt.TokenExpiredError || error?.name === "TokenExpiredError") {
@@ -111,7 +111,7 @@ function translateError(error) {
   }
 
   if (error instanceof jwt.JsonWebTokenError || error?.name === "JsonWebTokenError") {
-    return appError("Token invalido", 401, "INVALID_TOKEN");
+    return appError("Token inválido", 401, "INVALID_TOKEN");
   }
 
   const prismaError = translatePrismaError(error);

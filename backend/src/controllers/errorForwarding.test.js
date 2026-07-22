@@ -1161,7 +1161,7 @@ test("visitors update operational 404 remains preserved", async () => {
 
   assert.equal(response.status, 404);
   assert.deepEqual(response.body, {
-    message: "Visitante nao encontrado",
+    message: "Visitante não encontrado",
     code: "VISITOR_NOT_FOUND",
     details: null,
   });
@@ -1536,7 +1536,7 @@ test("visitors incomplete compensation safe 404 remains preserved", async () => 
 
   assert.equal(response.status, 404);
   assert.deepEqual(response.body, {
-    message: "Visitante nao encontrado",
+    message: "Visitante não encontrado",
     code: "VISITOR_NOT_FOUND",
     details: null,
   });
@@ -1721,7 +1721,7 @@ test("tv content upload wrapper preserves known upload errors and forwards unkno
   assert.equal(unexpected.status, 400);
   assert.equal(unexpected.body.code, "UPLOAD_INVALID");
 
-  const invalidTypeError = new Error("Tipo de arquivo nao permitido.");
+  const invalidTypeError = new Error("Tipo de arquivo não permitido.");
   invalidTypeError.statusCode = 415;
   const invalidType = await withTvUploadSingleMock(
     () => (req, res, cb) => cb(invalidTypeError),
@@ -1729,7 +1729,7 @@ test("tv content upload wrapper preserves known upload errors and forwards unkno
   );
   assert.equal(invalidType.status, 415);
   assert.deepEqual(invalidType.body, {
-    message: "Tipo de arquivo nao permitido.",
+    message: "Tipo de arquivo não permitido.",
     code: "UPLOAD_INVALID_TYPE",
     details: null,
   });
@@ -2625,19 +2625,19 @@ test("visits label operational denials keep current plain responses", async () =
 
   const missingToken = await labelRequest("/test/79/label");
   assert.equal(missingToken.status, 404);
-  assert.equal(missingToken.bytes.toString("utf8"), "Visita nao encontrada");
+  assert.equal(missingToken.bytes.toString("utf8"), "Visita não encontrada");
 
   const invalid = await labelRequest(`/test/79/label?token=${encodeURIComponent(invalidToken)}`);
   assert.equal(invalid.status, 404);
-  assert.equal(invalid.bytes.toString("utf8"), "Visita nao encontrada");
+  assert.equal(invalid.bytes.toString("utf8"), "Visita não encontrada");
 
   const expired = await labelRequest(`/test/79/label?token=${encodeURIComponent(expiredToken)}`);
   assert.equal(expired.status, 404);
-  assert.equal(expired.bytes.toString("utf8"), "Visita nao encontrada");
+  assert.equal(expired.bytes.toString("utf8"), "Visita não encontrada");
 
   const otherVisit = await labelRequest(`/test/79/label?token=${encodeURIComponent(otherVisitToken)}`);
   assert.equal(otherVisit.status, 404);
-  assert.equal(otherVisit.bytes.toString("utf8"), "Visita nao encontrada");
+  assert.equal(otherVisit.bytes.toString("utf8"), "Visita não encontrada");
 
   const inactive = await withPrismaMocks(
     {
@@ -2655,7 +2655,7 @@ test("visits label operational denials keep current plain responses", async () =
       })
   );
   assert.equal(inactive.status, 404);
-  assert.equal(inactive.bytes.toString("utf8"), "Visita nao encontrada");
+  assert.equal(inactive.bytes.toString("utf8"), "Visita não encontrada");
 
   const missingVisit = await withPrismaMocks(
     {

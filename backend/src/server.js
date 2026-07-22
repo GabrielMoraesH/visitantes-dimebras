@@ -55,7 +55,7 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error("Origem nao permitida pelo CORS"));
+      return callback(new Error("Origem não permitida pelo CORS"));
     },
   })
 );

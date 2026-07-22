@@ -51,7 +51,7 @@ describe("api interceptors", () => {
     expect(create).toHaveBeenCalledWith({ baseURL: "http://localhost:3001" });
   });
 
-  it("adiciona Authorization quando token esta presente", async () => {
+  it("adiciona Authorization quando token está presente", async () => {
     const { requestFulfilled, session } = await loadApiHandlers();
     session.getToken.mockReturnValue("token-teste");
 
@@ -61,7 +61,7 @@ describe("api interceptors", () => {
     expect(config.headers.Authorization).toBe("Bearer token-teste");
   });
 
-  it("nao adiciona Authorization invalido quando token esta ausente", async () => {
+  it("não adiciona Authorization inválido quando token está ausente", async () => {
     const { requestFulfilled, session } = await loadApiHandlers();
 
     const config = requestFulfilled({ headers: {} });
@@ -70,7 +70,7 @@ describe("api interceptors", () => {
     expect(config.headers.Authorization).toBeUndefined();
   });
 
-  it("limpa sessao, redireciona uma vez e propaga 401 privado", async () => {
+  it("limpa sessão, redireciona uma vez e propaga 401 privado", async () => {
     const { assign, responseRejected, session } = await loadApiHandlers({ pathname: "/checkin" });
     const error = {
       response: { status: 401 },
@@ -85,7 +85,7 @@ describe("api interceptors", () => {
     expect(assign).toHaveBeenCalledWith("/login");
   });
 
-  it("nao faz redirect global adicional para 401 do login", async () => {
+  it("não faz redirect global adicional para 401 do login", async () => {
     const { assign, responseRejected, session } = await loadApiHandlers({ pathname: "/login" });
     const error = {
       response: { status: 401 },
@@ -98,7 +98,7 @@ describe("api interceptors", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
-  it("propaga 403 sem limpar sessao nem redirecionar", async () => {
+  it("propaga 403 sem limpar sessão nem redirecionar", async () => {
     const { assign, responseRejected, session } = await loadApiHandlers();
     const error = { response: { status: 403 }, config: { url: "/admin/users" } };
 
@@ -108,7 +108,7 @@ describe("api interceptors", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
-  it("propaga 500 sem limpar sessao nem redirecionar", async () => {
+  it("propaga 500 sem limpar sessão nem redirecionar", async () => {
     const { assign, responseRejected, session } = await loadApiHandlers();
     const error = { response: { status: 500 }, config: { url: "/visits" } };
 
@@ -118,7 +118,7 @@ describe("api interceptors", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
-  it("propaga erro de rede sem response sem limpar sessao nem redirecionar", async () => {
+  it("propaga erro de rede sem response sem limpar sessão nem redirecionar", async () => {
     const { assign, responseRejected, session } = await loadApiHandlers();
     const error = { request: {}, config: { url: "/visits" } };
 

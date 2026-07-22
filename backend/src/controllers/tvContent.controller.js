@@ -32,7 +32,7 @@ export const tvUpload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (file.fieldname !== "file") {
-      return cb(new Error("Campo de arquivo invalido. Use o campo file."), false);
+      return cb(new Error("Campo de arquivo inválido. Use o campo file."), false);
     }
 
     const declared = validateDeclaredFile(file, TV_MEDIA_MIMES);
@@ -72,7 +72,7 @@ export function handleTvUploadErrors(req, res, next) {
       if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_PART_COUNT") {
         return sendError(res, 400, "Quantidade de arquivos excedida.", "UPLOAD_TOO_MANY_FILES");
       }
-      return sendError(res, 400, "Upload invalido.", "UPLOAD_INVALID");
+      return sendError(res, 400, "Upload inválido.", "UPLOAD_INVALID");
     }
 
     if (Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 500) {
@@ -82,7 +82,7 @@ export function handleTvUploadErrors(req, res, next) {
         userId: req.user?.id ?? null,
         branchId: req.user?.branchId ?? null,
       });
-      return sendError(res, err.statusCode, err.message || "Upload invalido.", err.code);
+      return sendError(res, err.statusCode, err.message || "Upload inválido.", err.code);
     }
 
     logWarn("tv_content_upload_failed", {

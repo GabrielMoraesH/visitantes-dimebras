@@ -94,17 +94,17 @@ export function validateOriginalFileName(originalname = "") {
 
 export function validateDeclaredFile(file, allowedMimes) {
   if (!file || !allowedMimes?.has(file.mimetype)) {
-    return { ok: false, statusCode: 415, message: "Tipo de arquivo nao permitido." };
+    return { ok: false, statusCode: 415, message: "Tipo de arquivo não permitido." };
   }
 
   if (!validateOriginalFileName(file.originalname)) {
-    return { ok: false, statusCode: 400, message: "Nome de arquivo invalido." };
+    return { ok: false, statusCode: 400, message: "Nome de arquivo inválido." };
   }
 
   const ext = path.extname(file.originalname).toLowerCase();
   const expectedMime = EXTENSION_MIMES.get(ext);
   if (!expectedMime || expectedMime !== file.mimetype || !allowedMimes.has(expectedMime)) {
-    return { ok: false, statusCode: 415, message: "Extensao de arquivo nao permitida." };
+    return { ok: false, statusCode: 415, message: "Extensao de arquivo não permitida." };
   }
 
   return { ok: true };
@@ -114,7 +114,7 @@ export function validateMagicBytes(file, allowedMimes) {
   const detected = detectFileType(file?.buffer);
 
   if (!detected || !allowedMimes.has(detected.mime)) {
-    return { ok: false, statusCode: 415, message: "Conteudo do arquivo nao permitido." };
+    return { ok: false, statusCode: 415, message: "Conteúdo do arquivo não permitido." };
   }
 
   if (detected.mime !== file.mimetype) {

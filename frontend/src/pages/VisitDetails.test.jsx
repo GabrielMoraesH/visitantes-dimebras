@@ -137,7 +137,7 @@ describe("VisitDetails", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("mantem os botoes de voltar ao historico e abrir etiqueta funcionais", async () => {
+  it("mantem os botões de voltar ao histórico e abrir etiqueta funcionais", async () => {
     renderVisitDetails();
     const user = userEvent.setup();
 

@@ -48,7 +48,7 @@ function uploadErrorMessage(err, fallback) {
   const status = err?.response?.status;
   const code = err?.response?.data?.code;
   if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Arquivo excede o limite de 200MB.";
-  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Formato de arquivo nao permitido.";
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Formato de arquivo não permitido.";
   return err?.response?.data?.message || fallback;
 }
 
@@ -236,7 +236,7 @@ export default function TvContent() {
     setMsg("");
 
     const cleanTitle = title.trim();
-    if (!cleanTitle) return showToast("Informe o titulo da midia.", "error");
+    if (!cleanTitle) return showToast("Informe o título da midia.", "error");
     if (!file) return showToast("Selecione um arquivo.", "error");
     if (!TV_ALLOWED_MIMES.has(file.type)) {
       return showToast("Use JPG, PNG, WEBP, MP4 ou WEBM.", "error");
@@ -286,7 +286,7 @@ export default function TvContent() {
 
   async function saveEdit() {
     const cleanTitle = editTitle.trim();
-    if (!cleanTitle) return showToast("Titulo nao pode ficar vazio.", "error");
+    if (!cleanTitle) return showToast("Título não pode ficar vazio.", "error");
     if (editBranchIds.length === 0) {
       return showToast("Selecione pelo menos uma filial.", "error");
     }
@@ -299,11 +299,11 @@ export default function TvContent() {
         isActive: editIsActive,
         branchIds: editBranchIds,
       });
-      showToast("Conteudo atualizado!");
+      showToast("Conteúdo atualizado!");
       setEditOpen(false);
       await loadContents();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao atualizar conteudo.", "error");
+      showToast(err?.response?.data?.message || "Erro ao atualizar conteúdo.", "error");
     } finally {
       setEditLoading(false);
     }
@@ -319,7 +319,7 @@ export default function TvContent() {
   async function toggleItem(item) {
     try {
       await toggleTvContent(item.id);
-      showToast(item.isActive ? "Conteudo desativado." : "Conteudo ativado.");
+      showToast(item.isActive ? "Conteúdo desativado." : "Conteúdo ativado.");
       await loadContents();
     } catch (err) {
       showToast(err?.response?.data?.message || "Erro ao alterar status.", "error");
@@ -328,8 +328,8 @@ export default function TvContent() {
 
   async function removeItem(item) {
     const approved = await confirm({
-      title: "Excluir conteudo",
-      message: `Deseja excluir "${item.title}"? O arquivo fisico tambem sera removido quando possivel.`,
+      title: "Excluir conteúdo",
+      message: `Deseja excluir "${item.title}"? O arquivo físico também será removido quando possível.`,
       confirmText: "Excluir",
       cancelText: "Cancelar",
       type: "danger",
@@ -339,10 +339,10 @@ export default function TvContent() {
 
     try {
       await deleteTvContent(item.id);
-      showToast("Conteudo excluido.");
+      showToast("Conteúdo excluido.");
       await loadContents();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao excluir conteudo.", "error");
+      showToast(err?.response?.data?.message || "Erro ao excluir conteúdo.", "error");
     }
   }
 
@@ -370,12 +370,12 @@ export default function TvContent() {
 
       <main className="tvContent-container">
         <section className="tc-card">
-          <div className="tc-cardTitle">Conteudo TV</div>
+          <div className="tc-cardTitle">Conteúdo TV</div>
 
           <form className="tc-form" onSubmit={submitUpload}>
             <div className="tc-grid">
               <div className="tc-field tc-field-wide">
-                <label className="tc-label">Titulo da midia</label>
+                <label className="tc-label">Título da midia</label>
                 <input
                   className="tc-input"
                   value={title}
@@ -441,14 +441,14 @@ export default function TvContent() {
               <thead>
                 <tr>
                   <th>Preview</th>
-                  <th>Titulo</th>
+                  <th>Título</th>
                   <th>Tipo</th>
                   <th>Tamanho</th>
                   <th>Filiais</th>
                   <th>Ordem</th>
                   <th>Status</th>
                   <th>Criado em</th>
-                  <th className="tc-actions-col">Acoes</th>
+                  <th className="tc-actions-col">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -458,7 +458,7 @@ export default function TvContent() {
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="tc-empty">Nenhum conteudo cadastrado.</td>
+                    <td colSpan="9" className="tc-empty">Nenhum conteúdo cadastrado.</td>
                   </tr>
                 ) : (
                   items.map((item) => (
@@ -528,10 +528,10 @@ export default function TvContent() {
           onMouseDown={(e) => e.target === e.currentTarget && setEditOpen(false)}
         >
           <div className="tc-modal" onKeyDown={handleEditKeyDown}>
-            <div className="tc-modalTitle">Editar conteudo</div>
+            <div className="tc-modalTitle">Editar conteúdo</div>
 
             <div className="tc-field tc-modalLabel-spaced">
-              <label className="tc-label">Titulo</label>
+              <label className="tc-label">Título</label>
               <input
                 className="tc-input"
                 value={editTitle}

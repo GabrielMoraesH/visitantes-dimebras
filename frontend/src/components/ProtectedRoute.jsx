@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { clearSession, getUser, isAuthenticated } from "../services/session";
 import { useAuth } from "../services/authState";
 
-function AuthFallback({ children = "Carregando sessao..." }) {
+function AuthFallback({ children = "Carregando sessão..." }) {
   return (
     <div role="status" aria-live="polite">
       {children}
@@ -20,7 +20,7 @@ export default function ProtectedRoute({ children, roles }) {
   if (status === "error") {
     return (
       <div role="alert">
-        Nao foi possivel validar a sessao.
+        Não foi possível validar a sessão.
         <button type="button" onClick={validateSession}>
           Tentar novamente
         </button>

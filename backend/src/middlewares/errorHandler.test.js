@@ -117,14 +117,14 @@ test("Prisma P2025 returns safe 404", async () => {
 });
 
 test("Zod validation error returns standardized details", async () => {
-  const schema = z.object({ email: z.string().email("E-mail invalido.") });
+  const schema = z.object({ email: z.string().email("E-mail inválido.") });
   const { status, body } = await request((app) => {
     app.get("/test", () => schema.parse({ email: "x" }));
   });
 
   assert.equal(status, 400);
   assert.equal(body.code, "VALIDATION_ERROR");
-  assert.deepEqual(body.details, [{ field: "email", message: "E-mail invalido." }]);
+  assert.deepEqual(body.details, [{ field: "email", message: "E-mail inválido." }]);
 });
 
 test("missing token returns standardized 401", async () => {

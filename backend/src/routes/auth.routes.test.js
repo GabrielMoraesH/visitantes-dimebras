@@ -69,7 +69,7 @@ test("GET /auth/me returns current safe user from database", async () => {
         findUnique: async () => ({
           id: 7,
           username: "recepcao",
-          passwordHash: "hash-nao-retornar",
+          passwordHash: "hash-não-retornar",
           role: "RECEPCAO",
           branchId: 3,
           isActive: true,

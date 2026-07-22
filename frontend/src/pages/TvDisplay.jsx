@@ -163,7 +163,7 @@ export default function TvDisplay() {
     } catch {
       if (branchIdRef.current !== requestBranchId) return;
       if (initial || itemsRef.current.length === 0) {
-        setInitialError("Erro ao carregar conteudo da TV");
+        setInitialError("Erro ao carregar conteúdo da TV");
       }
     } finally {
       if (branchIdRef.current === requestBranchId) {
@@ -197,7 +197,7 @@ export default function TvDisplay() {
       if (branchIdRef.current !== requestBranchId) return;
       setWelcomeVisitors([]);
       if (itemsRef.current.length === 0) {
-        setWelcomeError("Nao foi possivel consultar visitantes agendados.");
+        setWelcomeError("Não foi possível consultar visitantes agendados.");
       }
     } finally {
       if (branchIdRef.current === requestBranchId) {
@@ -311,7 +311,7 @@ export default function TvDisplay() {
     return (
       <main className="tvDisplay-page">
         <section className="tvDisplay-status" aria-live="polite">
-          <h1>Carregando conteudo</h1>
+          <h1>Carregando conteúdo</h1>
         </section>
       </main>
     );
@@ -332,7 +332,7 @@ export default function TvDisplay() {
     return (
       <main className="tvDisplay-page">
         <section className="tvDisplay-status" aria-live="polite">
-          <h1>Nenhum conteudo disponivel</h1>
+          <h1>Nenhum conteúdo disponível</h1>
           {welcomeError && <p>{welcomeError}</p>}
         </section>
       </main>
@@ -342,7 +342,7 @@ export default function TvDisplay() {
   return (
     <main className="tvDisplay-page">
       {currentItem && (
-        <section className="tvDisplay-stage" aria-label="Conteudo TV">
+        <section className="tvDisplay-stage" aria-label="Conteúdo TV">
           {currentItem.type === "VIDEO" ? (
           <video
             key={`${currentItem.id}-${playbackCycle}`}
@@ -361,7 +361,7 @@ export default function TvDisplay() {
             key={`${currentItem.id}-${playbackCycle}`}
             className="tvDisplay-media tvDisplay-image"
             src={currentMediaUrl}
-            alt="Conteudo TV"
+            alt="Conteúdo TV"
             onError={advance}
           />
           )}
