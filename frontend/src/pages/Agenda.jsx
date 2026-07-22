@@ -374,11 +374,11 @@ return (
               <div className="agenda-error-icon">!</div>
 
               <h2 className="agenda-error-title">
-                {"N\u00e3o foi poss\u00edvel carregar a agenda"}
+                {"Não foi possível carregar a agenda"}
               </h2>
 
               <p className="agenda-error-text">
-                {"Verifique sua conex\u00e3o ou tente novamente."}
+                {"Verifique sua conexão ou tente novamente."}
               </p>
 
               <button
@@ -401,7 +401,7 @@ return (
 
               {hasAgendaEvents && (
                 <p>
-                  {"N\u00e3o existem agendamentos correspondentes aos filtros atuais."}
+                  {"Não existem agendamentos correspondentes aos filtros atuais."}
                 </p>
               )}
 
