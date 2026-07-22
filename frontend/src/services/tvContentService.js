@@ -22,10 +22,6 @@ export function deleteTvContent(id) {
   return api.delete(`/tv-content/${id}`);
 }
 
-export function getBranches() {
-  return api.get("/branches");
-}
-
 export function getActiveTvContents() {
   return api.get("/tv-content/active");
 }

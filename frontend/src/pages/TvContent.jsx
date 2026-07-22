@@ -5,11 +5,11 @@ import { getToken, getUser } from "../services/session";
 import {
   createTvContent,
   deleteTvContent,
-  getBranches,
   getTvContents,
   toggleTvContent,
   updateTvContent,
 } from "../services/tvContentService";
+import { getBranches } from "../services/branchService";
 import { useConfirm } from "../components/Feedback/ConfirmProvider";
 import { useToast } from "../components/Feedback/ToastProvider";
 import "../styles/tvContent.css";
