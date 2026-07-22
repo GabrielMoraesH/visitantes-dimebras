@@ -1,28 +1,75 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api, { openVisitLabel } from "../services/api";
-import Header from "../components/Header";
-import { clearSession, getToken } from "../services/session";
-import "../styles/checkin.css"; // pode reutilizar estilos, ou criar outro depois
+import { getToken } from "../services/session";
+import "../styles/visitDetails.css";
 
+const EMPTY_TEXT = "Não informado";
 
-function fmt(dt) {
-  if (!dt) return "-";
-  const d = new Date(dt);
-  return d.toLocaleString("pt-BR");
+function Icon({ name }) {
+  const icons = {
+    arrowLeft: "M19 12H5m0 0 6-6m-6 6 6 6",
+    tag: "M20 13.5 13.5 20 4 10.5V4h6.5L20 13.5ZM7.5 7.5h.01",
+    camera: "M4 8h3l1.5-2h7L17 8h3v11H4V8Zm8 8a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z",
+    document: "M7 3h7l5 5v13H7V3Zm7 0v5h5M10 13h6M10 17h6",
+    user: "M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z",
+    id: "M4 5h16v14H4V5Zm3 4h4M7 13h5M15 10h2M15 14h2",
+    building: "M4 21V5h10v16M14 9h6v12M8 9h2M8 13h2M8 17h2M17 13h1M17 17h1",
+    phone: "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.7.6 2.5a2 2 0 0 1-.5 2.1L8 9.5a16 16 0 0 0 6.5 6.5l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.6.5 2.5.6a2 2 0 0 1 1.7 2Z",
+    branch: "M3 21h18M5 21V7l8-4v18M13 8h6v13M8 9h1M8 13h1M8 17h1M16 12h1M16 16h1",
+    sector: "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z",
+    message: "M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z",
+    clipboard: "M9 4h6l1 2h3v15H5V6h3l1-2Zm0 6h6M9 14h6M9 18h4",
+    calendar: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z",
+    clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-15v6l4 2",
+    qr: "M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v6h-4v-2h2v-4Zm-4 4h2v2h-2v-2Z",
+  };
+
+  return (
+    <svg className="vd-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path d={icons[name]} />
+    </svg>
+  );
 }
 
-function onlyDigits(v = "") {
-  return String(v).replace(/\D/g, "");
+function onlyDigits(value = "") {
+  return String(value).replace(/\D/g, "");
+}
+
+function valueOrFallback(value, fallback = EMPTY_TEXT) {
+  const normalized = value === null || value === undefined ? "" : String(value).trim();
+  return normalized || fallback;
 }
 
 function formatCPF(value) {
-  if (!value) return "";
   const digits = onlyDigits(value).slice(0, 11);
-  return digits
-    .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+  if (!digits) return EMPTY_TEXT;
+  if (digits.length !== 11) return digits;
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+}
+
+function formatPhone(value) {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (!digits) return EMPTY_TEXT;
+  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  return valueOrFallback(value);
+}
+
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value, fallback = EMPTY_TEXT) {
+  const date = parseDate(value);
+  return date ? date.toLocaleDateString("pt-BR") : fallback;
+}
+
+function formatTime(value, fallback = EMPTY_TEXT) {
+  const date = parseDate(value);
+  return date ? date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : fallback;
 }
 
 async function fetchBlobAsUrl(endpoint) {
@@ -39,6 +86,50 @@ function revokeUrl(url) {
   } catch (err) {
     void err;
   }
+}
+
+function ImageBlock({ url, alt, emptyText, className = "" }) {
+  if (!url) {
+    return (
+      <div className={`vd-imageEmpty ${className}`}>
+        {emptyText}
+      </div>
+    );
+  }
+
+  return <img className={`vd-image ${className}`} src={url} alt={alt} />;
+}
+
+function InfoItem({ icon, label, value, accent = false }) {
+  return (
+    <div className={`vd-infoItem ${accent ? "vd-infoItemAccent" : ""}`}>
+      <div className="vd-infoIcon">
+        <Icon name={icon} />
+      </div>
+      <div>
+        <div className="vd-infoLabel">{label}</div>
+        <div className="vd-infoValue">{valueOrFallback(value)}</div>
+      </div>
+    </div>
+  );
+}
+
+function DateTimeItem({ label, value, open = false }) {
+  return (
+    <div className="vd-summaryItem">
+      <div className="vd-summaryLabel">{label}</div>
+      <div className="vd-dateTime">
+        <span>
+          <Icon name="calendar" />
+          {open ? "Em aberto" : formatDate(value)}
+        </span>
+        <span>
+          <Icon name="clock" />
+          {open ? "—" : formatTime(value)}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export default function VisitDetails() {
@@ -121,7 +212,7 @@ export default function VisitDetails() {
       } catch (err) {
         setMsg(err?.response?.data?.message || "Erro ao carregar detalhes da visita");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -133,120 +224,121 @@ export default function VisitDetails() {
   }, [id]);
 
   const visitor = visit?.visitor;
-
-  function logout() {
-    clearSession();
-    navigate("/login");
-  }
+  const checkoutOpen = !visit?.checkoutAt;
 
   return (
-    <div className="checkin-page">
-      <Header onLogout={logout} />
+    <div className="vd-page">
+      <header className="vd-topbar">
+        <button
+          className="vd-brand"
+          onClick={() => navigate("/checkin")}
+          type="button"
+          title="Voltar para Check-in"
+        >
+          <img src="/logo.png" alt="Dimebras" className="vd-logo" />
+        </button>
 
-      <main className="checkin-container">
-        <section className="card card-search">
-          <div className="card-title">Detalhes da Visita</div>
-
-          <div className="visit-details-actions">
-            <button className="btn btn-light" type="button" onClick={() => navigate("/history")}>
-              VOLTAR AO HISTÓRICO
+        <div className="vd-topbarActions">
+          <button className="vd-action vd-actionSecondary" type="button" onClick={() => navigate("/history")}>
+            <Icon name="arrowLeft" />
+            VOLTAR AO HISTÓRICO
+          </button>
+          {visit?.id && (
+            <button className="vd-action vd-actionPrimary" type="button" onClick={() => openVisitLabel(visit.id)}>
+              <Icon name="tag" />
+              ABRIR ETIQUETA
             </button>
-            {visit?.id && (
-              <button
-                className="btn btn-light"
-                type="button"
-                onClick={() => openVisitLabel(visit.id)}
-              >
-                ABRIR ETIQUETA
-              </button>
-            )}
-          </div>
+          )}
+        </div>
+      </header>
 
-          {msg && <div className="alert visit-details-alert">{msg}</div>}
-          {loading && <div className="alert visit-details-alert">Carregando...</div>}
-        </section>
+      <main className="vd-container">
+        {(msg || loading) && (
+          <div className="vd-alert" role={msg ? "alert" : "status"}>
+            {msg || "Carregando..."}
+          </div>
+        )}
 
         {visit && visitor && (
-          <section className="grid-2">
-            <div className="card">
-              <div className="photo-box">
-                {photoUrl ? (
-                  <img className="photo-preview" src={photoUrl} alt="Foto do visitante" />
-                ) : (
-                  <div className="photo-placeholder">SEM FOTO</div>
-                )}
-              </div>
-
-              {(docFrontUrl || docBackUrl) && (
-                <div className="doc-previews">
-                  {docFrontUrl && (
-                    <div className="doc-mini">
-                      <div className="doc-miniTitle">DOC (FRENTE)</div>
-                      <img src={docFrontUrl} alt="Documento frente" />
-                    </div>
-                  )}
-                  {docBackUrl && (
-                    <div className="doc-mini">
-                      <div className="doc-miniTitle">DOC (VERSO)</div>
-                      <img src={docBackUrl} alt="Documento verso" />
-                    </div>
-                  )}
+          <>
+            <section className="vd-mainGrid" aria-label="Detalhes da visita">
+              <aside className="vd-card vd-mediaCard">
+                <div className="vd-sectionTitle">
+                  <Icon name="camera" />
+                  FOTO DO VISITANTE
                 </div>
-              )}
-            </div>
+                <ImageBlock
+                  url={photoUrl}
+                  alt="Foto do visitante"
+                  emptyText="Foto não disponível"
+                  className="vd-photo"
+                />
 
-            <div className="card">
-              <div className="kv">
-                <div className="kv-label">CPF</div>
-                <div className="kv-value">{formatCPF(visitor.cpf)}</div>
-              </div>
+                <div className="vd-sectionTitle vd-docTitle">
+                  <Icon name="document" />
+                  DOCUMENTOS
+                </div>
+                <div className="vd-docGrid">
+                  <div className="vd-docCard">
+                    <div className="vd-docLabel">FRENTE</div>
+                    <ImageBlock
+                      url={docFrontUrl}
+                      alt="Documento frente"
+                      emptyText="Documento não disponível"
+                      className="vd-docImage"
+                    />
+                  </div>
+                  <div className="vd-docCard">
+                    <div className="vd-docLabel">VERSO</div>
+                    <ImageBlock
+                      url={docBackUrl}
+                      alt="Documento verso"
+                      emptyText="Documento não disponível"
+                      className="vd-docImage"
+                    />
+                  </div>
+                </div>
+              </aside>
 
-              <div className="kv">
-                <div className="kv-label">NOME</div>
-                <div className="kv-value">{visitor.name}</div>
-              </div>
-
-              <div className="kv-row">
-                <div className="kv">
-                  <div className="kv-label">EMPRESA</div>
-                  <div className="kv-value">
-                    <input className="input" value={visitor.company || "-"} disabled />
+              <section className="vd-card vd-detailsCard">
+                <div className="vd-section">
+                  <h2 className="vd-sectionHeading">INFORMAÇÕES PESSOAIS</h2>
+                  <div className="vd-infoGrid">
+                    <InfoItem icon="user" label="NOME COMPLETO" value={visitor.name} />
+                    <InfoItem icon="id" label="CPF" value={formatCPF(visitor.cpf)} />
+                    <InfoItem icon="building" label="EMPRESA" value={visitor.company} />
+                    <InfoItem icon="phone" label="TELEFONE" value={formatPhone(visitor.phone)} />
                   </div>
                 </div>
 
-                <div className="kv">
-                  <div className="kv-label">TELEFONE</div>
-                  <div className="kv-value">
-                    <input className="input" value={visitor.phone || "-"} disabled />
+                <div className="vd-section vd-sectionDivider">
+                  <h2 className="vd-sectionHeading">DETALHES DA VISITA</h2>
+                  <div className="vd-infoGrid">
+                    <InfoItem icon="branch" label="FILIAL" value={visit.branchName || visit.branch?.name} />
+                    <InfoItem icon="sector" label="SETOR" value={visit.areaToVisit} />
+                    <InfoItem icon="message" label="FALAR COM QUEM" value={visit.attendedBy} />
+                    <InfoItem icon="clipboard" label="MOTIVO DA VISITA" value={visit.serviceType} />
                   </div>
                 </div>
-              </div>
+              </section>
+            </section>
 
-              <div className="visit-box">
-                <div className="visit-title">DETALHES DA VISITA</div>
-
-                <div className="visit-grid">
-                  <input className="input" value={`Filial: ${visit.branchName || visit.branch?.name || "-"}`} disabled />
-                  <input className="input" value={`Setor: ${visit.areaToVisit || "-"}`} disabled />
-                  <input className="input" value={visit.attendedBy || "-"} disabled />
-                  <input className="input" value={visit.serviceType || "-"} disabled />
-                </div>
-              </div>
-
-              <div className="extras">
-                <div className="extras-card">
-                  <div className="extras-title">REGISTROS</div>
-                  <div className="visit-record-grid">
-                    <div><b>Check-in:</b> {fmt(visit.checkinAt)}</div>
-                    <div><b>Check-out:</b> {visit.checkoutAt ? fmt(visit.checkoutAt) : "Aberta"}</div>
-                    <div><b>Registrado por (In):</b> {visit.checkinByUser?.username || "-"}</div>
-                    <div><b>Registrado por (Out):</b> {visit.checkoutByUser?.username || "-"}</div>
-                    <div><b>Código:</b> {visit.visitCode || "-"}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+            <section className="vd-card vd-summaryCard" aria-label="Registros da visita">
+              <DateTimeItem label="DATA E HORA DE ENTRADA" value={visit.checkinAt} />
+              <DateTimeItem label="DATA E HORA DE SAÍDA" value={visit.checkoutAt} open={checkoutOpen} />
+              <InfoItem
+                icon="user"
+                label="REGISTRADO POR (IN)"
+                value={visit.checkinByUser?.username}
+              />
+              <InfoItem
+                icon="user"
+                label="REGISTRADO POR (OUT)"
+                value={checkoutOpen ? "Em aberto" : visit.checkoutByUser?.username}
+              />
+              <InfoItem icon="qr" label="CÓDIGO QR CODE" value={visit.visitCode} accent />
+            </section>
+          </>
         )}
       </main>
     </div>

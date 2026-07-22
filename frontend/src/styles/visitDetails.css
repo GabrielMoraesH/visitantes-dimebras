@@ -1,0 +1,367 @@
+.vd-page {
+  min-height: 100vh;
+  background: var(--color-app-bg);
+  padding-bottom: 28px;
+}
+
+.vd-topbar {
+  min-height: 64px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+}
+
+.vd-brand {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.vd-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.vd-topbarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.vd-action {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.vd-action:active {
+  transform: translateY(1px);
+}
+
+.vd-actionSecondary {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.vd-actionSecondary:hover {
+  background: #f4fafc;
+}
+
+.vd-actionPrimary {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.vd-actionPrimary:hover {
+  filter: brightness(0.95);
+}
+
+.vd-icon {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vd-container {
+  width: min(1180px, calc(100% - 32px));
+  margin: 26px auto 0;
+}
+
+.vd-alert {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid #ffd1d1;
+  background: #fff4f4;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.vd-alert[role="status"] {
+  border-color: var(--color-border-strong);
+  background: #f6fbff;
+  color: var(--color-primary);
+}
+
+.vd-mainGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.vd-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.vd-mediaCard,
+.vd-detailsCard {
+  padding: 18px;
+}
+
+.vd-detailsCard {
+  min-height: 100%;
+}
+
+.vd-sectionTitle,
+.vd-sectionHeading {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.35px;
+}
+
+.vd-sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.vd-docTitle {
+  margin-top: 20px;
+}
+
+.vd-photo {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  max-height: 420px;
+  border-radius: 14px;
+}
+
+.vd-image {
+  display: block;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  background: #f6fbff;
+}
+
+.vd-imageEmpty {
+  display: grid;
+  place-items: center;
+  border: 1px dashed #cfe0ea;
+  background: #fbfdff;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  padding: 14px;
+}
+
+.vd-docGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.vd-docCard {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.vd-docLabel {
+  padding: 9px 10px;
+  background: #f6fbff;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+}
+
+.vd-docImage {
+  width: 100%;
+  height: 132px;
+  border: 0;
+  border-radius: 0;
+}
+
+.vd-sectionHeading {
+  margin: 0 0 14px;
+}
+
+.vd-sectionDivider {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.vd-infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.vd-infoItem {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: #f8fcff;
+  border: 1px solid #edf3f7;
+}
+
+.vd-infoIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 110, 134, 0.1);
+  color: var(--color-primary);
+}
+
+.vd-infoLabel,
+.vd-summaryLabel {
+  color: var(--color-muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.vd-infoValue {
+  margin-top: 5px;
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.vd-infoItemAccent .vd-infoValue {
+  color: var(--color-primary);
+  font-size: 18px;
+  letter-spacing: 0.6px;
+}
+
+.vd-summaryCard {
+  margin-top: 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.vd-summaryItem {
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: #f8fcff;
+  border: 1px solid #edf3f7;
+}
+
+.vd-dateTime {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vd-dateTime span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1020px) {
+  .vd-mainGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .vd-photo {
+    max-height: none;
+  }
+
+  .vd-summaryCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .vd-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vd-brand {
+    align-self: flex-start;
+  }
+
+  .vd-topbarActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .vd-action {
+    flex: 1 1 220px;
+  }
+
+  .vd-container {
+    width: min(100% - 24px, 1180px);
+    margin-top: 18px;
+  }
+
+  .vd-infoGrid,
+  .vd-docGrid,
+  .vd-summaryCard {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .vd-mediaCard,
+  .vd-detailsCard,
+  .vd-summaryCard {
+    padding: 14px;
+  }
+
+  .vd-logo {
+    height: 36px;
+  }
+
+  .vd-action {
+    width: 100%;
+    flex-basis: 100%;
+  }
+}
