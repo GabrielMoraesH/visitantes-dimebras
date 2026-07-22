@@ -106,3 +106,41 @@
         flex-direction: column;
     }
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.agenda-modal-save,
+.agenda-modal-cancel {
+    min-height: 42px;
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid transparent;
+    font-weight: 900;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.agenda-modal-save {
+    background: var(--color-primary);
+    color: #ffffff;
+    border-color: var(--color-primary);
+}
+
+.agenda-modal-save:hover:not(:disabled) {
+    filter: brightness(0.95);
+}
+
+.agenda-modal-cancel {
+    background: #ffffff;
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.agenda-modal-cancel:hover:not(:disabled) {
+    background: #f4fafc;
+}

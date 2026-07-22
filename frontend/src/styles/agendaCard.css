@@ -195,3 +195,39 @@
     flex: 1;
   }
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.agenda-card-footer .edit-button,
+.agenda-card-footer .agenda-cancel-button {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.agenda-card-footer .edit-button {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.agenda-card-footer .edit-button:hover {
+  background: #f4fafc;
+}
+
+.agenda-card-footer .agenda-cancel-button {
+  background: var(--color-danger);
+  color: #ffffff;
+  border-color: var(--color-danger);
+}
+
+.agenda-card-footer .agenda-cancel-button:hover:not(:disabled) {
+  filter: brightness(0.95);
+}

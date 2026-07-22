@@ -526,3 +526,79 @@
 .au-modalLabel-spaced {
   margin-top: 10px;
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.au-btn {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.au-btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.au-btn-primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.au-btn-ghost {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.au-btn-ghost:hover:not(:disabled) {
+  background: #f4fafc;
+}
+
+.au-btn-danger {
+  background: var(--color-danger);
+  color: #ffffff;
+  border-color: var(--color-danger);
+}
+
+.au-btn-danger:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.cmodal-x {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.au-iconBtn {
+  border-radius: var(--radius-md);
+}
+
+.au-iconBtn-edit {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.au-iconBtn-edit:hover:not(:disabled) {
+  background: #f4fafc;
+}
+
+.au-iconBtn-del {
+  background: var(--color-danger);
+  color: #ffffff;
+  border-color: var(--color-danger);
+}
+
+.au-iconBtn-del:hover:not(:disabled) {
+  filter: brightness(0.95);
+}

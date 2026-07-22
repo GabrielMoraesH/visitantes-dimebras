@@ -77,14 +77,23 @@ textarea:focus-visible,
 .btn,
 .au-btn,
 .h-btn,
+.tc-btn,
 .login-btn,
 .history-topbar-btn,
+.appHeader-btn,
 .agenda-topbar-btn,
 .new-event-button,
 .today-button,
+.agenda-arrow-button,
+.agenda-retry-button,
+.edit-button,
+.agenda-cancel-button,
+.agenda-modal-save,
+.agenda-modal-cancel,
 .qr-btn,
 .modal-close,
-.cadastro-back {
+.cadastro-back,
+.confirm-dialog__button {
   border-radius: var(--radius-md);
   font-weight: 900;
   transition: background 0.15s ease, border-color 0.15s ease, filter 0.15s ease, transform 0.15s ease;
@@ -93,14 +102,23 @@ textarea:focus-visible,
 .btn:active,
 .au-btn:active,
 .h-btn:active,
+.tc-btn:active,
 .login-btn:active,
 .history-topbar-btn:active,
+.appHeader-btn:active,
 .agenda-topbar-btn:active,
 .new-event-button:active,
 .today-button:active,
+.agenda-arrow-button:active,
+.agenda-retry-button:active,
+.edit-button:active,
+.agenda-cancel-button:active,
+.agenda-modal-save:active,
+.agenda-modal-cancel:active,
 .qr-btn:active,
 .modal-close:active,
-.cadastro-back:active {
+.cadastro-back:active,
+.confirm-dialog__button:active {
   transform: translateY(1px);
 }
 

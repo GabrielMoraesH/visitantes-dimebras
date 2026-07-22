@@ -125,3 +125,38 @@
 .appHeader-btn-logout {
   color: var(--color-danger);
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.appHeader-btn {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.appHeader-btn-ghost {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.appHeader-btn-ghost:hover {
+  background: #f4fafc;
+}
+
+.appHeader-btn-logout {
+  background: #ffffff;
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.appHeader-btn-logout:hover {
+  background: #fff4f4;
+}

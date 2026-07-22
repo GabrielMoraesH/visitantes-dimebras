@@ -537,6 +537,44 @@
   background: var(--color-primary);
 }
 
+/* ====== BUTTON STANDARDIZATION ====== */
+.history-topbar-btn,
+.h-btn {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.h-btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.h-btn-primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.history-topbar-btn,
+.h-btn-ghost {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.history-topbar-btn:hover,
+.h-btn-ghost:hover:not(:disabled) {
+  background: #f4fafc;
+}
+
 .h-input {
   border-radius: var(--radius-md);
   color: var(--color-text);

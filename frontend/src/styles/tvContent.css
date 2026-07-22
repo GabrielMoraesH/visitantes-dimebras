@@ -602,3 +602,64 @@
     width: 100%;
   }
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.tc-btn {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tc-btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.tc-btn-primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+
+.tc-btn-ghost {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.tc-btn-ghost:hover:not(:disabled) {
+  background: #f4fafc;
+}
+
+.tc-iconBtn {
+  border-radius: var(--radius-md);
+}
+
+.tc-iconBtn-edit,
+.tc-iconBtn-toggle {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.tc-iconBtn-edit:hover:not(:disabled),
+.tc-iconBtn-toggle:hover:not(:disabled) {
+  background: #f4fafc;
+}
+
+.tc-iconBtn-del {
+  background: var(--color-danger);
+  color: #ffffff;
+  border-color: var(--color-danger);
+}
+
+.tc-iconBtn-del:hover:not(:disabled) {
+  filter: brightness(0.95);
+}

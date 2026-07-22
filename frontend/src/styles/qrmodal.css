@@ -281,3 +281,40 @@
     width: 100%;
   }
 }
+
+/* ====== BUTTON STANDARDIZATION ====== */
+.qr-btn {
+  min-height: 42px;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.qr-btn-primary {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+}
+
+.qr-btn-primary:hover:not(:disabled) {
+  background: var(--color-primary);
+  filter: brightness(0.95);
+}
+
+.qr-modal-close {
+  background: #ffffff;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.qr-modal-close:hover {
+  background: #f4fafc;
+  color: var(--color-primary);
+}
