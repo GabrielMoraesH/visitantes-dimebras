@@ -12,6 +12,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { tvTempUploadDir, tvUploadDir } from "../config/uploads.js";
 import { sessionJwtSignOptions } from "../config/auth.js";
+import { labelTokenSignOptions } from "../config/labelToken.js";
 import { normalizeErrorResponses, notFoundHandler, errorHandler } from "../middlewares/errorHandler.js";
 import { login } from "./auth.controller.js";
 import { listBranches } from "./branches.controller.js";
@@ -2553,7 +2554,7 @@ test("visits label success with label token preserves token access contract", as
   const token = jwt.sign(
     { purpose: "visit-label", visitId: 78, branchId: 4 },
     process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+    labelTokenSignOptions()
   );
 
   const response = await withQRCodeToDataURLMock(
@@ -2600,12 +2601,17 @@ test("visits label operational denials keep current plain responses", async () =
   const invalidToken = "not-a-valid-token";
   const expiredToken = jwt.sign(
     { purpose: "visit-label", visitId: 79, branchId: 5, exp: Math.floor(Date.now() / 1000) - 60 },
-    process.env.JWT_SECRET
+    process.env.JWT_SECRET,
+    {
+      algorithm: labelTokenSignOptions().algorithm,
+      issuer: labelTokenSignOptions().issuer,
+      audience: labelTokenSignOptions().audience,
+    }
   );
   const otherVisitToken = jwt.sign(
     { purpose: "visit-label", visitId: 999, branchId: 5 },
     process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+    labelTokenSignOptions()
   );
   const inactiveBearer = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(10));
 

@@ -1,8 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
-import { checkin } from "./visit.service.js";
+import { sessionJwtSignOptions, sessionJwtVerifyOptions } from "../config/auth.js";
+import { LABEL_TOKEN, labelTokenSignOptions, labelTokenVerifyOptions } from "../config/labelToken.js";
+import { checkin, createLabelToken, getLabelData } from "./visit.service.js";
+
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
 function prismaKnownError(code, meta = {}) {
   return new Prisma.PrismaClientKnownRequestError("Prisma internal details", {
@@ -56,6 +61,118 @@ function withPrismaMocks(mocks, fn) {
       }
     });
 }
+
+function labelVisit(extra = {}) {
+  return {
+    id: 78,
+    branchId: 4,
+    visitCode: "87654321",
+    checkinAt: new Date("2099-01-02T13:04:05.000Z"),
+    attendedBy: "Maria",
+    visitor: { name: "Visitante", cpf: "52998224725", company: "Dimebras" },
+    branch: { id: 4, name: "Filial B" },
+    ...extra,
+  };
+}
+
+function signLabelToken(payload = {}, options = {}) {
+  return jwt.sign(
+    { purpose: "visit-label", visitId: 78, branchId: 4, ...payload },
+    process.env.JWT_SECRET,
+    { ...labelTokenSignOptions(), ...options }
+  );
+}
+
+async function getLabelDataWithToken(token, visit = labelVisit()) {
+  return withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => visit,
+      },
+    },
+    () => getLabelData({ authorization: "", visitId: visit.id, labelToken: token })
+  );
+}
+
+test("createLabelToken signs only the required label payload with explicit policy", async () => {
+  const result = await withPrismaMocks(
+    {
+      visit: {
+        findUnique: async () => ({ id: 78, branchId: 4 }),
+      },
+    },
+    () => createLabelToken({ user: { id: 7, role: "RECEPCAO", branchId: 4 }, visitId: 78 })
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.expiresInSeconds, 8 * 60 * 60);
+
+  const decoded = jwt.decode(result.token, { complete: true });
+  assert.equal(decoded.header.alg, LABEL_TOKEN.algorithm);
+  assert.equal(decoded.payload.purpose, "visit-label");
+  assert.equal(decoded.payload.visitId, 78);
+  assert.equal(decoded.payload.branchId, 4);
+  assert.equal(decoded.payload.iss, LABEL_TOKEN.issuer);
+  assert.equal(decoded.payload.aud, LABEL_TOKEN.audience);
+  assert.equal(decoded.payload.cpf, undefined);
+  assert.equal(decoded.payload.document, undefined);
+  assert.equal(decoded.payload.password, undefined);
+
+  assert.doesNotThrow(() =>
+    jwt.verify(result.token, process.env.JWT_SECRET, labelTokenVerifyOptions())
+  );
+});
+
+test("getLabelData accepts a valid label token", async () => {
+  const result = await getLabelDataWithToken(signLabelToken());
+
+  assert.equal(result.ok, true);
+  assert.equal(result.visit.id, 78);
+});
+
+test("getLabelData rejects expired, malformed, wrong issuer, wrong audience and disallowed algorithm label tokens", async () => {
+  const expiredToken = jwt.sign(
+    { purpose: "visit-label", visitId: 78, branchId: 4, exp: Math.floor(Date.now() / 1000) - 60 },
+    process.env.JWT_SECRET,
+    {
+      algorithm: LABEL_TOKEN.algorithm,
+      issuer: LABEL_TOKEN.issuer,
+      audience: LABEL_TOKEN.audience,
+    }
+  );
+  const wrongIssuerToken = signLabelToken({}, { issuer: "wrong-label-issuer" });
+  const wrongAudienceToken = signLabelToken({}, { audience: "wrong-label-audience" });
+  const wrongAlgorithmToken = signLabelToken({}, { algorithm: "HS384" });
+
+  for (const token of [
+    expiredToken,
+    "not-a-valid-token",
+    wrongIssuerToken,
+    wrongAudienceToken,
+    wrongAlgorithmToken,
+  ]) {
+    const result = await getLabelDataWithToken(token);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 404);
+    assert.equal(result.message, "Visita não encontrada");
+  }
+});
+
+test("getLabelData does not accept a session JWT as a label token", async () => {
+  const sessionToken = jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(7));
+  const result = await getLabelDataWithToken(sessionToken);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 404);
+  assert.equal(result.message, "Visita não encontrada");
+});
+
+test("label token policy does not validate as a session JWT", async () => {
+  const labelToken = signLabelToken();
+
+  assert.throws(() => jwt.verify(labelToken, process.env.JWT_SECRET, sessionJwtVerifyOptions()));
+});
 
 test("checkin returns current conflict when an open visit is found before create", async () => {
   let createCalled = false;

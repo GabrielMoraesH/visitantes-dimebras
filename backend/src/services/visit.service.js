@@ -4,6 +4,12 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { getJwtSecret, sessionJwtVerifyOptions } from "../config/auth.js";
+import {
+  getLabelTokenSecret,
+  labelTokenExpiresInSeconds,
+  labelTokenSignOptions,
+  labelTokenVerifyOptions,
+} from "../config/labelToken.js";
 import { userCanAccessVisitor } from "../utils/visitorAccess.js";
 import {
   boundedLimitQuery,
@@ -17,11 +23,6 @@ import {
 const numericCode = customAlphabet("0123456789", 8);
 const OPEN_VISIT_UNIQUE_INDEX = "visits_one_open_per_visitor_branch_idx";
 const OPEN_VISIT_CONFLICT_MESSAGE = "Visitante já possui visita em andamento.";
-
-const LABEL_TOKEN_TTL_SECONDS = Math.max(
-  300,
-  Number(process.env.LABEL_TOKEN_TTL_SECONDS || 8 * 60 * 60)
-);
 
 const asString = (v) => (v === null || v === undefined ? "" : String(v));
 
@@ -152,7 +153,7 @@ function verifyLabelToken(labelToken, visit) {
   if (!token) return false;
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, getLabelTokenSecret(), labelTokenVerifyOptions());
     return (
       payload?.purpose === "visit-label" &&
       Number(payload?.visitId) === Number(visit.id) &&
@@ -187,11 +188,11 @@ export async function createLabelToken({ user, visitId }) {
       visitId: visit.id,
       branchId: visit.branchId,
     },
-    process.env.JWT_SECRET,
-    { expiresIn: LABEL_TOKEN_TTL_SECONDS }
+    getLabelTokenSecret(),
+    labelTokenSignOptions()
   );
 
-  return { ok: true, token, expiresInSeconds: LABEL_TOKEN_TTL_SECONDS };
+  return { ok: true, token, expiresInSeconds: labelTokenExpiresInSeconds() };
 }
 
 export async function checkin({ user, input }) {

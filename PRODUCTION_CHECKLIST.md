@@ -72,7 +72,10 @@ Não versionar `.env` e não registrar valores reais em evidências.
 | Variavel | Finalidade | Obrigatoriedade | Exemplo seguro | Validação antes do deploy | Risco se incorreta |
 | --- | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | Conexão PostgreSQL usada pelo Prisma | Obrigatória | `postgresql://<USUARIO_BANCO>:<SEGREDO>@<HOST_BANCO>:<PORTA_BANCO>/<NOME_BANCO>?schema=public` | Confirmar host, porta, banco e usuário sem exibir valor completo | Backend não inicia, migrations falham ou apontam para banco errado |
-| `JWT_SECRET` | Assinatura de tokens JWT | Obrigatória | `<SEGREDO_JWT_FORTE>` | Confirmar existência e rotação controlada sem imprimir valor | Login e etiquetas falham; tokens podem ficar inseguros |
+| `JWT_SECRET` | Assinatura de tokens JWT de sessão e fallback temporário para etiqueta | Obrigatória | `<SEGREDO_JWT_FORTE>` | Confirmar existência e rotação controlada sem imprimir valor | Login falha; etiquetas falham se `LABEL_TOKEN_SECRET` não estiver definido; tokens podem ficar inseguros |
+| `LABEL_TOKEN_SECRET` | Assinatura dedicada de tokens temporários de etiqueta | Opcional nesta etapa, recomendado definir | `<SEGREDO_ETIQUETA_FORTE>` | Confirmar existência sem imprimir valor; se ausente, validar fallback para `JWT_SECRET` | Etiquetas continuam acopladas ao segredo de sessão e rotação independente fica limitada |
+| `LABEL_TOKEN_ISSUER` | Emissor aceito para tokens temporários de etiqueta | Opcional | `visitantes-dimebras-label` | Confirmar que backend usa o mesmo valor ao assinar e verificar | Etiquetas válidas podem ser rejeitadas se mudar sem coordenação |
+| `LABEL_TOKEN_AUDIENCE` | Audiência aceita para tokens temporários de etiqueta | Opcional | `visitantes-dimebras-label-print` | Confirmar que backend usa o mesmo valor ao assinar e verificar | Etiquetas válidas podem ser rejeitadas se mudar sem coordenação |
 | `PORT` | Porta HTTP do backend | Obrigatória para produção controlada | `<PORTA_BACKEND>` | Confirmar que proxy e PM2 usam a mesma porta | Health check falha ou proxy aponta para porta errada |
 | `NODE_ENV` | Modo de execução do backend | Obrigatória | `production` | Confirmar valor `production` | CORS e comportamento de runtime podem ficar inadequados |
 | `FRONTEND_URL` | Origem pública permitida no CORS | Obrigatória em produção | `https://<DOMINIO_FRONTEND>` | Confirmar origem exata, sem barra final obrigatória | Frontend pode sofrer bloqueio de CORS ou liberar origem errada |
@@ -96,6 +99,7 @@ Não versionar `.env` e não registrar valores reais em evidências.
 - [ ] Node.js compatível com a CI: Node.js 22 ou versao validada.
 - [ ] PostgreSQL compatível com a CI: PostgreSQL 16 ou versao validada.
 - [ ] `DATABASE_URL`, `JWT_SECRET`, `NODE_ENV`, `PORT`, `FRONTEND_URL`, `UPLOAD_ROOT` e `VITE_API_URL` confirmadas sem exibir valores reais.
+- [ ] `LABEL_TOKEN_SECRET` definido quando possivel; se ausente, fallback temporário para `JWT_SECRET` entendido e aceito operacionalmente.
 - [ ] CORS alinhado entre `FRONTEND_URL` e origem pública real.
 - [ ] Permissoes de leitura/escrita no diretório `UPLOAD_ROOT`.
 - [ ] Responsavel pelo rollback definido.

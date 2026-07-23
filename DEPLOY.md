@@ -30,7 +30,7 @@ Este projeto tem um backend Node.js/Express com Prisma e um frontend React/Vite.
    cp .env.example .env
    ```
 
-4. Ajuste `DATABASE_URL`, `JWT_SECRET`, `ADMIN_SEED_PASSWORD`, `FRONTEND_URL` e `UPLOAD_ROOT`.
+4. Ajuste `DATABASE_URL`, `JWT_SECRET`, `ADMIN_SEED_PASSWORD`, `FRONTEND_URL`, `UPLOAD_ROOT` e, quando possivel, `LABEL_TOKEN_SECRET`.
 
 5. Aplique migrations no ambiente de destino:
 
@@ -85,7 +85,10 @@ Este projeto tem um backend Node.js/Express com Prisma e um frontend React/Vite.
 - `NODE_ENV`: use `production` em produção.
 - `FRONTEND_URL`: origem pública permitida no CORS em produção.
 - `DATABASE_URL`: conexão PostgreSQL usada pelo Prisma.
-- `JWT_SECRET`: segredo longo e aleatório para assinar tokens.
+- `JWT_SECRET`: segredo longo e aleatório para assinar tokens de sessão.
+- `LABEL_TOKEN_SECRET`: segredo longo e aleatório para assinar tokens temporários de etiqueta. Opcional nesta etapa; se ausente, o backend usa `JWT_SECRET` como fallback temporário de compatibilidade.
+- `LABEL_TOKEN_ISSUER`: emissor esperado para tokens temporários de etiqueta.
+- `LABEL_TOKEN_AUDIENCE`: audiência esperada para tokens temporários de etiqueta.
 - `ADMIN_SEED_PASSWORD`: senha inicial usada apenas pelo seed para criar o usuário `admin` quando ele ainda não existe.
 - `UPLOAD_ROOT`: raiz persistente para arquivos enviados. O Conteúdo TV salva os arquivos em `UPLOAD_ROOT/tv` e publica somente essa pasta em `/uploads/tv`.
 - `LABEL_TOKEN_TTL_SECONDS`: validade dos tokens temporarios de etiqueta.
