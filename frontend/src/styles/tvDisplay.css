@@ -28,11 +28,22 @@
   max-height: 100vh;
   border: 0;
   background: #03070d;
+  animation: tvDisplayMediaFade 400ms ease-out;
 }
 
 .tvDisplay-image,
 .tvDisplay-video {
   object-fit: contain;
+}
+
+@keyframes tvDisplayMediaFade {
+  from {
+    opacity: 0.18;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .tvDisplay-clockWrap {
@@ -271,5 +282,11 @@
   .tvDisplay-welcome-count-5 .tvDisplay-welcome-name,
   .tvDisplay-welcome-count-6 .tvDisplay-welcome-name {
     font-size: clamp(22px, 7vw, 42px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tvDisplay-media {
+    animation: none;
   }
 }

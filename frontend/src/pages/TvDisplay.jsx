@@ -69,6 +69,8 @@ export default function TvDisplay() {
   const playlistLastRefreshRef = useRef(0);
   const welcomeLastRefreshRef = useRef(0);
   const initialPlaylistLoadedRef = useRef(false);
+  const activePlaybackKeyRef = useRef("");
+  const handledAdvanceKeyRef = useRef("");
   const [items, setItems] = useState([]);
   const [welcomeVisitors, setWelcomeVisitors] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -89,7 +91,12 @@ export default function TvDisplay() {
   const branchId = tvBranch.branchId;
   branchIdRef.current = branchId;
   const currentItem = items[currentIndex] || null;
+  const currentType = currentItem?.type;
   const currentMediaUrl = useMemo(() => mediaUrl(currentItem?.fileUrl), [currentItem]);
+  const nextIndex = items.length > 1 ? (currentIndex + 1) % items.length : -1;
+  const nextItem = nextIndex >= 0 ? items[nextIndex] : null;
+  const nextMediaUrl = useMemo(() => mediaUrl(nextItem?.fileUrl), [nextItem]);
+  const activePlaybackKey = currentItem ? `${currentItem.id}-${playbackCycle}` : "";
   const hasWelcomeVisitors = welcomeVisitors.length > 0;
   const hasMultipleWelcomeVisitors = welcomeVisitors.length > 1;
   const visibleWelcomeVisitors = welcomeVisitors.slice(0, 6);
@@ -97,6 +104,11 @@ export default function TvDisplay() {
     visibleWelcomeVisitors.length,
     6
   )}`;
+
+  if (activePlaybackKeyRef.current !== activePlaybackKey) {
+    activePlaybackKeyRef.current = activePlaybackKey;
+    handledAdvanceKeyRef.current = "";
+  }
 
   useLayoutEffect(() => {
     itemsRef.current = [];
@@ -137,6 +149,13 @@ export default function TvDisplay() {
     });
   }, [items.length]);
 
+  const advanceOnce = useCallback((playbackKey) => {
+    if (!playbackKey || handledAdvanceKeyRef.current === playbackKey) return;
+
+    handledAdvanceKeyRef.current = playbackKey;
+    advance();
+  }, [advance]);
+
   const loadPlaylist = useCallback(async ({ initial = false } = {}) => {
     if (!branchId) return;
     if (playlistLoadingRef.current) return;
@@ -155,10 +174,20 @@ export default function TvDisplay() {
         return;
       }
 
-      const currentId = previousItems[currentIndexRef.current]?.id;
+      const previousItem = previousItems[currentIndexRef.current];
+      const currentId = previousItem?.id;
       const nextIndex = nextItems.findIndex((item) => item.id === currentId);
-      setCurrentIndex(nextIndex >= 0 ? nextIndex : 0);
-      setPlaybackCycle((cycle) => cycle + 1);
+      const nextCurrentIndex = nextIndex >= 0 ? nextIndex : 0;
+      const nextCurrentItem = nextItems[nextCurrentIndex];
+      const currentMediaChanged =
+        previousItem?.id !== nextCurrentItem?.id ||
+        previousItem?.type !== nextCurrentItem?.type ||
+        previousItem?.fileUrl !== nextCurrentItem?.fileUrl;
+
+      setCurrentIndex(nextCurrentIndex);
+      if (currentMediaChanged) {
+        setPlaybackCycle((cycle) => cycle + 1);
+      }
       setItems(nextItems);
     } catch {
       if (branchIdRef.current !== requestBranchId) return;
@@ -272,29 +301,79 @@ export default function TvDisplay() {
   }, [branchId, loadPlaylist, loadWelcomeVisitors]);
 
   useEffect(() => {
-    if (!currentItem || currentItem.type !== "IMAGE") return undefined;
+    if (currentType !== "IMAGE") return undefined;
 
-    const timeoutId = window.setTimeout(advance, IMAGE_DURATION_MS);
+    const playbackKey = activePlaybackKey;
+    const timeoutId = window.setTimeout(() => {
+      if (activePlaybackKeyRef.current === playbackKey) {
+        advanceOnce(playbackKey);
+      }
+    }, IMAGE_DURATION_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [advance, currentItem, playbackCycle]);
+  }, [activePlaybackKey, advanceOnce, currentType]);
 
   useEffect(() => {
-    if (!currentItem || currentItem.type !== "VIDEO") return undefined;
+    if (currentType !== "VIDEO") return undefined;
 
     let fallbackId;
+    let cancelled = false;
+    const playbackKey = activePlaybackKey;
     const video = videoRef.current;
     const playPromise = video?.play?.();
 
     if (playPromise?.catch) {
       playPromise.catch(() => {
-        fallbackId = window.setTimeout(advance, AUTOPLAY_FALLBACK_MS);
+        fallbackId = window.setTimeout(() => {
+          if (!cancelled && activePlaybackKeyRef.current === playbackKey) {
+            advanceOnce(playbackKey);
+          }
+        }, AUTOPLAY_FALLBACK_MS);
       });
     }
 
     return () => {
+      cancelled = true;
       if (fallbackId) window.clearTimeout(fallbackId);
     };
-  }, [advance, currentItem, playbackCycle]);
+  }, [activePlaybackKey, advanceOnce, currentType]);
+
+  useEffect(() => {
+    if (!nextItem || !nextMediaUrl) return undefined;
+    if (currentItem?.id === nextItem.id && currentMediaUrl === nextMediaUrl) return undefined;
+
+    if (nextItem.type === "IMAGE") {
+      const image = new Image();
+      image.onload = () => {};
+      image.onerror = () => {};
+      image.src = nextMediaUrl;
+
+      return () => {
+        image.onload = null;
+        image.onerror = null;
+      };
+    }
+
+    if (nextItem.type === "VIDEO") {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.muted = true;
+      video.playsInline = true;
+      video.onloadedmetadata = () => {};
+      video.onerror = () => {};
+      video.src = nextMediaUrl;
+      video.load?.();
+
+      return () => {
+        video.pause?.();
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        video.removeAttribute("src");
+        video.load?.();
+      };
+    }
+
+    return undefined;
+  }, [currentItem, currentMediaUrl, nextItem, nextMediaUrl]);
 
   if (!branchId) {
     return (
@@ -353,8 +432,8 @@ export default function TvDisplay() {
             muted
             playsInline
             preload="auto"
-            onEnded={advance}
-            onError={advance}
+            onEnded={() => advanceOnce(activePlaybackKey)}
+            onError={() => advanceOnce(activePlaybackKey)}
           />
           ) : (
           <img
@@ -362,7 +441,7 @@ export default function TvDisplay() {
             className="tvDisplay-media tvDisplay-image"
             src={currentMediaUrl}
             alt="Conteúdo TV"
-            onError={advance}
+            onError={() => advanceOnce(activePlaybackKey)}
           />
           )}
         </section>
