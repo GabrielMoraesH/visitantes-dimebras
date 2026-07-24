@@ -28,7 +28,7 @@ export const tvUpload = multer({
     fileSize: TV_FILE_LIMIT_BYTES,
     files: 1,
     fields: 4,
-    parts: 5,
+    parts: 6,
   },
   fileFilter: (req, file, cb) => {
     if (file.fieldname !== "file") {

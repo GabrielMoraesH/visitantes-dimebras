@@ -1,591 +1,80 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { API_BASE_URL } from "../services/api";
-import { getToken, getUser } from "../services/session";
-import {
-  createTvContent,
-  deleteTvContent,
-  getTvContents,
-  toggleTvContent,
-  updateTvContent,
-} from "../services/tvContentService";
-import { getBranches } from "../services/branchService";
+import { useCallback } from "react";
+import TvContentEditModal from "../components/tvContent/TvContentEditModal";
+import TvContentForm from "../components/tvContent/TvContentForm";
+import TvContentList from "../components/tvContent/TvContentList";
+import TvContentTopbar from "../components/tvContent/TvContentTopbar";
 import { useConfirm } from "../components/Feedback/ConfirmProvider";
 import { useToast } from "../components/Feedback/ToastProvider";
+import { useTvContentAdmin } from "../hooks/useTvContentAdmin";
 import "../styles/tvContent.css";
 
-const TV_MAX_FILE_SIZE = 200 * 1024 * 1024;
-const TV_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
-const TV_ALLOWED_MIMES = new Set(TV_ACCEPT.split(","));
-
-function mediaUrl(fileUrl) {
-  if (!fileUrl) return "";
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  return `${API_BASE_URL}${fileUrl.startsWith("/") ? fileUrl : `/${fileUrl}`}`;
-}
-
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (!value) return "-";
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let index = 0;
-  while (size >= 1024 && index < units.length - 1) {
-    size /= 1024;
-    index += 1;
-  }
-  return `${size.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
-function fmtDate(value) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("pt-BR");
-}
-
-function uploadErrorMessage(err, fallback) {
-  const status = err?.response?.status;
-  const code = err?.response?.data?.code;
-  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Arquivo excede o limite de 200MB.";
-  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Formato de arquivo não permitido.";
-  return err?.response?.data?.message || fallback;
-}
-
-function branchIdsFromItem(item) {
-  return Array.isArray(item?.branches) ? item.branches.map((branch) => Number(branch.id)) : [];
-}
-
-function sameBranchSet(selectedIds, branches) {
-  if (!Array.isArray(branches) || branches.length === 0) return false;
-  const selected = new Set(selectedIds.map((id) => Number(id)));
-  return branches.every((branch) => selected.has(Number(branch.id)));
-}
-
-function BranchSelector({ branches, selectedIds, onChange }) {
-  const allSelected = sameBranchSet(selectedIds, branches);
-
-  function toggleAll(checked) {
-    onChange(checked ? branches.map((branch) => branch.id) : []);
-  }
-
-  function toggleBranch(branchId, checked) {
-    if (checked) {
-      onChange([...new Set([...selectedIds, branchId])]);
-      return;
-    }
-
-    onChange(selectedIds.filter((id) => id !== branchId));
-  }
-
-  return (
-    <div className="tc-branches">
-      <label className="tc-label">Exibir em</label>
-      <label className="tc-check tc-all-branches">
-        <input
-          type="checkbox"
-          checked={allSelected}
-          disabled={branches.length === 0}
-          onChange={(e) => toggleAll(e.target.checked)}
-        />
-        <span>Todas as filiais</span>
-      </label>
-
-      <div className="tc-branches-grid">
-        {branches.map((branch) => (
-          <label className="tc-branch-option" key={branch.id}>
-            <input
-              type="checkbox"
-              checked={selectedIds.includes(branch.id)}
-              onChange={(e) => toggleBranch(branch.id, e.target.checked)}
-            />
-            <span>{branch.name}</span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function BranchList({ branches, allBranches }) {
-  if (sameBranchSet(branchIdsFromItem({ branches }), allBranches)) {
-    return <span className="tc-branch-badge tc-branch-badge-all">Todas as filiais</span>;
-  }
-
-  if (!Array.isArray(branches) || branches.length === 0) {
-    return <span className="tc-branch-list">-</span>;
-  }
-
-  return (
-    <div className="tc-branch-list">
-      {branches.map((branch) => (
-        <span className="tc-branch-badge" key={branch.id}>
-          {branch.name}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function PencilIcon({ size = 18 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.83H5v-.92l9.06-9.06.92.92L5.92 20.08ZM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function ToggleIcon({ size = 18 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7Zm0 2a3 3 0 0 0 0 6h10a3 3 0 0 0 0-6H7Zm0 1.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function TrashIcon({ size = 18 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-2 6h10l-.7 11H7.7L7 9Zm3 2v7h2v-7h-2Zm4 0v7h2v-7h-2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 export default function TvContent() {
-  const navigate = useNavigate();
   const confirm = useConfirm();
   const toast = useToast();
-  const user = useMemo(() => getUser(), []);
-  const isAdmin = user?.role === "ADMIN";
 
-  const [items, setItems] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  const [title, setTitle] = useState("");
-  const [file, setFile] = useState(null);
-  const [order, setOrder] = useState("0");
-  const [isActive, setIsActive] = useState(true);
-  const [selectedBranchIds, setSelectedBranchIds] = useState([]);
-
-  const [editOpen, setEditOpen] = useState(false);
-  const [editLoading, setEditLoading] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editOrder, setEditOrder] = useState("0");
-  const [editIsActive, setEditIsActive] = useState(true);
-  const [editBranchIds, setEditBranchIds] = useState([]);
-
-  function showToast(text, type = "success") {
+  const showToast = useCallback((text, type = "success") => {
     toast[type]?.(text) ?? toast.show(text, type);
-  }
+  }, [toast]);
 
-  async function loadContents() {
-    try {
-      setMsg("");
-      setLoading(true);
-      const { data } = await getTvContents();
-      setItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      const message = err?.response?.data?.message || "Erro ao carregar conteudos.";
-      setMsg(message);
-      showToast(message, "error");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const {
+    branches,
+    editForm,
+    editLoading,
+    editOpen,
+    form,
+    items,
+    loading,
+    msg,
+    uploading,
+    closeEdit,
+    loadContents,
+    navigate,
+    openEdit,
+    removeItem,
+    submitEdit,
+    submitUpload,
+    toggleItem,
+    updateEditField,
+    updateFormField,
+  } = useTvContentAdmin({ confirm, showToast });
 
-  async function loadBranches() {
-    try {
-      const { data } = await getBranches();
-      setBranches(Array.isArray(data) ? data : []);
-    } catch (err) {
-      const message = err?.response?.data?.message || "Erro ao carregar filiais.";
-      showToast(message, "error");
-    }
-  }
-
-  useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      navigate("/login", { replace: true });
-      return;
-    }
-    if (!isAdmin) {
-      navigate("/checkin", { replace: true });
-      return;
-    }
-    loadBranches();
-    loadContents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, navigate]);
-
-  async function submitUpload(event) {
-    event.preventDefault();
-    setMsg("");
-
-    const cleanTitle = title.trim();
-    if (!cleanTitle) return showToast("Informe o título da midia.", "error");
-    if (!file) return showToast("Selecione um arquivo.", "error");
-    if (!TV_ALLOWED_MIMES.has(file.type)) {
-      return showToast("Use JPG, PNG, WEBP, MP4 ou WEBM.", "error");
-    }
-    if (file.size > TV_MAX_FILE_SIZE) {
-      return showToast("Arquivo excede o limite de 200MB.", "error");
-    }
-    if (selectedBranchIds.length === 0) {
-      return showToast("Selecione pelo menos uma filial.", "error");
-    }
-
-    const formData = new FormData();
-    formData.append("title", cleanTitle);
-    formData.append("order", String(Number(order || 0)));
-    formData.append("isActive", String(isActive));
-    formData.append("branchIds", JSON.stringify(selectedBranchIds));
-    formData.append("file", file);
-
-    try {
-      setUploading(true);
-      await createTvContent(formData);
-      setTitle("");
-      setFile(null);
-      setOrder("0");
-      setIsActive(true);
-      setSelectedBranchIds([]);
-      event.target.reset();
-      showToast("Midia enviada com sucesso!");
-      await loadContents();
-    } catch (err) {
-      const message = uploadErrorMessage(err, "Erro ao enviar midia.");
-      setMsg(message);
-      showToast(message, "error");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  function openEdit(item) {
-    setEditId(item.id);
-    setEditTitle(item.title || "");
-    setEditOrder(String(item.order ?? 0));
-    setEditIsActive(Boolean(item.isActive));
-    setEditBranchIds(branchIdsFromItem(item));
-    setEditOpen(true);
-  }
-
-  async function saveEdit() {
-    const cleanTitle = editTitle.trim();
-    if (!cleanTitle) return showToast("Título não pode ficar vazio.", "error");
-    if (editBranchIds.length === 0) {
-      return showToast("Selecione pelo menos uma filial.", "error");
-    }
-
-    try {
-      setEditLoading(true);
-      await updateTvContent(editId, {
-        title: cleanTitle,
-        order: Number(editOrder || 0),
-        isActive: editIsActive,
-        branchIds: editBranchIds,
-      });
-      showToast("Conteúdo atualizado!");
-      setEditOpen(false);
-      await loadContents();
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao atualizar conteúdo.", "error");
-    } finally {
-      setEditLoading(false);
-    }
-  }
-
-  function handleEditKeyDown(event) {
-    if (event.key !== "Enter" || editLoading) return;
-
-    event.preventDefault();
-    saveEdit();
-  }
-
-  async function toggleItem(item) {
-    try {
-      await toggleTvContent(item.id);
-      showToast(item.isActive ? "Conteúdo desativado." : "Conteúdo ativado.");
-      await loadContents();
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao alterar status.", "error");
-    }
-  }
-
-  async function removeItem(item) {
-    const approved = await confirm({
-      title: "Excluir conteúdo",
-      message: `Deseja excluir "${item.title}"? O arquivo físico também será removido quando possível.`,
-      confirmText: "Excluir",
-      cancelText: "Cancelar",
-      type: "danger",
-    });
-
-    if (!approved) return;
-
-    try {
-      await deleteTvContent(item.id);
-      showToast("Conteúdo excluido.");
-      await loadContents();
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao excluir conteúdo.", "error");
-    }
+  function goToCheckin() {
+    navigate("/checkin");
   }
 
   return (
     <div className="tvContent-page">
-      <header className="tvContent-topbar">
-        <div
-          className="tvContent-brand"
-          onClick={() => navigate("/checkin")}
-          role="button"
-          tabIndex={0}
-        >
-          <img src="/logo.png" alt="Dimebras" className="tvContent-logo" />
-        </div>
-
-        <div className="tvContent-actions">
-          <button className="tc-btn tc-btn-ghost" onClick={loadContents} type="button">
-            ATUALIZAR
-          </button>
-          <button className="tc-btn tc-btn-ghost" onClick={() => navigate("/checkin")} type="button">
-            VOLTAR
-          </button>
-        </div>
-      </header>
+      <TvContentTopbar onBack={goToCheckin} onRefresh={loadContents} />
 
       <main className="tvContent-container">
-        <section className="tc-card">
-          <div className="tc-cardTitle">Conteúdo TV</div>
+        <TvContentForm
+          branches={branches}
+          form={form}
+          msg={msg}
+          onChange={updateFormField}
+          onSubmit={submitUpload}
+          uploading={uploading}
+        />
 
-          <form className="tc-form" onSubmit={submitUpload}>
-            <div className="tc-grid">
-              <div className="tc-field tc-field-wide">
-                <label className="tc-label">Título da midia</label>
-                <input
-                  className="tc-input"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="ex: Video institucional"
-                />
-              </div>
-
-              <div className="tc-field">
-                <label className="tc-label">Arquivo</label>
-                <input
-                  className="tc-input"
-                  type="file"
-                  accept={TV_ACCEPT}
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-              </div>
-
-              <div className="tc-field">
-                <label className="tc-label">Ordem</label>
-                <input
-                  className="tc-input"
-                  type="number"
-                  value={order}
-                  onChange={(e) => setOrder(e.target.value)}
-                />
-              </div>
-
-              <label className="tc-check">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                />
-                <span>Ativo</span>
-              </label>
-            </div>
-
-            <BranchSelector
-              branches={branches}
-              selectedIds={selectedBranchIds}
-              onChange={setSelectedBranchIds}
-            />
-
-            {msg && <div className="tc-alert">{msg}</div>}
-
-            <div className="tc-formActions">
-              <button className="tc-btn tc-btn-primary tc-btn-submit" type="submit" disabled={uploading}>
-                {uploading ? "ENVIANDO..." : "ENVIAR MIDIA"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="tc-card">
-          <div className="tc-cardHeader">
-            <div className="tc-cardTitle">Conteudos cadastrados</div>
-            <div className="tc-pill">{items.length} total</div>
-          </div>
-
-          <div className="tc-tableWrap">
-            <table className="tc-table">
-              <thead>
-                <tr>
-                  <th>Preview</th>
-                  <th>Título</th>
-                  <th>Tipo</th>
-                  <th>Tamanho</th>
-                  <th>Filiais</th>
-                  <th>Ordem</th>
-                  <th>Status</th>
-                  <th>Criado em</th>
-                  <th className="tc-actions-col">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan="9" className="tc-empty">Carregando...</td>
-                  </tr>
-                ) : items.length === 0 ? (
-                  <tr>
-                    <td colSpan="9" className="tc-empty">Nenhum conteúdo cadastrado.</td>
-                  </tr>
-                ) : (
-                  items.map((item) => (
-                    <tr key={item.id} className={item.isActive ? undefined : "tc-row-disabled"}>
-                      <td>
-                        <div className="tc-preview">
-                          {item.type === "IMAGE" ? (
-                            <img src={mediaUrl(item.fileUrl)} alt={item.title} />
-                          ) : (
-                            <video src={mediaUrl(item.fileUrl)} muted controls preload="metadata" />
-                          )}
-                        </div>
-                      </td>
-                      <td className="tc-titleCell">{item.title}</td>
-                      <td>{item.type === "IMAGE" ? "Imagem" : "Video"}</td>
-                      <td>{formatBytes(item.fileSize)}</td>
-                      <td className="tc-branchCell">
-                        <BranchList branches={item.branches} allBranches={branches} />
-                      </td>
-                      <td>{item.order ?? 0}</td>
-                      <td>
-                        <span className={`tc-status ${item.isActive ? "is-on" : "is-off"}`}>
-                          {item.isActive ? "ATIVO" : "INATIVO"}
-                        </span>
-                      </td>
-                      <td>{fmtDate(item.createdAt)}</td>
-                      <td>
-                        <div className="tc-actions">
-                          <button
-                            className="tc-iconBtn tc-iconBtn-edit"
-                            onClick={() => openEdit(item)}
-                            title="Editar"
-                            type="button"
-                          >
-                            <PencilIcon />
-                          </button>
-                          <button
-                            className="tc-iconBtn tc-iconBtn-toggle"
-                            onClick={() => toggleItem(item)}
-                            title={item.isActive ? "Desativar" : "Ativar"}
-                            type="button"
-                          >
-                            <ToggleIcon />
-                          </button>
-                          <button
-                            className="tc-iconBtn tc-iconBtn-del"
-                            onClick={() => removeItem(item)}
-                            title="Excluir"
-                            type="button"
-                          >
-                            <TrashIcon />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <TvContentList
+          allBranches={branches}
+          items={items}
+          loading={loading}
+          onEdit={openEdit}
+          onRemove={removeItem}
+          onToggle={toggleItem}
+        />
       </main>
 
       {editOpen && (
-        <div
-          className="tc-modalOverlay"
-          onMouseDown={(e) => e.target === e.currentTarget && setEditOpen(false)}
-        >
-          <div className="tc-modal" onKeyDown={handleEditKeyDown}>
-            <div className="tc-modalTitle">Editar conteúdo</div>
-
-            <div className="tc-field tc-modalLabel-spaced">
-              <label className="tc-label">Título</label>
-              <input
-                className="tc-input"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="tc-modalGrid">
-              <div className="tc-field">
-                <label className="tc-label">Ordem</label>
-                <input
-                  className="tc-input"
-                  type="number"
-                  value={editOrder}
-                  onChange={(e) => setEditOrder(e.target.value)}
-                />
-              </div>
-
-              <label className="tc-check tc-check-modal">
-                <input
-                  type="checkbox"
-                  checked={editIsActive}
-                  onChange={(e) => setEditIsActive(e.target.checked)}
-                />
-                <span>Ativo</span>
-              </label>
-            </div>
-
-            <BranchSelector
-              branches={branches}
-              selectedIds={editBranchIds}
-              onChange={setEditBranchIds}
-            />
-
-            <div className="tc-modalActions">
-              <button
-                className="tc-btn tc-btn-ghost"
-                onClick={() => setEditOpen(false)}
-                disabled={editLoading}
-                type="button"
-              >
-                Cancelar
-              </button>
-              <button
-                className="tc-btn tc-btn-primary"
-                onClick={saveEdit}
-                disabled={editLoading}
-                type="button"
-              >
-                {editLoading ? "SALVANDO..." : "Salvar"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TvContentEditModal
+          branches={branches}
+          editForm={editForm}
+          editLoading={editLoading}
+          onChange={updateEditField}
+          onClose={closeEdit}
+          onSubmit={submitEdit}
+        />
       )}
     </div>
   );
