@@ -51,6 +51,55 @@ function deferred() {
 }
 
 describe("TvContentList preview", () => {
+  it("exibe data e hora em linhas separadas sem segundos e com tooltip completo", () => {
+    renderList([contentItem({ createdAt: "2026-07-24T13:24:43" })]);
+
+    const dateTimeCell = screen.getByTitle("24/07/2026 13:24:43");
+
+    expect(within(dateTimeCell).getByText("24/07/2026")).toBeInTheDocument();
+    expect(within(dateTimeCell).getByText("13:24")).toBeInTheDocument();
+    expect(dateTimeCell).not.toHaveTextContent("13:24:43");
+    expect(dateTimeCell.querySelector(".tc-dateTimeDate")).toBeInTheDocument();
+    expect(dateTimeCell.querySelector(".tc-dateTimeTime")).toBeInTheDocument();
+  });
+
+  it("mantem o tratamento atual para datas invalidas", () => {
+    renderList([contentItem({ createdAt: "data-invalida" })]);
+
+    const dateTimeCell = screen.getByTitle("-");
+
+    expect(dateTimeCell).toHaveTextContent("-");
+    expect(dateTimeCell.querySelector(".tc-dateTimeTime")).not.toBeInTheDocument();
+  });
+
+  it("mantem a ordem e os dados originais dos itens", () => {
+    const onEdit = vi.fn();
+    const first = contentItem({
+      id: 1,
+      title: "Primeiro conteudo",
+      createdAt: "2026-07-24T13:24:43",
+      order: 2,
+    });
+    const second = contentItem({
+      id: 2,
+      title: "Segundo conteudo",
+      createdAt: "2026-07-23T09:10:11",
+      order: 1,
+    });
+
+    renderList([first, second], { onEdit });
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("Primeiro conteudo")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Segundo conteudo")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("2")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Editar conte.do Primeiro conteudo/ }));
+
+    expect(onEdit).toHaveBeenCalledWith(first);
+  });
+
   it("renderiza video sem controls e sem autoplay", () => {
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 

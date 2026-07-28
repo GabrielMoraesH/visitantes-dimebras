@@ -44,10 +44,27 @@ export function formatBytes(bytes) {
 }
 
 export function formatTvContentDate(value) {
-  if (!value) return "-";
+  return formatTvContentDateTime(value).full;
+}
+
+export function formatTvContentDateTime(value) {
+  const fallback = { date: "-", time: "", full: "-" };
+  if (!value) return fallback;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("pt-BR");
+  if (Number.isNaN(date.getTime())) return fallback;
+
+  const dateText = date.toLocaleDateString("pt-BR");
+  const timeText = date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const fullTimeText = date.toLocaleTimeString("pt-BR");
+
+  return {
+    date: dateText,
+    time: timeText,
+    full: `${dateText} ${fullTimeText}`,
+  };
 }
 
 export function uploadErrorMessage(err, fallback) {

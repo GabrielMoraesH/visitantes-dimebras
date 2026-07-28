@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   formatBytes,
-  formatTvContentDate,
+  formatTvContentDateTime,
   mediaUrl,
   tvContentTypeLabel,
 } from "../../utils/tvContent";
@@ -53,6 +53,17 @@ function TvContentPreview({ item, onOpenVideo }) {
       </span>
       {duration ? <span className="tc-videoDuration">{duration}</span> : null}
     </button>
+  );
+}
+
+function TvContentDateCell({ value }) {
+  const createdAt = formatTvContentDateTime(value);
+
+  return (
+    <div className="tc-dateTimeCell" title={createdAt.full}>
+      <span className="tc-dateTimeDate">{createdAt.date}</span>
+      {createdAt.time ? <span className="tc-dateTimeTime">{createdAt.time}</span> : null}
+    </div>
   );
 }
 
@@ -193,7 +204,9 @@ export default function TvContentList({
                       {item.isActive ? "ATIVO" : "INATIVO"}
                     </span>
                   </td>
-                  <td>{formatTvContentDate(item.createdAt)}</td>
+                  <td>
+                    <TvContentDateCell value={item.createdAt} />
+                  </td>
                   <td>
                     <TvContentActions
                       item={item}

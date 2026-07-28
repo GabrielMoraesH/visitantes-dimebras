@@ -324,6 +324,24 @@
   max-width: 240px;
 }
 
+.tc-dateTimeCell {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.tc-dateTimeDate {
+  font-weight: 400;
+}
+
+.tc-dateTimeTime {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .tc-branch-list {
   display: flex;
   align-items: center;

@@ -197,7 +197,7 @@ describe("ProtectedRoute", () => {
     });
 
     expect(await screen.findByText("Conteúdo protegido")).toBeInTheDocument();
-    expect(onMount).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onMount).toHaveBeenCalledTimes(1));
     expect(getCurrentUser).toHaveBeenCalledTimes(1);
     expect(getUser()).toEqual({
       id: 1,

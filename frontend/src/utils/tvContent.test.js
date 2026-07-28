@@ -4,6 +4,7 @@ import {
   buildEditTvContentPayload,
   deleteConfirmationForTvContent,
   editFormFromTvContent,
+  formatTvContentDateTime,
   sameBranchSet,
   validateCreateTvContentForm,
   validateEditTvContentForm,
@@ -118,6 +119,22 @@ describe("tvContent utils", () => {
       confirmText: "Excluir",
       cancelText: "Cancelar",
       type: "danger",
+    });
+  });
+
+  it("formats TV content date and time parts for the admin table", () => {
+    expect(formatTvContentDateTime("2026-07-24T13:24:43")).toEqual({
+      date: "24/07/2026",
+      time: "13:24",
+      full: "24/07/2026 13:24:43",
+    });
+  });
+
+  it("keeps invalid TV content dates as fallback", () => {
+    expect(formatTvContentDateTime("invalid-date")).toEqual({
+      date: "-",
+      time: "",
+      full: "-",
     });
   });
 });
