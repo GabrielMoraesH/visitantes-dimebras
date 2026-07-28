@@ -20,6 +20,17 @@ export function ToggleIcon({ size = 18 }) {
   );
 }
 
+export function SpinnerIcon({ size = 18 }) {
+  return (
+    <svg className="tc-spinnerIcon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 3a9 9 0 1 1-8.49 6h2.2A7 7 0 1 0 12 5V3Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function TrashIcon({ size = 18 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">

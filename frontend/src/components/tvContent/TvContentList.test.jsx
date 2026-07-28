@@ -4,15 +4,15 @@ import TvContentList from "./TvContentList";
 
 const branches = [{ id: 1, name: "Matriz" }];
 
-function renderList(items) {
+function renderList(items, handlers = {}) {
   return render(
     <TvContentList
       allBranches={branches}
       items={items}
       loading={false}
-      onEdit={vi.fn()}
-      onRemove={vi.fn()}
-      onToggle={vi.fn()}
+      onEdit={handlers.onEdit ?? vi.fn()}
+      onRemove={handlers.onRemove ?? vi.fn()}
+      onToggle={handlers.onToggle ?? vi.fn()}
     />
   );
 }
@@ -39,6 +39,15 @@ function mockMediaPlayback() {
   const pause = vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
 
   return { pause, play };
+}
+
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+
+  return { promise, resolve };
 }
 
 describe("TvContentList preview", () => {
@@ -192,5 +201,132 @@ describe("TvContentList preview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fechar preview" }));
 
     await waitFor(() => expect(preview).toHaveFocus());
+  });
+});
+
+describe("TvContentList actions", () => {
+  it("botao de editar possui title e aria-label corretos e chama onEdit", () => {
+    const onEdit = vi.fn();
+    const item = contentItem({ title: "Banner recepcao" });
+    renderList([item], { onEdit });
+
+    const editButton = screen.getByRole("button", { name: "Editar conteúdo Banner recepcao" });
+
+    expect(editButton).toHaveAttribute("title", "Editar conteúdo");
+
+    fireEvent.click(editButton);
+
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onEdit).toHaveBeenCalledWith(item);
+  });
+
+  it("conteudo ativo exibe acao Desativar conteúdo e chama onToggle", () => {
+    const onToggle = vi.fn();
+    const item = contentItem({ title: "Comunicado ativo", isActive: true });
+    renderList([item], { onToggle });
+
+    const toggleButton = screen.getByRole("button", {
+      name: "Desativar conteúdo Comunicado ativo",
+    });
+
+    expect(toggleButton).toHaveAttribute("title", "Desativar conteúdo");
+
+    fireEvent.click(toggleButton);
+
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onToggle).toHaveBeenCalledWith(item);
+  });
+
+  it("conteudo inativo exibe acao Ativar conteúdo", () => {
+    renderList([contentItem({ title: "Comunicado pausado", isActive: false })]);
+
+    const toggleButton = screen.getByRole("button", {
+      name: "Ativar conteúdo Comunicado pausado",
+    });
+
+    expect(toggleButton).toHaveAttribute("title", "Ativar conteúdo");
+  });
+
+  it("botao de excluir possui title e aria-label corretos e chama onRemove", () => {
+    const onRemove = vi.fn();
+    const item = contentItem({ title: "Campanha antiga" });
+    renderList([item], { onRemove });
+
+    const removeButton = screen.getByRole("button", {
+      name: "Excluir conteúdo Campanha antiga",
+    });
+
+    expect(removeButton).toHaveAttribute("title", "Excluir conteúdo");
+
+    fireEvent.click(removeButton);
+
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledWith(item);
+  });
+
+  it("botao de ativar/desativar fica desabilitado durante a acao e evita cliques repetidos", async () => {
+    const pending = deferred();
+    const onToggle = vi.fn(() => pending.promise);
+    renderList([contentItem({ title: "Video institucional" })], { onToggle });
+
+    const toggleButton = screen.getByRole("button", {
+      name: "Desativar conteúdo Video institucional",
+    });
+
+    fireEvent.click(toggleButton);
+    fireEvent.click(toggleButton);
+
+    expect(toggleButton).toBeDisabled();
+    expect(toggleButton).toHaveAttribute("aria-busy", "true");
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    pending.resolve();
+
+    await waitFor(() => expect(toggleButton).not.toBeDisabled());
+  });
+
+  it("botao de excluir fica desabilitado durante a acao e evita cliques repetidos", async () => {
+    const pending = deferred();
+    const onRemove = vi.fn(() => pending.promise);
+    renderList([contentItem({ title: "Arte vencida" })], { onRemove });
+
+    const removeButton = screen.getByRole("button", {
+      name: "Excluir conteúdo Arte vencida",
+    });
+
+    fireEvent.click(removeButton);
+    fireEvent.click(removeButton);
+
+    expect(removeButton).toBeDisabled();
+    expect(removeButton).toHaveAttribute("aria-busy", "true");
+    expect(onRemove).toHaveBeenCalledTimes(1);
+
+    pending.resolve();
+
+    await waitFor(() => expect(removeButton).not.toBeDisabled());
+  });
+
+  it("estado de carregamento nao afeta outros itens da lista", () => {
+    const pending = deferred();
+    const onToggle = vi.fn(() => pending.promise);
+    renderList(
+      [
+        contentItem({ id: 1, title: "Primeiro conteudo" }),
+        contentItem({ id: 2, title: "Segundo conteudo" }),
+      ],
+      { onToggle }
+    );
+
+    const firstToggle = screen.getByRole("button", {
+      name: "Desativar conteúdo Primeiro conteudo",
+    });
+    const secondToggle = screen.getByRole("button", {
+      name: "Desativar conteúdo Segundo conteudo",
+    });
+
+    fireEvent.click(firstToggle);
+
+    expect(firstToggle).toBeDisabled();
+    expect(secondToggle).not.toBeDisabled();
   });
 });
