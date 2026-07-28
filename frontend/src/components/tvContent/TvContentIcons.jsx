@@ -30,3 +30,11 @@ export function TrashIcon({ size = 18 }) {
     </svg>
   );
 }
+
+export function PlayIcon({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5v14l11-7L8 5Z" fill="currentColor" />
+    </svg>
+  );
+}

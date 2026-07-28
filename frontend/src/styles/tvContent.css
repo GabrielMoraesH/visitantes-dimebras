@@ -385,6 +385,122 @@
   display: block;
 }
 
+.tc-videoPreviewButton {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: #dfe9ef;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  display: block;
+}
+
+.tc-videoPreviewButton:focus {
+  outline: none;
+}
+
+.tc-videoPreviewButton:focus-visible {
+  box-shadow: inset 0 0 0 3px rgba(0, 122, 156, 0.42);
+}
+
+.tc-videoPreviewButton:hover .tc-videoPlay,
+.tc-videoPreviewButton:focus-visible .tc-videoPlay {
+  transform: translate(-50%, -50%) scale(1.06);
+  background: rgba(15, 34, 48, 0.88);
+}
+
+.tc-videoPlay {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(15, 34, 48, 0.78);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 34, 48, 0.2);
+  pointer-events: none;
+  transition: 0.15s ease;
+}
+
+.tc-videoPlay svg {
+  margin-left: 2px;
+}
+
+.tc-videoDuration {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(15, 34, 48, 0.82);
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.tc-previewModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 34, 48, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.tc-previewModal {
+  position: relative;
+  width: min(920px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  border-radius: var(--radius-lg);
+  background: #08131b;
+  box-shadow: var(--shadow-modal);
+}
+
+.tc-previewModalVideo {
+  width: 100%;
+  max-height: calc(100vh - 96px);
+  display: block;
+  border-radius: var(--radius-lg);
+  background: #000000;
+}
+
+.tc-previewModalClose {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.tc-previewModalClose:focus {
+  outline: none;
+}
+
+.tc-previewModalClose:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
 .tc-status {
   display: inline-flex;
   align-items: center;

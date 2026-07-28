@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   formatBytes,
   formatTvContentDate,
@@ -6,6 +7,111 @@ import {
 } from "../../utils/tvContent";
 import TvBranchList from "./TvBranchList";
 import TvContentActions from "./TvContentActions";
+import { PlayIcon } from "./TvContentIcons";
+
+function formatVideoDuration(value) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+
+  const totalSeconds = Math.floor(value);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function TvContentPreview({ item, onOpenVideo }) {
+  const [duration, setDuration] = useState("");
+  const src = mediaUrl(item.fileUrl);
+
+  if (item.type === "IMAGE") {
+    return <img src={src} alt={item.title} />;
+  }
+
+  function handleLoadedMetadata(event) {
+    setDuration(formatVideoDuration(event.currentTarget.duration));
+  }
+
+  function handleDurationError() {
+    setDuration("");
+  }
+
+  return (
+    <button
+      type="button"
+      className="tc-videoPreviewButton"
+      aria-label={`Reproduzir preview de ${item.title}`}
+      onClick={(event) => onOpenVideo(item, event.currentTarget)}
+    >
+      <video
+        src={src}
+        muted
+        preload="metadata"
+        onLoadedMetadata={handleLoadedMetadata}
+        onError={handleDurationError}
+      />
+      <span className="tc-videoPlay" aria-hidden="true">
+        <PlayIcon />
+      </span>
+      {duration ? <span className="tc-videoDuration">{duration}</span> : null}
+    </button>
+  );
+}
+
+function TvContentVideoModal({ item, onClose, videoRef }) {
+  const closeButtonRef = useRef(null);
+  const src = mediaUrl(item.fileUrl);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus();
+
+    try {
+      const playPromise = videoRef.current?.play?.();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {});
+      }
+    } catch {
+      // Some browsers can still block autoplay even after opening from a click.
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, videoRef]);
+
+  return (
+    <div
+      className="tc-previewModalOverlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview de ${item.title}`}
+      onClick={onClose}
+    >
+      <div className="tc-previewModal" onClick={(event) => event.stopPropagation()}>
+        <button
+          ref={closeButtonRef}
+          className="tc-previewModalClose"
+          type="button"
+          aria-label="Fechar preview"
+          onClick={onClose}
+        >
+          x
+        </button>
+        <video
+          ref={videoRef}
+          className="tc-previewModalVideo"
+          src={src}
+          controls
+          autoPlay
+          playsInline
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function TvContentList({
   allBranches,
@@ -15,6 +121,27 @@ export default function TvContentList({
   onRemove,
   onToggle,
 }) {
+  const [previewVideo, setPreviewVideo] = useState(null);
+  const modalVideoRef = useRef(null);
+  const openerRef = useRef(null);
+
+  function openVideoPreview(item, opener) {
+    openerRef.current = opener;
+    setPreviewVideo(item);
+  }
+
+  const closeVideoPreview = useCallback(() => {
+    const video = modalVideoRef.current;
+    try {
+      video?.pause?.();
+    } catch {
+      // Closing the modal should continue even when media controls are unavailable.
+    }
+    if (video) video.currentTime = 0;
+    setPreviewVideo(null);
+    window.setTimeout(() => openerRef.current?.focus(), 0);
+  }, []);
+
   return (
     <section className="tc-card">
       <div className="tc-cardHeader">
@@ -27,7 +154,7 @@ export default function TvContentList({
           <thead>
             <tr>
               <th>Preview</th>
-              <th>Tí­tulo</th>
+              <th>Título</th>
               <th>Tipo</th>
               <th>Tamanho</th>
               <th>Filiais</th>
@@ -51,11 +178,7 @@ export default function TvContentList({
                 <tr key={item.id} className={item.isActive ? undefined : "tc-row-disabled"}>
                   <td>
                     <div className="tc-preview">
-                      {item.type === "IMAGE" ? (
-                        <img src={mediaUrl(item.fileUrl)} alt={item.title} />
-                      ) : (
-                        <video src={mediaUrl(item.fileUrl)} muted controls preload="metadata" />
-                      )}
+                      <TvContentPreview item={item} onOpenVideo={openVideoPreview} />
                     </div>
                   </td>
                   <td className="tc-titleCell">{item.title}</td>
@@ -85,6 +208,14 @@ export default function TvContentList({
           </tbody>
         </table>
       </div>
+
+      {previewVideo ? (
+        <TvContentVideoModal
+          item={previewVideo}
+          onClose={closeVideoPreview}
+          videoRef={modalVideoRef}
+        />
+      ) : null}
     </section>
   );
 }
