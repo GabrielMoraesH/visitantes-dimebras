@@ -569,6 +569,9 @@
 }
 
 .au-btn-danger:hover:not(:disabled) {
+  background: #9f1f16;
+  border-color: #9f1f16;
+  color: #ffffff;
   filter: brightness(0.95);
 }
 
@@ -600,5 +603,8 @@
 }
 
 .au-iconBtn-del:hover:not(:disabled) {
+  background: #9f1f16;
+  border-color: #9f1f16;
+  color: #ffffff;
   filter: brightness(0.95);
 }
