@@ -47,6 +47,13 @@ export function formatTvContentDate(value) {
   return formatTvContentDateTime(value).full;
 }
 
+export function formatTvContentTitle(title, maxLength = 20) {
+  if (typeof title !== "string") return "";
+  if (title.length <= maxLength) return title;
+
+  return `${title.slice(0, maxLength)}...`;
+}
+
 export function formatTvContentDateTime(value) {
   const fallback = { date: "-", time: "", full: "-" };
   if (!value) return fallback;

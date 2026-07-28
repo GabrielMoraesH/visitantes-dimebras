@@ -313,11 +313,24 @@
   border-bottom: 0;
 }
 
+.tc-titleCol,
 .tc-titleCell {
-  max-width: 260px;
+  width: clamp(150px, 20vw, 220px);
+  max-width: 220px;
+}
+
+.tc-titleCell {
+  font-weight: 800;
+}
+
+.tc-titleText {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 800;
 }
 
 .tc-branchCell {

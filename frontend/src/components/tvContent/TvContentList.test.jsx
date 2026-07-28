@@ -50,6 +50,94 @@ function deferred() {
   return { promise, resolve };
 }
 
+describe("TvContentList title cell", () => {
+  it("renderiza titulo com menos de 20 caracteres completo", () => {
+    renderList([contentItem({ title: "Foto institucional" })]);
+
+    const titleText = screen.getByText("Foto institucional");
+    expect(titleText).toBeInTheDocument();
+    expect(titleText).toHaveAttribute("title", "Foto institucional");
+  });
+
+  it("renderiza titulo com exatamente 20 caracteres completo e sem reticencias", () => {
+    renderList([contentItem({ title: "12345678901234567890" })]);
+
+    const titleText = screen.getByText("12345678901234567890");
+    expect(titleText).toBeInTheDocument();
+    expect(titleText).toHaveAttribute("title", "12345678901234567890");
+    expect(titleText).not.toHaveTextContent("...");
+  });
+
+  it("renderiza titulo com mais de 20 caracteres com os primeiros 20 e reticencias", () => {
+    renderList([contentItem({ title: "123456789012345678901" })]);
+
+    const titleText = screen.getByText("12345678901234567890...");
+    expect(titleText).toBeInTheDocument();
+    expect(titleText).toHaveAttribute("title", "123456789012345678901");
+  });
+
+  it("mantem titulo muito longo completo no atributo title", () => {
+    const longTitle = "Campanha de conscientizacao sobre seguranca no trabalho";
+
+    renderList([contentItem({ title: longTitle })]);
+
+    const titleText = screen.getByText("Campanha de conscien...");
+    expect(titleText).toHaveClass("tc-titleText");
+    expect(titleText).toHaveAttribute("title", longTitle);
+  });
+
+  it("mantem o fallback atual para titulo vazio", () => {
+    renderList([contentItem({ title: "" })]);
+
+    const row = screen.getAllByRole("row")[1];
+    const titleCell = row.querySelector(".tc-titleCell");
+    const titleText = titleCell.querySelector(".tc-titleText");
+
+    expect(titleText).toHaveAttribute("title", "");
+    expect(titleCell.textContent).toBe("");
+  });
+
+  it("mantem o fallback atual para titulo nulo ou indefinido", () => {
+    renderList([contentItem({ title: null }), contentItem({ id: 2, title: undefined })]);
+
+    const rows = screen.getAllByRole("row").slice(1);
+
+    rows.forEach((row) => {
+      const titleCell = row.querySelector(".tc-titleCell");
+      const titleText = titleCell.querySelector(".tc-titleText");
+
+      expect(titleText).toHaveAttribute("title", "");
+      expect(titleCell.textContent).toBe("");
+    });
+  });
+
+  it("nao afeta acoes, preview, filiais ou demais dados da linha", () => {
+    const onEdit = vi.fn();
+    const item = contentItem({
+      title: "Campanha de conscientizacao sobre seguranca no trabalho",
+      fileSize: 2048,
+      branches: [{ id: 2, name: "Filial Norte" }],
+      order: 7,
+      isActive: false,
+    });
+
+    renderList([item], { onEdit });
+
+    const row = screen.getAllByRole("row")[1];
+
+    expect(within(row).getByRole("img", { name: item.title })).toBeInTheDocument();
+    expect(within(row).getByText("Imagem")).toBeInTheDocument();
+    expect(within(row).getByText("2.0 KB")).toBeInTheDocument();
+    expect(within(row).getByText("Filial Norte")).toBeInTheDocument();
+    expect(within(row).getByText("7")).toBeInTheDocument();
+    expect(within(row).getByText("INATIVO")).toBeInTheDocument();
+
+    fireEvent.click(within(row).getByRole("button", { name: /Editar conte.do Campanha/ }));
+
+    expect(onEdit).toHaveBeenCalledWith(item);
+  });
+});
+
 describe("TvContentList preview", () => {
   it("exibe data e hora em linhas separadas sem segundos e com tooltip completo", () => {
     renderList([contentItem({ createdAt: "2026-07-24T13:24:43" })]);

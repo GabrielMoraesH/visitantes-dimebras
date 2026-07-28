@@ -5,6 +5,7 @@ import {
   deleteConfirmationForTvContent,
   editFormFromTvContent,
   formatTvContentDateTime,
+  formatTvContentTitle,
   sameBranchSet,
   validateCreateTvContentForm,
   validateEditTvContentForm,
@@ -136,5 +137,17 @@ describe("tvContent utils", () => {
       time: "",
       full: "-",
     });
+  });
+
+  it("formats TV content titles using a 20 character visible limit", () => {
+    expect(formatTvContentTitle("Foto institucional")).toBe("Foto institucional");
+    expect(formatTvContentTitle("12345678901234567890")).toBe("12345678901234567890");
+    expect(formatTvContentTitle("123456789012345678901")).toBe("12345678901234567890...");
+  });
+
+  it("keeps the current empty title fallback for the admin table", () => {
+    expect(formatTvContentTitle("")).toBe("");
+    expect(formatTvContentTitle(null)).toBe("");
+    expect(formatTvContentTitle(undefined)).toBe("");
   });
 });

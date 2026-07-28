@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   formatBytes,
   formatTvContentDateTime,
+  formatTvContentTitle,
   mediaUrl,
   tvContentTypeLabel,
 } from "../../utils/tvContent";
@@ -64,6 +65,19 @@ function TvContentDateCell({ value }) {
       <span className="tc-dateTimeDate">{createdAt.date}</span>
       {createdAt.time ? <span className="tc-dateTimeTime">{createdAt.time}</span> : null}
     </div>
+  );
+}
+
+function TvContentTitleCell({ title }) {
+  const fullTitle = title ?? "";
+  const visibleTitle = formatTvContentTitle(title);
+
+  return (
+    <td className="tc-titleCell">
+      <span className="tc-titleText" title={fullTitle}>
+        {visibleTitle}
+      </span>
+    </td>
   );
 }
 
@@ -165,7 +179,7 @@ export default function TvContentList({
           <thead>
             <tr>
               <th>Preview</th>
-              <th>Título</th>
+              <th className="tc-titleCol">Título</th>
               <th>Tipo</th>
               <th>Tamanho</th>
               <th>Filiais</th>
@@ -192,7 +206,7 @@ export default function TvContentList({
                       <TvContentPreview item={item} onOpenVideo={openVideoPreview} />
                     </div>
                   </td>
-                  <td className="tc-titleCell">{item.title}</td>
+                  <TvContentTitleCell title={item.title} />
                   <td>{tvContentTypeLabel(item.type)}</td>
                   <td>{formatBytes(item.fileSize)}</td>
                   <td className="tc-branchCell">
