@@ -13,7 +13,7 @@ import {
 } from "./errorHandler.js";
 import { handleVisitorUploadErrors } from "../utils/upload.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 const JPEG_BYTES = Buffer.from([
   0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0xff, 0xd9,

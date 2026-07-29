@@ -11,7 +11,7 @@ import {
   notFoundHandler,
 } from "../middlewares/errorHandler.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 function signSession(userId) {
   return jwt.sign({}, process.env.JWT_SECRET, sessionJwtSignOptions(userId));

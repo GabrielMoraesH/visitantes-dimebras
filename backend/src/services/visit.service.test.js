@@ -7,7 +7,7 @@ import { sessionJwtSignOptions, sessionJwtVerifyOptions } from "../config/auth.j
 import { LABEL_TOKEN, labelTokenSignOptions, labelTokenVerifyOptions } from "../config/labelToken.js";
 import { checkin, createLabelToken, getLabelData } from "./visit.service.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 function prismaKnownError(code, meta = {}) {
   return new Prisma.PrismaClientKnownRequestError("Prisma internal details", {

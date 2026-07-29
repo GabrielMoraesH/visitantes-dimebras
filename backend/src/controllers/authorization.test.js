@@ -6,7 +6,7 @@ import { sessionJwtSignOptions } from "../config/auth.js";
 import { getByCpf, updateVisitor } from "./visitors.controller.js";
 import { checkin, checkout, getVisitById, label } from "./visits.controller.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 function createRes() {
   return {

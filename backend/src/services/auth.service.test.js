@@ -6,7 +6,7 @@ import prisma from "../lib/prisma.js";
 import { login } from "./auth.service.js";
 import { SESSION_JWT } from "../config/auth.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];

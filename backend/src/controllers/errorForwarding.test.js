@@ -62,7 +62,7 @@ import {
   updateTvContent,
 } from "./tvContent.controller.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 const activeUser = {
   id: 7,

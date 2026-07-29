@@ -6,7 +6,7 @@ import prisma from "../lib/prisma.js";
 import { errorHandler } from "./errorHandler.js";
 import { sessionJwtSignOptions } from "../config/auth.js";
 
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
 
 function createRes() {
   return {

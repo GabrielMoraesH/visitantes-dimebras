@@ -103,7 +103,7 @@ await ensureDatabase(testUrl);
 const env = {
   ...process.env,
   DATABASE_URL: testUrl,
-  JWT_SECRET: process.env.JWT_SECRET || readEnvValue("JWT_SECRET") || "integration-test-secret",
+  JWT_SECRET: process.env.JWT_SECRET || readEnvValue("JWT_SECRET") || "integration-test-jwt-secret-32-chars",
 };
 
 await run(process.execPath, ["node_modules/prisma/build/index.js", "migrate", "deploy"], env);
