@@ -1,7 +1,7 @@
 import CameraModal from "../components/CameraModal";
 import CadastroTopbar from "../components/visitor/CadastroTopbar";
 import VisitorMediaSection from "../components/visitor/VisitorMediaSection";
-import VisitorRegistrationForm, { VisitorRegistrationSubmit } from "../components/visitor/VisitorRegistrationForm";
+import VisitorRegistrationForm from "../components/visitor/VisitorRegistrationForm";
 import useCadastroVisitante from "../hooks/useCadastroVisitante";
 import "../styles/cadastro.css";
 
@@ -55,7 +55,6 @@ export default function CadastroVisitante() {
               phoneError={fields.phoneError}
               phoneInputRef={refs.phoneInputRef}
               saving={submission.saving}
-              showSubmit={false}
             />
 
             <VisitorMediaSection
@@ -73,11 +72,6 @@ export default function CadastroVisitante() {
               saving={submission.saving}
             />
 
-            <VisitorRegistrationSubmit
-              formOk={validation.formOk}
-              onSubmit={handlers.onSubmit}
-              saving={submission.saving}
-            />
           </div>
         </div>
       </div>

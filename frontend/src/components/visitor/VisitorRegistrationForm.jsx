@@ -58,7 +58,10 @@ export default function VisitorRegistrationForm({
   return (
     <div className="cadastro-fields">
       <div className="cadastro-head">
-        <h3 className="cadastro-title">Cadastrar Visitante</h3>
+        <div className="cadastro-titleBlock">
+          <h3 className="cadastro-title">Cadastrar Visitante</h3>
+          <p className="cadastro-description">Preencha os dados e capture as imagens do visitante.</p>
+        </div>
 
         <div className={cpfBadgeClass}>
           <label className="cadastro-cpfLabel" htmlFor={cpfInputId}>
@@ -191,16 +194,6 @@ export function VisitorRegistrationSubmit({ formOk, onSubmit, saving }) {
       <div className="cadastro-note">
         * Foto do visitante + documento (frente e verso) são obrigatórios para liberar o check-in.
       </div>
-
-      <div className="cadastro-savingStatus" role="status" aria-live="polite">
-        {saving && (
-          <span className="cadastro-savingStatusInner">
-            <span className="cadastro-savingSpinner" aria-hidden="true" />
-            <span>Salvando cadastro, aguarde...</span>
-          </span>
-        )}
-      </div>
-
       <button
         className="btn btn-primary w-full btn-lg"
         onClick={onSubmit}
@@ -210,6 +203,17 @@ export function VisitorRegistrationSubmit({ formOk, onSubmit, saving }) {
       >
         {saving ? "SALVANDO..." : "SALVAR"}
       </button>
+
+      
+
+      <div className="cadastro-savingStatus" role="status" aria-live="polite">
+        {saving && (
+          <span className="cadastro-savingStatusInner">
+            <span className="cadastro-savingSpinner" aria-hidden="true" />
+            <span>Salvando cadastro, aguarde...</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

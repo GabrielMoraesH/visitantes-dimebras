@@ -192,7 +192,7 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
   });
 
-  it("mantem o fluxo semantico mobile com dados, midia e salvar no final", () => {
+  it("mantem o fluxo semantico mobile com dados e salvar antes da midia", () => {
     const { container } = renderCadastro();
 
     const fields = container.querySelector(".cadastro-fields");
@@ -200,20 +200,21 @@ describe("CadastroVisitante CPF feedback", () => {
     const submit = container.querySelector(".cadastro-submit");
 
     expect(fields.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(media.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fields).toContainElement(submit);
+    expect(submit.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(fields).toContainElement(screen.getByLabelText(/^cpf$/i));
     expect(media).toContainElement(screen.getByRole("button", { name: /tirar foto do visitante/i }));
     expect(submit).toContainElement(screen.getByRole("button", { name: /salvar/i }));
-    expect(submit.lastElementChild).toBe(screen.getByRole("button", { name: /salvar/i }));
+    expect(submit.firstElementChild).toBe(screen.getByRole("button", { name: /salvar/i }));
   });
 
-  it("usa o breakpoint responsivo existente para preservar desktop e reordenar mobile", () => {
+  it("usa o breakpoint responsivo existente para preservar desktop e empilhar mobile", () => {
     renderCadastro();
     const css = readFileSync("src/styles/cadastro.css", "utf8");
 
-    expect(css).toContain("grid-template-areas:\n    \"media fields\"\n    \"media submit\"");
+    expect(css).toContain("grid-template-areas: \"media fields\"");
     expect(css).toContain("@media (max-width: 980px)");
-    expect(css).toContain("grid-template-areas:\n      \"fields\"\n      \"media\"\n      \"submit\"");
+    expect(css).toContain("grid-template-areas:\n      \"fields\"\n      \"media\"");
   });
 
   it("mantem previews e botoes de midia contidos em largura reduzida por classe estrutural", () => {

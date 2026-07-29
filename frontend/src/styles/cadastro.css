@@ -2,7 +2,7 @@
 .cadastro-page {
   min-height: 100vh;
   background: var(--color-app-bg);
-  padding-bottom: 26px;
+  padding-bottom: 20px;
 }
 
 /* ====== TOPBAR (padrão do sistema) ====== */
@@ -70,8 +70,8 @@
 
 /* ====== CONTENT WRAP ====== */
 .cadastro-wrap {
-  max-width: 1080px;
-  margin: 26px auto;
+  max-width: 1040px;
+  margin: 20px auto;
   padding: 0 16px;
 }
 
@@ -79,18 +79,17 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 22px;
-  box-shadow: var(--shadow-sm);
+  padding: 18px;
+  box-shadow: var(--shadow-md);
 }
 
 /* ====== GRID ====== */
 .cadastro-grid {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  grid-template-areas:
-    "media fields"
-    "media submit";
-  gap: 22px;
+  grid-template-columns: minmax(292px, 320px) minmax(0, 1fr);
+  grid-template-areas: "media fields";
+  column-gap: 22px;
+  row-gap: 14px;
   align-items: start;
 }
 
@@ -102,13 +101,14 @@
 .cadastro-media {
   grid-area: media;
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  align-content: start;
 }
 
 .cadastro-media .btn {
-  min-height: 42px;
+  min-height: 40px;
   border-radius: var(--radius-md);
-  padding: 10px 14px;
+  padding: 9px 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -124,7 +124,7 @@
 }
 
 .cadastro-media .btn-capture {
-  background: #ffffff;
+  background: #fbfdff;
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
@@ -154,10 +154,10 @@
 
 .cadastro-photoBox {
   width: 100%;
-  height: 260px;
-  border-radius: var(--radius-lg);
+  height: 200px;
+  border-radius: var(--radius-md);
   border: 2px dashed #cfe0ea;
-  background: #fbfdff;
+  background: #f8fbfd;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -165,13 +165,13 @@
 
 .cadastro-mediaItem {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .cadastro-mediaGroup {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -226,31 +226,50 @@
 .cadastro-fields {
   grid-area: fields;
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  align-content: start;
 }
 
 .cadastro-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cadastro-titleBlock {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .cadastro-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   color: var(--color-text);
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.cadastro-description {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .cadastro-cpfBadge {
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  padding: 10px 12px;
-  min-width: 170px;
+  border: 1px solid var(--color-border-strong);
+  padding: 9px 11px;
+  min-width: 166px;
   text-align: right;
-  background: #fff;
+  background: #fbfdff;
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.05);
 }
 
 .cadastro-cpfBadge span,
@@ -295,12 +314,13 @@
 /* ====== FORM ====== */
 .cadastro-form {
   display: grid;
-  gap: 12px;
+  gap: 11px;
+  padding-top: 2px;
 }
 
 .cadastro-field {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 
 .cadastro-label {
@@ -312,11 +332,11 @@
 /* Inputs (isolado pra não “brigar” com outros .input globais) */
 .cadastro-form .input {
   width: 100%;
-  padding: 12px 12px;
+  padding: 11px 12px;
   border: 1px solid #d9e6ee;
   border-radius: var(--radius-md);
   outline: none;
-  background: #fff;
+  background: #fbfdff;
   color: #0f2230;
   font-size: 14px;
 }
@@ -372,8 +392,9 @@
 
 .cadastro-form .btn-lg,
 .cadastro-submit .btn-lg {
-  min-height: 46px;
-  padding: 12px 18px;
+  min-height: 48px;
+  padding: 13px 18px;
+  font-size: 15px;
 }
 
 .cadastro-form .w-full,
@@ -396,11 +417,12 @@
   font-size: 12px;
   color: var(--color-muted);
   font-weight: 700;
-  margin-top: 4px;
+  margin-top: 0;
+  line-height: 1.35;
 }
 
 .cadastro-savingStatus {
-  min-height: 24px;
+  min-height: 0;
   display: flex;
   align-items: center;
   color: #24495c;
@@ -440,9 +462,10 @@
 }
 
 .cadastro-submit {
-  grid-area: submit;
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  align-content: start;
+  padding-top: 0;
 }
 
 .cadastro-cpfInput {
@@ -470,7 +493,7 @@
 .cadastro-info {
   font-size: 12px;
   font-weight: 900;
-  padding: 10px 12px;
+  padding: 9px 11px;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: #f7fafc;
@@ -490,21 +513,29 @@
 }
 
 .cadastro-photoBox--document {
-  height: 180px;
+  height: 138px;
 }
 
 /* ====== RESPONSIVE ====== */
 @media (max-width: 980px) {
+  .cadastro-wrap {
+    max-width: 720px;
+  }
+
   .cadastro-grid {
     grid-template-columns: 1fr;
     grid-template-areas:
       "fields"
-      "media"
-      "submit";
+      "media";
+    gap: 14px;
   }
 
   .cadastro-photoBox {
-    height: 240px;
+    height: 210px;
+  }
+
+  .cadastro-photoBox--document {
+    height: 150px;
   }
 
   .cadastro-cpfBadge {
@@ -524,5 +555,31 @@
 
   .cadastro-logo {
     height: 28px;
+  }
+
+  .cadastro-wrap {
+    margin: 14px auto;
+    padding: 0 12px;
+  }
+
+  .cadastro-card {
+    padding: 14px;
+  }
+
+  .cadastro-head {
+    display: grid;
+    gap: 10px;
+  }
+
+  .cadastro-cpfBadge {
+    width: 100%;
+  }
+
+  .cadastro-photoBox {
+    height: 190px;
+  }
+
+  .cadastro-photoBox--document {
+    height: 138px;
   }
 }
