@@ -191,9 +191,11 @@ export default function VisitorRegistrationForm({
 export function VisitorRegistrationSubmit({ formOk, onSubmit, saving }) {
   return (
     <div className="cadastro-submit">
+      
       <div className="cadastro-note">
         * Foto do visitante + documento (frente e verso) são obrigatórios para liberar o check-in.
       </div>
+
       <button
         className="btn btn-primary w-full btn-lg"
         onClick={onSubmit}
@@ -203,8 +205,6 @@ export function VisitorRegistrationSubmit({ formOk, onSubmit, saving }) {
       >
         {saving ? "SALVANDO..." : "SALVAR"}
       </button>
-
-      
 
       <div className="cadastro-savingStatus" role="status" aria-live="polite">
         {saving && (
