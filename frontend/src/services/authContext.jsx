@@ -15,6 +15,7 @@ function initialAuthState() {
 export function AuthProvider({ children }) {
   const [state, setState] = useState(initialAuthState);
   const validationPromiseRef = useRef(null);
+  const validationRunRef = useRef(0);
 
   const validateSession = useCallback(async () => {
     const token = getToken();
@@ -26,6 +27,8 @@ export function AuthProvider({ children }) {
 
     if (validationPromiseRef.current) return validationPromiseRef.current;
 
+    const validationRun = validationRunRef.current;
+
     setState((current) => ({
       status: current.status === "authenticated" ? "authenticated" : "validating",
       user: current.user || getUser(),
@@ -33,6 +36,8 @@ export function AuthProvider({ children }) {
 
     validationPromiseRef.current = getCurrentUser()
       .then((user) => {
+        if (validationRunRef.current !== validationRun) return null;
+
         if (!user) {
           clearSession();
           setState({ status: "unauthenticated", user: null });
@@ -44,6 +49,8 @@ export function AuthProvider({ children }) {
         return user;
       })
       .catch((error) => {
+        if (validationRunRef.current !== validationRun) return null;
+
         if (error?.response?.status === 401) {
           clearSession();
           setState({ status: "unauthenticated", user: null });
@@ -54,7 +61,9 @@ export function AuthProvider({ children }) {
         return null;
       })
       .finally(() => {
-        validationPromiseRef.current = null;
+        if (validationRunRef.current === validationRun) {
+          validationPromiseRef.current = null;
+        }
       });
 
     return validationPromiseRef.current;
@@ -72,14 +81,22 @@ export function AuthProvider({ children }) {
     setState({ status: "authenticated", user });
   }, []);
 
+  const endSession = useCallback(() => {
+    validationRunRef.current += 1;
+    validationPromiseRef.current = null;
+    clearSession();
+    setState({ status: "unauthenticated", user: null });
+  }, []);
+
   const value = useMemo(
     () => ({
       status: state.status,
       user: state.user,
       validateSession,
       acceptSession,
+      endSession,
     }),
-    [state.status, state.user, validateSession, acceptSession]
+    [state.status, state.user, validateSession, acceptSession, endSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

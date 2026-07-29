@@ -204,8 +204,9 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(submit.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(fields).toContainElement(screen.getByLabelText(/^cpf$/i));
     expect(media).toContainElement(screen.getByRole("button", { name: /tirar foto do visitante/i }));
-    expect(submit).toContainElement(screen.getByRole("button", { name: /salvar/i }));
-    expect(submit.firstElementChild).toBe(screen.getByRole("button", { name: /salvar/i }));
+    const saveButton = within(submit).getByRole("button", { name: /salvar/i });
+    expect(submit).toContainElement(saveButton);
+    expect(saveButton.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("usa o breakpoint responsivo existente para preservar desktop e empilhar mobile", () => {

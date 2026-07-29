@@ -5,6 +5,7 @@ export const AuthContext = createContext({
   user: null,
   validateSession: async () => {},
   acceptSession: () => {},
+  endSession: () => {},
 });
 
 export function useAuth() {

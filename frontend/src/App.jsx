@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { ToastProvider } from "./components/Feedback/ToastProvider";
 import { ConfirmProvider } from "./components/Feedback/ConfirmProvider";
 import { AuthProvider } from "./services/authContext";
+import SessionSync from "./components/SessionSync";
 
 const Checkin = lazy(() => import("./pages/Checkin"));
 const History = lazy(() => import("./pages/History"));
@@ -38,6 +39,7 @@ export default function App() {
       <ConfirmProvider>
         <AuthProvider>
           <BrowserRouter>
+            <SessionSync />
             <Suspense fallback={<RouteLoading />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
