@@ -1,12 +1,51 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import "../styles/cameraModal.css";
 
-export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled]):not([type='hidden'])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+function isVisible(element) {
+  const style = window.getComputedStyle(element);
+  return style.visibility !== "hidden" && style.display !== "none";
+}
+
+function getFocusableElements(container) {
+  if (!container) return [];
+
+  return Array.from(container.querySelectorAll(focusableSelector)).filter(
+    (element) => !element.hasAttribute("disabled") && !element.getAttribute("aria-hidden") && isVisible(element)
+  );
+}
+
+function getTitle(captureTarget, mode) {
+  if (captureTarget === "docFront") return "Fotografar documento - frente";
+  if (captureTarget === "docBack") return "Fotografar documento - verso";
+  if (mode === "document") return "Fotografar documento";
+  return "Fotografar visitante";
+}
+
+export default function CameraModal({
+  captureTarget = null,
+  onClose,
+  onCapture,
+  mode = "photo",
+  returnFocusRef = null,
+}) {
+  const titleId = useId();
+  const modalRef = useRef(null);
+  const closeButtonRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const title = getTitle(captureTarget, mode);
 
   const stop = useCallback(() => {
     const stream = streamRef.current;
@@ -15,6 +54,11 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
       streamRef.current = null;
     }
   }, []);
+
+  const close = useCallback(() => {
+    stop();
+    onClose();
+  }, [onClose, stop]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +100,23 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
     };
   }, [stop]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const returnFocusElement = returnFocusRef?.current;
+    document.body.style.overflow = "hidden";
+
+    const focusTimer = window.setTimeout(() => {
+      const initialTarget = closeButtonRef.current || getFocusableElements(modalRef.current)[0];
+      initialTarget?.focus();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      returnFocusElement?.focus?.();
+    };
+  }, [returnFocusRef]);
+
   const capture = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !ready) return;
@@ -92,7 +153,47 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
 
   useEffect(() => {
     function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const focusableElements = getFocusableElements(modalRef.current);
+
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          modalRef.current?.focus();
+          return;
+        }
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        const activeElement = document.activeElement;
+
+        if (event.shiftKey && activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+          return;
+        }
+
+        if (!event.shiftKey && activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+          return;
+        }
+
+        if (!modalRef.current?.contains(activeElement)) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+
+        return;
+      }
+
       if (event.key !== "Enter" || !ready || error) return;
+      if (event.target?.closest?.("button, input, select, textarea, a[href]")) return;
 
       event.preventDefault();
       capture();
@@ -103,13 +204,20 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [capture, error, ready]);
+  }, [capture, close, error, ready]);
 
   return (
     <div className="cam-overlay">
-      <div className="cam-modal">
-        <div className="cam-title">
-          {mode === "document" ? "Fotografar documento" : "Tirar foto"}
+      <div
+        ref={modalRef}
+        className="cam-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <div className="cam-title" id={titleId}>
+          {title}
         </div>
 
         {error ? (
@@ -130,17 +238,21 @@ export default function CameraModal({ onClose, onCapture, mode = "photo" }) {
 
         <div className="cam-actions">
           <button
-            className="btn btn-light"
+            ref={closeButtonRef}
+            className="cam-actionButton cam-actionButton--secondary"
             type="button"
-            onClick={() => {
-              stop();
-              onClose();
-            }}
+            onClick={close}
+            aria-label="Fechar câmera"
           >
             Cancelar
           </button>
 
-          <button className="btn btn-primary" type="button" onClick={capture} disabled={!ready || !!error}>
+          <button
+            className="cam-actionButton cam-actionButton--primary"
+            type="button"
+            onClick={capture}
+            disabled={!ready || !!error}
+          >
             Capturar
           </button>
         </div>
