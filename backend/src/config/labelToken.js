@@ -1,11 +1,9 @@
 const MIN_LABEL_TOKEN_TTL_SECONDS = 300;
-const DEFAULT_LABEL_TOKEN_TTL_SECONDS = 8 * 60 * 60;
+const DEFAULT_LABEL_TOKEN_TTL_SECONDS = 10 * 60;
 
 function labelTokenTtlSeconds() {
-  return Math.max(
-    MIN_LABEL_TOKEN_TTL_SECONDS,
-    Number(process.env.LABEL_TOKEN_TTL_SECONDS || DEFAULT_LABEL_TOKEN_TTL_SECONDS)
-  );
+  const ttl = Number(process.env.LABEL_TOKEN_TTL_SECONDS || DEFAULT_LABEL_TOKEN_TTL_SECONDS);
+  return Math.max(MIN_LABEL_TOKEN_TTL_SECONDS, Number.isFinite(ttl) ? ttl : DEFAULT_LABEL_TOKEN_TTL_SECONDS);
 }
 
 export const LABEL_TOKEN = Object.freeze({

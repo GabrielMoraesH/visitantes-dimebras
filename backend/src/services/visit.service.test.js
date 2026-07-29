@@ -4,7 +4,12 @@ import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { sessionJwtSignOptions, sessionJwtVerifyOptions } from "../config/auth.js";
-import { LABEL_TOKEN, labelTokenSignOptions, labelTokenVerifyOptions } from "../config/labelToken.js";
+import {
+  LABEL_TOKEN,
+  labelTokenExpiresInSeconds,
+  labelTokenSignOptions,
+  labelTokenVerifyOptions,
+} from "../config/labelToken.js";
 import { checkin, createLabelToken, getLabelData } from "./visit.service.js";
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-jwt-secret-32-characters-safe";
@@ -105,7 +110,7 @@ test("createLabelToken signs only the required label payload with explicit polic
   );
 
   assert.equal(result.ok, true);
-  assert.equal(result.expiresInSeconds, 8 * 60 * 60);
+  assert.equal(result.expiresInSeconds, 600);
 
   const decoded = jwt.decode(result.token, { complete: true });
   assert.equal(decoded.header.alg, LABEL_TOKEN.algorithm);
@@ -114,6 +119,7 @@ test("createLabelToken signs only the required label payload with explicit polic
   assert.equal(decoded.payload.branchId, 4);
   assert.equal(decoded.payload.iss, LABEL_TOKEN.issuer);
   assert.equal(decoded.payload.aud, LABEL_TOKEN.audience);
+  assert.equal(decoded.payload.exp - decoded.payload.iat, 600);
   assert.equal(decoded.payload.cpf, undefined);
   assert.equal(decoded.payload.document, undefined);
   assert.equal(decoded.payload.password, undefined);
@@ -121,6 +127,33 @@ test("createLabelToken signs only the required label payload with explicit polic
   assert.doesNotThrow(() =>
     jwt.verify(result.token, process.env.JWT_SECRET, labelTokenVerifyOptions())
   );
+});
+
+test("label token TTL defaults to 600 seconds and preserves minimum and overrides", () => {
+  const originalTtl = process.env.LABEL_TOKEN_TTL_SECONDS;
+
+  try {
+    delete process.env.LABEL_TOKEN_TTL_SECONDS;
+    assert.equal(labelTokenExpiresInSeconds(), 600);
+
+    process.env.LABEL_TOKEN_TTL_SECONDS = "900";
+    assert.equal(labelTokenExpiresInSeconds(), 900);
+
+    process.env.LABEL_TOKEN_TTL_SECONDS = "120";
+    assert.equal(labelTokenExpiresInSeconds(), 300);
+
+    process.env.LABEL_TOKEN_TTL_SECONDS = "invalid";
+    assert.equal(labelTokenExpiresInSeconds(), 600);
+
+    const options = labelTokenSignOptions();
+    assert.equal(options.expiresIn, 600);
+    assert.equal(options.algorithm, LABEL_TOKEN.algorithm);
+    assert.equal(options.issuer, LABEL_TOKEN.issuer);
+    assert.equal(options.audience, LABEL_TOKEN.audience);
+  } finally {
+    if (originalTtl === undefined) delete process.env.LABEL_TOKEN_TTL_SECONDS;
+    else process.env.LABEL_TOKEN_TTL_SECONDS = originalTtl;
+  }
 });
 
 test("getLabelData accepts a valid label token", async () => {

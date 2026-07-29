@@ -2529,7 +2529,14 @@ test("visits label success with Bearer keeps HTML, QR, escaping, CSP, and header
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
-  assert.equal(response.headers.get("cache-control"), null);
+  assert.match(response.headers.get("cache-control"), /\bno-store\b/);
+  assert.match(response.headers.get("cache-control"), /\bno-cache\b/);
+  assert.match(response.headers.get("cache-control"), /\bmust-revalidate\b/);
+  assert.match(response.headers.get("cache-control"), /\bprivate\b/);
+  assert.equal(response.headers.get("pragma"), "no-cache");
+  assert.equal(response.headers.get("expires"), "0");
+  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.deepEqual(qrArgs, ["ABC<123>&", { margin: 0, scale: 8 }]);
   assert.match(csp, /^default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'nonce-[A-Za-z0-9+/=]+'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'$/);
   assert.match(html, /^\s*<!doctype html>/);

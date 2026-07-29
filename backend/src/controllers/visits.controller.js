@@ -234,6 +234,11 @@ export async function label(req, res, next) {
     const html = buildLabelHtml({ visit: result.visit, qrDataUrl, scriptNonce });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader(
       "Content-Security-Policy",
       [
