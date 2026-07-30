@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api, { openVisitLabel } from "../services/api";
 import { getToken } from "../services/session";
+import { formatDatePtBr, formatTimePtBr } from "../utils/dateTime";
 import "../styles/visitDetails.css";
 
 const EMPTY_TEXT = "Não informado";
@@ -56,20 +57,12 @@ function formatPhone(value) {
   return valueOrFallback(value);
 }
 
-function parseDate(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function formatDate(value, fallback = EMPTY_TEXT) {
-  const date = parseDate(value);
-  return date ? date.toLocaleDateString("pt-BR") : fallback;
+  return formatDatePtBr(value, fallback);
 }
 
 function formatTime(value, fallback = EMPTY_TEXT) {
-  const date = parseDate(value);
-  return date ? date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : fallback;
+  return formatTimePtBr(value, fallback);
 }
 
 async function fetchBlobAsUrl(endpoint) {
