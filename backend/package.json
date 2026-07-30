@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "ci:migrate:bootstrap": "node scripts/ci-migrate-bootstrap.js",
     "test": "node --test",
     "test:integration": "node scripts/run-integration-tests.js"
   },

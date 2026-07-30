@@ -62,8 +62,8 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
-      - name: Apply migrations
-        run: npx prisma migrate deploy
+      - name: Apply migrations with CI legacy branch bootstrap
+        run: npm run ci:migrate:bootstrap
 
       - name: Check migration status
         run: npx prisma migrate status
