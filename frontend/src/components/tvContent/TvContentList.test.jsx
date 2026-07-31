@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import TvContentList from "./TvContentList";
 
@@ -111,7 +112,8 @@ describe("TvContentList title cell", () => {
     });
   });
 
-  it("nao afeta acoes, preview, filiais ou demais dados da linha", () => {
+  it("nao afeta acoes, preview, filiais ou demais dados da linha", async () => {
+    const user = userEvent.setup();
     const onEdit = vi.fn();
     const item = contentItem({
       title: "Campanha de conscientizacao sobre seguranca no trabalho",
@@ -132,7 +134,7 @@ describe("TvContentList title cell", () => {
     expect(within(row).getByText("7")).toBeInTheDocument();
     expect(within(row).getByText("INATIVO")).toBeInTheDocument();
 
-    fireEvent.click(within(row).getByRole("button", { name: /Editar conte.do Campanha/ }));
+    await user.click(within(row).getByRole("button", { name: /Editar conte.do Campanha/ }));
 
     expect(onEdit).toHaveBeenCalledWith(item);
   });
@@ -160,7 +162,8 @@ describe("TvContentList preview", () => {
     expect(dateTimeCell.querySelector(".tc-dateTimeTime")).not.toBeInTheDocument();
   });
 
-  it("mantem a ordem e os dados originais dos itens", () => {
+  it("mantem a ordem e os dados originais dos itens", async () => {
+    const user = userEvent.setup();
     const onEdit = vi.fn();
     const first = contentItem({
       id: 1,
@@ -183,7 +186,7 @@ describe("TvContentList preview", () => {
     expect(within(rows[0]).getByText("2")).toBeInTheDocument();
     expect(within(rows[1]).getByText("1")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Editar conte.do Primeiro conteudo/ }));
+    await user.click(screen.getByRole("button", { name: /Editar conte.do Primeiro conteudo/ }));
 
     expect(onEdit).toHaveBeenCalledWith(first);
   });
@@ -239,20 +242,22 @@ describe("TvContentList preview", () => {
     expect(document.querySelector(".tc-videoDuration")).not.toBeInTheDocument();
   });
 
-  it("abre modal ao clicar no preview de video", () => {
+  it("abre modal ao clicar no preview de video", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
 
     expect(screen.getByRole("dialog", { name: "Preview de Midia TV" })).toBeInTheDocument();
   });
 
-  it("renderiza video com controles dentro do modal", () => {
+  it("renderiza video com controles dentro do modal", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
 
     const dialog = screen.getByRole("dialog", { name: "Preview de Midia TV" });
     const modalVideo = dialog.querySelector("video");
@@ -261,88 +266,96 @@ describe("TvContentList preview", () => {
     expect(modalVideo).toHaveAttribute("autoplay");
   });
 
-  it("fecha o modal pelo botao de fechar", () => {
+  it("fecha o modal pelo botao de fechar", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
-    fireEvent.click(screen.getByRole("button", { name: "Fechar preview" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Fechar preview" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("fecha o modal ao clicar no backdrop", () => {
+  it("fecha o modal ao clicar no backdrop", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
-    fireEvent.click(screen.getByRole("dialog", { name: "Preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("dialog", { name: "Preview de Midia TV" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("nao fecha o modal ao clicar no conteudo interno", () => {
+  it("nao fecha o modal ao clicar no conteudo interno", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
     const dialog = screen.getByRole("dialog", { name: "Preview de Midia TV" });
 
-    fireEvent.click(dialog.querySelector(".tc-previewModal"));
+    await user.click(dialog.querySelector(".tc-previewModal"));
 
     expect(screen.getByRole("dialog", { name: "Preview de Midia TV" })).toBeInTheDocument();
   });
 
-  it("fecha o modal ao pressionar Escape", () => {
+  it("fecha o modal ao pressionar Escape", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
-    fireEvent.keyDown(document, { key: "Escape" });
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.keyboard("{Escape}");
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("pausa e reinicia o video ao fechar", () => {
+  it("pausa e reinicia o video ao fechar", async () => {
+    const user = userEvent.setup();
     const { pause } = mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
+    await user.click(screen.getByRole("button", { name: "Reproduzir preview de Midia TV" }));
     const dialog = screen.getByRole("dialog", { name: "Preview de Midia TV" });
     const modalVideo = dialog.querySelector("video");
     modalVideo.currentTime = 12;
 
-    fireEvent.click(screen.getByRole("button", { name: "Fechar preview" }));
+    await user.click(screen.getByRole("button", { name: "Fechar preview" }));
 
     expect(pause).toHaveBeenCalled();
     expect(modalVideo.currentTime).toBe(0);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("imagem nao abre modal", () => {
+  it("imagem nao abre modal", async () => {
+    const user = userEvent.setup();
     renderList([contentItem({ title: "Banner principal", fileUrl: "/uploads/tv/banner.webp" })]);
 
-    fireEvent.click(screen.getByRole("img", { name: "Banner principal" }));
+    await user.click(screen.getByRole("img", { name: "Banner principal" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("devolve o foco ao preview que abriu o modal", async () => {
+    const user = userEvent.setup();
     mockMediaPlayback();
     renderList([contentItem({ type: "VIDEO", fileUrl: "/uploads/tv/video.mp4" })]);
     const preview = screen.getByRole("button", { name: "Reproduzir preview de Midia TV" });
 
-    fireEvent.click(preview);
+    await user.click(preview);
     expect(within(screen.getByRole("dialog")).getByRole("button", { name: "Fechar preview" })).toHaveFocus();
 
-    fireEvent.click(screen.getByRole("button", { name: "Fechar preview" }));
+    await user.click(screen.getByRole("button", { name: "Fechar preview" }));
 
     await waitFor(() => expect(preview).toHaveFocus());
   });
 });
 
 describe("TvContentList actions", () => {
-  it("botao de editar possui title e aria-label corretos e chama onEdit", () => {
+  it("botao de editar possui title e aria-label corretos e chama onEdit", async () => {
+    const user = userEvent.setup();
     const onEdit = vi.fn();
     const item = contentItem({ title: "Banner recepcao" });
     renderList([item], { onEdit });
@@ -351,13 +364,14 @@ describe("TvContentList actions", () => {
 
     expect(editButton).toHaveAttribute("title", "Editar conteúdo");
 
-    fireEvent.click(editButton);
+    await user.click(editButton);
 
     expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onEdit).toHaveBeenCalledWith(item);
   });
 
-  it("conteudo ativo exibe acao Desativar conteúdo e chama onToggle", () => {
+  it("conteudo ativo exibe acao Desativar conteúdo e chama onToggle", async () => {
+    const user = userEvent.setup();
     const onToggle = vi.fn();
     const item = contentItem({ title: "Comunicado ativo", isActive: true });
     renderList([item], { onToggle });
@@ -368,7 +382,7 @@ describe("TvContentList actions", () => {
 
     expect(toggleButton).toHaveAttribute("title", "Desativar conteúdo");
 
-    fireEvent.click(toggleButton);
+    await user.click(toggleButton);
 
     expect(onToggle).toHaveBeenCalledTimes(1);
     expect(onToggle).toHaveBeenCalledWith(item);
@@ -384,7 +398,8 @@ describe("TvContentList actions", () => {
     expect(toggleButton).toHaveAttribute("title", "Ativar conteúdo");
   });
 
-  it("botao de excluir possui title e aria-label corretos e chama onRemove", () => {
+  it("botao de excluir possui title e aria-label corretos e chama onRemove", async () => {
+    const user = userEvent.setup();
     const onRemove = vi.fn();
     const item = contentItem({ title: "Campanha antiga" });
     renderList([item], { onRemove });
@@ -395,13 +410,14 @@ describe("TvContentList actions", () => {
 
     expect(removeButton).toHaveAttribute("title", "Excluir conteúdo");
 
-    fireEvent.click(removeButton);
+    await user.click(removeButton);
 
     expect(onRemove).toHaveBeenCalledTimes(1);
     expect(onRemove).toHaveBeenCalledWith(item);
   });
 
   it("botao de ativar/desativar fica desabilitado durante a acao e evita cliques repetidos", async () => {
+    const user = userEvent.setup();
     const pending = deferred();
     const onToggle = vi.fn(() => pending.promise);
     renderList([contentItem({ title: "Video institucional" })], { onToggle });
@@ -410,19 +426,22 @@ describe("TvContentList actions", () => {
       name: "Desativar conteúdo Video institucional",
     });
 
-    fireEvent.click(toggleButton);
-    fireEvent.click(toggleButton);
+    await user.click(toggleButton);
+    await user.click(toggleButton);
 
     expect(toggleButton).toBeDisabled();
     expect(toggleButton).toHaveAttribute("aria-busy", "true");
     expect(onToggle).toHaveBeenCalledTimes(1);
 
-    pending.resolve();
+    await act(async () => {
+      pending.resolve();
+    });
 
     await waitFor(() => expect(toggleButton).not.toBeDisabled());
   });
 
   it("botao de excluir fica desabilitado durante a acao e evita cliques repetidos", async () => {
+    const user = userEvent.setup();
     const pending = deferred();
     const onRemove = vi.fn(() => pending.promise);
     renderList([contentItem({ title: "Arte vencida" })], { onRemove });
@@ -431,19 +450,22 @@ describe("TvContentList actions", () => {
       name: "Excluir conteúdo Arte vencida",
     });
 
-    fireEvent.click(removeButton);
-    fireEvent.click(removeButton);
+    await user.click(removeButton);
+    await user.click(removeButton);
 
     expect(removeButton).toBeDisabled();
     expect(removeButton).toHaveAttribute("aria-busy", "true");
     expect(onRemove).toHaveBeenCalledTimes(1);
 
-    pending.resolve();
+    await act(async () => {
+      pending.resolve();
+    });
 
     await waitFor(() => expect(removeButton).not.toBeDisabled());
   });
 
-  it("estado de carregamento nao afeta outros itens da lista", () => {
+  it("estado de carregamento nao afeta outros itens da lista", async () => {
+    const user = userEvent.setup();
     const pending = deferred();
     const onToggle = vi.fn(() => pending.promise);
     renderList(
@@ -461,7 +483,7 @@ describe("TvContentList actions", () => {
       name: "Desativar conteúdo Segundo conteudo",
     });
 
-    fireEvent.click(firstToggle);
+    await user.click(firstToggle);
 
     expect(firstToggle).toBeDisabled();
     expect(secondToggle).not.toBeDisabled();

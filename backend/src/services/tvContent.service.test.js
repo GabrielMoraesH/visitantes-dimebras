@@ -174,7 +174,7 @@ test("listPublicActiveTvContents supports all official TV branch IDs and exclude
   }
 });
 
-test("createTvContent persists metadata from validated file and removes promoted file on database failure", async () => {
+test("createTvContent persists metadata from validated file and keeps promoted final file on database failure", async () => {
   const tempPath = path.join(tvTempUploadDir, "service-test.upload");
   const renamedFiles = [];
   const unlinkedFiles = [];
@@ -254,7 +254,217 @@ test("createTvContent persists metadata from validated file and removes promoted
   assert.equal(createData.createdById, 9);
   assert.equal(Object.hasOwn(createData, "filePath"), false);
   assert.equal(renamedFiles.length, 1);
-  assert.deepEqual(unlinkedFiles, [renamedFiles[0].to]);
+  assert.deepEqual(unlinkedFiles, []);
+});
+
+test("createTvContent removes temp upload on validation error", async () => {
+  const tempPath = path.join(tvTempUploadDir, "validation-error.upload");
+  const unlinkedFiles = [];
+  let branchLookupCalled = false;
+  let openCalled = false;
+
+  await assert.rejects(
+    withFsMocks(
+      {
+        open: async () => {
+          openCalled = true;
+        },
+        unlink: async (filePath) => {
+          unlinkedFiles.push(filePath);
+        },
+      },
+      () =>
+        withPrismaMocks(
+          {
+            branch: {
+              findMany: async () => {
+                branchLookupCalled = true;
+                return [];
+              },
+            },
+          },
+          () =>
+            createTvContent({
+              actor: { id: 9 },
+              input: {
+                title: "",
+                branchIds: "[1]",
+              },
+              file: {
+                path: tempPath,
+                originalname: "banner.png",
+                mimetype: "image/png",
+                size: PNG_BYTES.length,
+              },
+            })
+        )
+    ),
+    { name: "ZodError" }
+  );
+
+  assert.deepEqual(unlinkedFiles, [tempPath]);
+  assert.equal(branchLookupCalled, false);
+  assert.equal(openCalled, false);
+});
+
+test("createTvContent removes temp upload on unexpected error before promotion", async () => {
+  const tempPath = path.join(tvTempUploadDir, "unexpected-error.upload");
+  const unlinkedFiles = [];
+
+  await assert.rejects(
+    withFsMocks(
+      {
+        unlink: async (filePath) => {
+          unlinkedFiles.push(filePath);
+        },
+      },
+      () =>
+        withPrismaMocks(
+          {
+            branch: {
+              findMany: async () => {
+                throw new Error("branch lookup failed");
+              },
+            },
+          },
+          () =>
+            createTvContent({
+              actor: { id: 9 },
+              input: {
+                title: "Banner",
+                branchIds: "[1]",
+              },
+              file: {
+                path: tempPath,
+                originalname: "banner.png",
+                mimetype: "image/png",
+                size: PNG_BYTES.length,
+              },
+            })
+        )
+    ),
+    /branch lookup failed/
+  );
+
+  assert.deepEqual(unlinkedFiles, [tempPath]);
+});
+
+test("createTvContent ignores ENOENT while cleaning temp upload", async () => {
+  const tempPath = path.join(tvTempUploadDir, "missing-temp.upload");
+  let unlinkCalls = 0;
+
+  await assert.rejects(
+    withFsMocks(
+      {
+        unlink: async () => {
+          unlinkCalls += 1;
+          const error = new Error("missing");
+          error.code = "ENOENT";
+          throw error;
+        },
+      },
+      () =>
+        createTvContent({
+          actor: { id: 9 },
+          input: {
+            title: "",
+            branchIds: "[1]",
+          },
+          file: {
+            path: tempPath,
+            originalname: "banner.png",
+            mimetype: "image/png",
+            size: PNG_BYTES.length,
+          },
+        })
+    ),
+    { name: "ZodError" }
+  );
+
+  assert.equal(unlinkCalls, 1);
+});
+
+test("createTvContent success promotes upload without removing final file", async () => {
+  const tempPath = path.join(tvTempUploadDir, "success.upload");
+  const renamedFiles = [];
+  let unlinkCalled = false;
+  const createdContent = {
+    id: 10,
+    title: "Banner",
+    type: "IMAGE",
+    fileUrl: "/uploads/tv/generated.png",
+    branches: [{ branch: { id: 1, name: "Filial 1" } }],
+  };
+  const originalTransaction = prisma.$transaction;
+
+  prisma.$transaction = async (callback) =>
+    callback({
+      tvContent: {
+        create: async () => ({ id: 10 }),
+        findUnique: async () => createdContent,
+      },
+      tvContentBranch: {
+        createMany: async () => {},
+      },
+    });
+
+  try {
+    const result = await withFsMocks(
+      {
+        open: async () => ({
+          read: async (buffer) => {
+            PNG_BYTES.copy(buffer);
+            return { bytesRead: PNG_BYTES.length };
+          },
+          close: async () => {},
+        }),
+        rename: async (from, to) => {
+          renamedFiles.push({ from, to });
+        },
+        unlink: async () => {
+          unlinkCalled = true;
+        },
+      },
+      () =>
+        withPrismaMocks(
+          {
+            branch: {
+              findMany: async () => [{ id: 1 }],
+            },
+          },
+          () =>
+            createTvContent({
+              actor: { id: 9 },
+              input: {
+                title: "Banner",
+                branchIds: "[1]",
+              },
+              file: {
+                path: tempPath,
+                originalname: "banner.png",
+                mimetype: "image/png",
+                size: PNG_BYTES.length,
+              },
+            })
+        )
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.content, {
+      id: 10,
+      title: "Banner",
+      type: "IMAGE",
+      fileUrl: "/uploads/tv/generated.png",
+      branches: [{ id: 1, name: "Filial 1" }],
+    });
+  } finally {
+    prisma.$transaction = originalTransaction;
+  }
+
+  assert.equal(renamedFiles.length, 1);
+  assert.equal(renamedFiles[0].from, tempPath);
+  assert.ok(renamedFiles[0].to.startsWith(tvUploadDir));
+  assert.equal(unlinkCalled, false);
 });
 
 test("toggleTvContent updates only isActive", async () => {

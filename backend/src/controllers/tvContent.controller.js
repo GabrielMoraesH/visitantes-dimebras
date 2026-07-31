@@ -3,6 +3,7 @@ import crypto from "crypto";
 import multer from "multer";
 import { tvTempUploadDir } from "../config/uploads.js";
 import {
+  assertPathInside,
   TV_FILE_LIMIT_BYTES,
   TV_MEDIA_MIMES,
   validateDeclaredFile,
@@ -55,9 +56,46 @@ function forwardError(err, next) {
   throw err;
 }
 
+async function cleanupTvTempUpload(req) {
+  const uploadedPath = req.file?.path;
+  if (!uploadedPath) return;
+
+  const tempPath = assertPathInside(tvTempUploadDir, uploadedPath);
+  if (!tempPath) return;
+
+  try {
+    await fs.promises.unlink(tempPath);
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      logWarn("tv_temp_upload_cleanup_failed", {
+        requestId: req.requestId,
+        code: err.code,
+      });
+    }
+  }
+}
+
+function registerTvTempUploadCleanup(req, res) {
+  let cleanupStarted = false;
+  req.cleanupTvTempUpload = async () => {
+    if (cleanupStarted) return;
+    cleanupStarted = true;
+    await cleanupTvTempUpload(req);
+  };
+
+  res.once("finish", () => {
+    if (res.statusCode >= 400 && !req.tvTempUploadCleanupHandled) {
+      void req.cleanupTvTempUpload();
+    }
+  });
+}
+
 export function handleTvUploadErrors(req, res, next) {
   tvUpload.single("file")(req, res, (err) => {
-    if (!err) return next();
+    if (!err) {
+      registerTvTempUploadCleanup(req, res);
+      return next();
+    }
 
     if (err instanceof multer.MulterError) {
       logWarn("tv_content_upload_failed", {
@@ -133,7 +171,10 @@ export async function createTvContent(req, res, next) {
       input: req.body,
       file: req.file,
     });
-    if (!result.ok) return res.status(result.status).json({ message: result.message });
+    if (!result.ok) {
+      await req.cleanupTvTempUpload?.();
+      return res.status(result.status).json({ message: result.message });
+    }
 
     logInfo("tv_content_created", {
       requestId: req.requestId,
@@ -144,6 +185,7 @@ export async function createTvContent(req, res, next) {
 
     return res.status(201).json(result.content);
   } catch (err) {
+    req.tvTempUploadCleanupHandled = true;
     logWarn("tv_content_upload_failed", {
       requestId: req.requestId,
       reason: "technical_error",

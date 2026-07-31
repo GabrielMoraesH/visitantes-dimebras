@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import SessionSync from "./SessionSync";
 import { AuthProvider } from "../services/authContext";
 import { useAuth } from "../services/authState";
@@ -37,7 +37,9 @@ function createStorageEvent({ key, oldValue = "valor-antigo", newValue = null, s
 }
 
 function dispatchStorageEvent(options) {
-  window.dispatchEvent(createStorageEvent(options));
+  act(() => {
+    window.dispatchEvent(createStorageEvent(options));
+  });
 }
 
 function LocationProbe() {
@@ -66,11 +68,11 @@ function AuthSeeder() {
   return null;
 }
 
-function renderSessionSync(initialEntry = "/checkin") {
+async function renderSessionSync(initialEntry = "/checkin", { waitForAuthenticated = true } = {}) {
   setSession("token-teste", { id: 1, username: "admin", role: "ADMIN" });
   getCurrentUser.mockResolvedValue({ id: 1, username: "admin", role: "ADMIN" });
 
-  return render(
+  const view = render(
     <AuthProvider>
       <MemoryRouter initialEntries={[initialEntry]}>
         <SessionSync />
@@ -100,6 +102,12 @@ function renderSessionSync(initialEntry = "/checkin") {
       </MemoryRouter>
     </AuthProvider>
   );
+
+  if (waitForAuthenticated) {
+    await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("authenticated"));
+  }
+
+  return view;
 }
 
 describe("SessionSync", () => {
@@ -108,7 +116,7 @@ describe("SessionSync", () => {
   });
 
   it("redireciona para login quando outra aba remove token", async () => {
-    renderSessionSync();
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: "token", newValue: null });
 
@@ -121,7 +129,7 @@ describe("SessionSync", () => {
   });
 
   it("redireciona para login quando outra aba remove user", async () => {
-    renderSessionSync();
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: "user", newValue: null });
 
@@ -132,7 +140,7 @@ describe("SessionSync", () => {
   });
 
   it("redireciona para login quando outra aba chama localStorage.clear", async () => {
-    renderSessionSync();
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: null, newValue: null });
 
@@ -142,8 +150,8 @@ describe("SessionSync", () => {
     expect(getUser()).toBeNull();
   });
 
-  it("ignora alteração comum de token com novo valor", () => {
-    renderSessionSync();
+  it("ignora alteração comum de token com novo valor", async () => {
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: "token", oldValue: "token-antigo", newValue: "token-novo" });
 
@@ -152,8 +160,8 @@ describe("SessionSync", () => {
     expect(getToken()).toBe("token-teste");
   });
 
-  it("ignora alteração de chave não relacionada", () => {
-    renderSessionSync();
+  it("ignora alteração de chave não relacionada", async () => {
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: "tema", oldValue: "claro", newValue: null });
 
@@ -162,8 +170,8 @@ describe("SessionSync", () => {
     expect(getToken()).toBe("token-teste");
   });
 
-  it("ignora evento de outra área de storage", () => {
-    renderSessionSync();
+  it("ignora evento de outra área de storage", async () => {
+    await renderSessionSync();
 
     dispatchStorageEvent({ key: "token", newValue: null, storageArea: sessionStorage });
 
@@ -173,7 +181,7 @@ describe("SessionSync", () => {
   });
 
   it("estando em login, limpa estado sem redirecionamento em loop", async () => {
-    renderSessionSync("/login");
+    await renderSessionSync("/login");
 
     dispatchStorageEvent({ key: "token", newValue: null });
 
@@ -182,7 +190,7 @@ describe("SessionSync", () => {
     expect(screen.getByTestId("auth-status")).toHaveTextContent("unauthenticated");
   });
 
-  it("remove listener no unmount", () => {
+  it("remove listener no unmount", async () => {
     let storageHandler;
     const originalAddEventListener = window.addEventListener.bind(window);
     const addSpy = vi.spyOn(window, "addEventListener").mockImplementation((type, handler, options) => {
@@ -191,7 +199,7 @@ describe("SessionSync", () => {
     });
     const removeSpy = vi.spyOn(window, "removeEventListener");
 
-    const { unmount } = renderSessionSync();
+    const { unmount } = await renderSessionSync();
     unmount();
 
     expect(addSpy).toHaveBeenCalledWith("storage", storageHandler);
@@ -231,9 +239,11 @@ describe("SessionSync", () => {
       })
     );
 
-    renderSessionSync();
+    await renderSessionSync(undefined, { waitForAuthenticated: false });
     dispatchStorageEvent({ key: "token", newValue: null });
-    resolveUser({ id: 1, username: "admin", role: "ADMIN" });
+    await act(async () => {
+      resolveUser({ id: 1, username: "admin", role: "ADMIN" });
+    });
 
     await waitFor(() => expect(screen.getByTestId("auth-status")).toHaveTextContent("unauthenticated"));
     expect(getToken()).toBeNull();

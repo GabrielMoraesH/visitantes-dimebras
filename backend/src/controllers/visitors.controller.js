@@ -121,9 +121,7 @@ export async function updateVisitorFiles(req, res, next) {
     };
 
     if (!files.photo && !files.documentFront && !files.documentBack) {
-      return res
-        .status(400)
-        .json({ message: "Envie photo e/ou documentFront e/ou documentBack" });
+      return res.status(400).json({ message: "Envie ao menos um arquivo para atualizar." });
     }
 
     const result = await VisitorService.updateFiles({

@@ -172,6 +172,15 @@ function withTvUploadSingleMock(replacement, fn) {
     });
 }
 
+async function waitFor(predicate) {
+  const deadline = Date.now() + 500;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(predicate(), true);
+}
+
 function withSilencedApiLogs(fn) {
   const originalError = console.error;
   const originalWarn = console.warn;
@@ -1218,6 +1227,8 @@ test("visitors file upload JSON success keeps the visitor response", async () =>
             (req, res, next) => {
               req.files = {
                 photo: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+                documentFront: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+                documentBack: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
               };
               next();
             },
@@ -1255,7 +1266,9 @@ test("visitors file upload operational file validation remains preserved", async
             "/test/:id/files",
             (req, res, next) => {
               req.files = {
+                photo: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
                 documentFront: [{ buffer: Buffer.from("not an image"), mimetype: "image/jpeg" }],
+                documentBack: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
               };
               next();
             },
@@ -1292,6 +1305,8 @@ test("visitors file upload unexpected error is normalized globally without stack
               (req, res, next) => {
                 req.files = {
                   photo: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+                  documentFront: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
+                  documentBack: [{ buffer: visitorFileBytes, mimetype: "image/jpeg" }],
                 };
                 next();
               },
@@ -1750,6 +1765,94 @@ test("tv content upload wrapper preserves known upload errors and forwards unkno
   assert.equal(JSON.stringify(unknown.body).includes("secret"), false);
 });
 
+test("tv content upload wrapper removes temp upload when later middleware fails", async () => {
+  const tempPath = path.join(tvTempUploadDir, "after-multer-error.upload");
+  const unlinkedFiles = [];
+
+  const failure = await withSilencedApiLogs(() =>
+    withTvUploadSingleMock(
+      () => (req, res, cb) => {
+        req.body = { title: "Banner", branchIds: "[1]" };
+        req.file = {
+          path: tempPath,
+          originalname: "banner.png",
+          mimetype: "image/png",
+          size: tvPngBytes.length,
+        };
+        cb();
+      },
+      () =>
+        withFsMocks(
+          {
+            unlink: async (filePath) => {
+              unlinkedFiles.push(filePath);
+            },
+          },
+          async () => {
+            const response = await request(
+              (app) =>
+                app.post("/test", handleTvUploadErrors, (req, res, next) => {
+                  next(new Error("unexpected failure after multer"));
+                }),
+              { method: "POST" }
+            );
+            await waitFor(() => unlinkedFiles.length === 1);
+            return response;
+          }
+        )
+    )
+  );
+
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+  assert.deepEqual(unlinkedFiles, [tempPath]);
+});
+
+test("tv content upload wrapper ignores ENOENT during temp cleanup", async () => {
+  const tempPath = path.join(tvTempUploadDir, "already-missing.upload");
+  let unlinkCalls = 0;
+
+  const failure = await withSilencedApiLogs(() =>
+    withTvUploadSingleMock(
+      () => (req, res, cb) => {
+        req.file = {
+          path: tempPath,
+          originalname: "banner.png",
+          mimetype: "image/png",
+          size: tvPngBytes.length,
+        };
+        cb();
+      },
+      () =>
+        withFsMocks(
+          {
+            unlink: async () => {
+              unlinkCalls += 1;
+              const error = new Error("missing");
+              error.code = "ENOENT";
+              throw error;
+            },
+          },
+          async () => {
+            const response = await request(
+              (app) =>
+                app.post("/test", handleTvUploadErrors, (req, res, next) => {
+                  next(new Error("unexpected failure after multer"));
+                }),
+              { method: "POST" }
+            );
+            await waitFor(() => unlinkCalls === 1);
+            return response;
+          }
+        )
+    )
+  );
+
+  assert.equal(failure.status, 500);
+  assert.equal(failure.body.code, "INTERNAL_ERROR");
+  assert.equal(unlinkCalls, 1);
+});
+
 test("tv content create preserves 201, missing file contract and forwards service errors without duplicate cleanup", async () => {
   const missingFile = await withTvUploadSingleMock(
     () => (req, res, cb) => {
@@ -1896,7 +1999,7 @@ test("tv content create preserves 201, missing file contract and forwards servic
   );
   assert.equal(failure.status, 500);
   assert.equal(failure.body.code, "INTERNAL_ERROR");
-  assert.equal(unlinkCalls, 1);
+  assert.equal(unlinkCalls, 0);
 });
 
 test("tv content update preserves success, operational 404 and forwards validation or Prisma errors", async () => {

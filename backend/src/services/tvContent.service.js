@@ -286,6 +286,7 @@ export async function listPublicActiveTvContents({ query }) {
 
 export async function createTvContent({ actor, input, file }) {
   let promotedFile = null;
+  let completed = false;
 
   try {
     const data = createSchema.parse(input);
@@ -330,14 +331,14 @@ export async function createTvContent({ actor, input, file }) {
       });
     });
 
+    completed = true;
     return { ok: true, content: serialize(created) };
-  } catch (err) {
-    if (promotedFile?.path) {
-      await removeFileInside(tvUploadDir, promotedFile.path);
-    } else if (file?.path) {
-      await removeTempFile(file.path);
+  } finally {
+    if (!completed) {
+      if (!promotedFile && file?.path) {
+        await removeTempFile(file.path);
+      }
     }
-    throw err;
   }
 }
 

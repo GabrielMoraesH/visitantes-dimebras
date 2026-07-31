@@ -48,6 +48,66 @@ function withPrismaMocks(mocks, fn) {
     });
 }
 
+function makeUpdateVisitorFilesReq(files) {
+  return {
+    params: { id: "10" },
+    user: { id: 1, role: "RECEPCAO", branchId: 1 },
+    files,
+  };
+}
+
+function validVisitorFiles(overrides = {}) {
+  return {
+    photo: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
+    documentFront: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
+    documentBack: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
+    ...overrides,
+  };
+}
+
+const emptyStoredVisitorFiles = {
+  photoBytes: null,
+  photoMime: null,
+  documentFrontBytes: null,
+  documentFrontMime: null,
+  documentBackBytes: null,
+  documentBackMime: null,
+};
+
+const completeStoredVisitorFiles = {
+  photoBytes: Buffer.from("stored photo"),
+  photoMime: "image/jpeg",
+  documentFrontBytes: Buffer.from("stored front"),
+  documentFrontMime: "image/jpeg",
+  documentBackBytes: Buffer.from("stored back"),
+  documentBackMime: "image/jpeg",
+};
+
+async function callUpdateVisitorFiles(req, storedVisitorFiles = emptyStoredVisitorFiles) {
+  const res = createRes();
+  let updateCalled = false;
+  let updateData;
+
+  await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async (args) => {
+          if (args.select?.photoBytes) return storedVisitorFiles;
+          return { id: 10, createdInBranchId: 1 };
+        },
+        update: async (args) => {
+          updateCalled = true;
+          updateData = args.data;
+          return { id: 10 };
+        },
+      },
+    },
+    () => updateVisitorFiles(req, res)
+  );
+
+  return { res, updateCalled, updateData };
+}
+
 async function sendMultipart(parts) {
   const app = express();
   app.put("/files", handleVisitorUploadErrors, (req, res) => {
@@ -129,30 +189,113 @@ test("visitor upload rejects unexpected file field", async () => {
   assert.equal(response.body.message, "Campo de arquivo não reconhecido.");
 });
 
-test("updateVisitorFiles persists all three valid files", async () => {
-  const req = {
-    params: { id: "10" },
-    user: { id: 1, role: "RECEPCAO", branchId: 1 },
-    files: {
-      photo: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
-      documentFront: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
-      documentBack: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
-    },
-  };
-  const res = createRes();
-  let updateData;
+const partialUploadCases = [
+  {
+    name: "only photo",
+    files: validVisitorFiles({ documentFront: undefined, documentBack: undefined }),
+    missing: "documentFront, documentBack",
+  },
+  {
+    name: "only documentFront",
+    files: validVisitorFiles({ photo: undefined, documentBack: undefined }),
+    missing: "photo, documentBack",
+  },
+  {
+    name: "only documentBack",
+    files: validVisitorFiles({ photo: undefined, documentFront: undefined }),
+    missing: "photo, documentFront",
+  },
+  {
+    name: "photo and documentFront",
+    files: validVisitorFiles({ documentBack: undefined }),
+    missing: "documentBack",
+  },
+  {
+    name: "photo and documentBack",
+    files: validVisitorFiles({ documentFront: undefined }),
+    missing: "documentFront",
+  },
+  {
+    name: "documentFront and documentBack",
+    files: validVisitorFiles({ photo: undefined }),
+    missing: "photo",
+  },
+];
 
-  await withPrismaMocks(
-    {
-      visitor: {
-        findUnique: async () => ({ id: 10, createdInBranchId: 1 }),
-        update: async (args) => {
-          updateData = args.data;
-          return { id: 10 };
-        },
-      },
-    },
-    () => updateVisitorFiles(req, res)
+for (const { name, files, missing } of partialUploadCases) {
+  test(`updateVisitorFiles rejects partial upload with ${name}`, async () => {
+    const { res, updateCalled } = await callUpdateVisitorFiles(makeUpdateVisitorFilesReq(files));
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(
+      res.body.message,
+      `Faltam arquivos obrigat\u00f3rios: ${missing}. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o.`
+    );
+    assert.equal(updateCalled, false);
+  });
+}
+
+test("updateVisitorFiles rejects upload with no files", async () => {
+  const { res, updateCalled } = await callUpdateVisitorFiles(makeUpdateVisitorFilesReq(undefined));
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.message, "Envie ao menos um arquivo para atualizar.");
+  assert.equal(updateCalled, false);
+});
+
+test("updateVisitorFiles persists all three valid files", async () => {
+  const { res, updateData } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles())
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(updateData.photoBytes);
+  assert.ok(updateData.documentFrontBytes);
+  assert.ok(updateData.documentBackBytes);
+});
+
+test("updateVisitorFiles allows partial update when visitor already has all files", async () => {
+  const { res, updateData } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles({ documentFront: undefined, documentBack: undefined })),
+    completeStoredVisitorFiles
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(updateData.photoBytes);
+  assert.equal("documentFrontBytes" in updateData, false);
+  assert.equal("documentBackBytes" in updateData, false);
+});
+
+test("updateVisitorFiles rejects partial update when visitor files are inconsistent", async () => {
+  const inconsistentStoredVisitorFiles = {
+    ...emptyStoredVisitorFiles,
+    photoBytes: Buffer.from("stored photo"),
+    photoMime: "image/jpeg",
+  };
+
+  const { res, updateCalled } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles({ documentBack: undefined })),
+    inconsistentStoredVisitorFiles
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(
+    res.body.message,
+    "Cadastro do visitante est\u00e1 inconsistente. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o para regularizar."
+  );
+  assert.equal(updateCalled, false);
+});
+
+test("updateVisitorFiles allows complete upload to regularize inconsistent visitor files", async () => {
+  const inconsistentStoredVisitorFiles = {
+    ...emptyStoredVisitorFiles,
+    photoBytes: Buffer.from("stored photo"),
+    photoMime: "image/jpeg",
+  };
+
+  const { res, updateData } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles()),
+    inconsistentStoredVisitorFiles
   );
 
   assert.equal(res.statusCode, 200);
@@ -162,28 +305,12 @@ test("updateVisitorFiles persists all three valid files", async () => {
 });
 
 test("updateVisitorFiles does not partially update when one file has invalid content", async () => {
-  const req = {
-    params: { id: "10" },
-    user: { id: 1, role: "RECEPCAO", branchId: 1 },
-    files: {
-      photo: [{ buffer: JPEG_BYTES, mimetype: "image/jpeg" }],
-      documentFront: [{ buffer: Buffer.from("not an image"), mimetype: "image/jpeg" }],
-    },
-  };
-  const res = createRes();
-  let updateCalled = false;
-
-  await withPrismaMocks(
-    {
-      visitor: {
-        findUnique: async () => ({ id: 10, createdInBranchId: 1 }),
-        update: async () => {
-          updateCalled = true;
-          return { id: 10 };
-        },
-      },
-    },
-    () => updateVisitorFiles(req, res)
+  const { res, updateCalled } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(
+      validVisitorFiles({
+        documentFront: [{ buffer: Buffer.from("not an image"), mimetype: "image/jpeg" }],
+      })
+    )
   );
 
   assert.equal(res.statusCode, 415);

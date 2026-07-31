@@ -22,6 +22,12 @@ const updateVisitorSchema = z.object({
   company: optionalTrimmedString(LIMITS.company).optional(),
 }).strict();
 
+const visitorFileFields = [
+  ["photo", "photoBytes", "photoMime", "photoUpdatedAt"],
+  ["documentFront", "documentFrontBytes", "documentFrontMime", "documentFrontUpdatedAt"],
+  ["documentBack", "documentBackBytes", "documentBackMime", "documentBackUpdatedAt"],
+];
+
 function validateVisitorFile(file) {
   if (!file) return null;
   return validateMagicBytes(file, VISITOR_IMAGE_MIMES);
@@ -30,13 +36,7 @@ function validateVisitorFile(file) {
 function buildVisitorFileUpdate(files) {
   const data = {};
 
-  const fileFields = [
-    ["photo", "photoBytes", "photoMime", "photoUpdatedAt"],
-    ["documentFront", "documentFrontBytes", "documentFrontMime", "documentFrontUpdatedAt"],
-    ["documentBack", "documentBackBytes", "documentBackMime", "documentBackUpdatedAt"],
-  ];
-
-  for (const [fileKey, bytesKey, mimeKey, updatedAtKey] of fileFields) {
+  for (const [fileKey, bytesKey, mimeKey, updatedAtKey] of visitorFileFields) {
     const file = files[fileKey];
     if (!file) continue;
 
@@ -51,6 +51,48 @@ function buildVisitorFileUpdate(files) {
   }
 
   return { ok: true, data };
+}
+
+function hasStoredVisitorFile(visitor, fileKey) {
+  const field = visitorFileFields.find(([key]) => key === fileKey);
+  if (!field) return false;
+
+  const [, bytesKey, mimeKey] = field;
+  return Boolean(visitor?.[bytesKey] && visitor?.[mimeKey]);
+}
+
+function validateVisitorFileCompleteness({ visitor, files }) {
+  const requiredFields = visitorFileFields.map(([fileKey]) => fileKey);
+  const missingUploadFields = requiredFields.filter((field) => !files[field]);
+  const allFieldsUploaded = missingUploadFields.length === 0;
+  const storedFields = requiredFields.filter((field) => hasStoredVisitorFile(visitor, field));
+
+  if (storedFields.length === requiredFields.length) {
+    return { ok: true };
+  }
+
+  if (allFieldsUploaded) {
+    return { ok: true };
+  }
+
+  if (storedFields.length === 0) {
+    return {
+      ok: false,
+      validation: {
+        statusCode: 400,
+        message: `Faltam arquivos obrigat\u00f3rios: ${missingUploadFields.join(", ")}. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o.`,
+      },
+    };
+  }
+
+  return {
+    ok: false,
+    validation: {
+      statusCode: 400,
+      message:
+        "Cadastro do visitante est\u00e1 inconsistente. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o para regularizar.",
+    },
+  };
 }
 
 export async function ensureFileAccess({ user, id }) {
@@ -177,6 +219,25 @@ export async function update({ user, id, body }) {
 export async function updateFiles({ user, id, files }) {
   const access = await ensureFileAccess({ user, id });
   if (!access.ok) return access;
+
+  const currentVisitorFiles = await prisma.visitor.findUnique({
+    where: { id: access.id },
+    select: {
+      photoBytes: true,
+      photoMime: true,
+      documentFrontBytes: true,
+      documentFrontMime: true,
+      documentBackBytes: true,
+      documentBackMime: true,
+    },
+  });
+  if (!currentVisitorFiles) return { ok: false, reason: "not-found" };
+
+  const completeness = validateVisitorFileCompleteness({
+    visitor: currentVisitorFiles,
+    files,
+  });
+  if (!completeness.ok) return completeness;
 
   const dataResult = buildVisitorFileUpdate(files);
   if (!dataResult.ok) return dataResult;
