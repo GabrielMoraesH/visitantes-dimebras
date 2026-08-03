@@ -115,11 +115,8 @@ describe("visitor registration utils", () => {
     );
     expect(
       uploadVisitorRegistrationErrorMessage({
-        cleanupFailed: true,
         response: { data: { message: "Falha no upload" } },
       })
-    ).toBe(
-      "Falha no upload. O cadastro pode ter ficado incompleto; busque o CPF novamente para continuar."
-    );
+    ).toBe("Falha no upload");
   });
 });

@@ -91,6 +91,12 @@ const completeStoredVisitorFiles = {
   documentBackMime: "image/jpeg",
 };
 
+const expiredDocumentStoredVisitorFiles = {
+  ...emptyStoredVisitorFiles,
+  photoBytes: Buffer.from("stored photo"),
+  photoMime: "image/jpeg",
+};
+
 async function callUpdateVisitorFiles(req, storedVisitorFiles = emptyStoredVisitorFiles) {
   const res = createRes();
   let updateCalled = false;
@@ -537,7 +543,7 @@ test("updateVisitorFiles rejects upload with no files", async () => {
   assert.equal(updateCalled, false);
 });
 
-test("updateVisitorFiles persists all three valid files", async () => {
+test("updateVisitorFiles persists all three valid files for visitor without media", async () => {
   const { res, updateData } = await callUpdateVisitorFiles(
     makeUpdateVisitorFilesReq(validVisitorFiles())
   );
@@ -546,6 +552,9 @@ test("updateVisitorFiles persists all three valid files", async () => {
   assert.ok(updateData.photoBytes);
   assert.ok(updateData.documentFrontBytes);
   assert.ok(updateData.documentBackBytes);
+  assert.ok(updateData.photoUpdatedAt instanceof Date);
+  assert.ok(updateData.documentFrontUpdatedAt instanceof Date);
+  assert.ok(updateData.documentBackUpdatedAt instanceof Date);
 });
 
 test("updateVisitorFiles allows partial update when visitor already has all files", async () => {
@@ -560,16 +569,25 @@ test("updateVisitorFiles allows partial update when visitor already has all file
   assert.equal("documentBackBytes" in updateData, false);
 });
 
-test("updateVisitorFiles rejects partial update when visitor files are inconsistent", async () => {
-  const inconsistentStoredVisitorFiles = {
-    ...emptyStoredVisitorFiles,
-    photoBytes: Buffer.from("stored photo"),
-    photoMime: "image/jpeg",
-  };
+test("updateVisitorFiles allows document update without photo when visitor already has all files", async () => {
+  const { res, updateData } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles({ photo: undefined })),
+    completeStoredVisitorFiles
+  );
 
+  assert.equal(res.statusCode, 200);
+  assert.equal("photoBytes" in updateData, false);
+  assert.equal("photoUpdatedAt" in updateData, false);
+  assert.ok(updateData.documentFrontBytes);
+  assert.ok(updateData.documentBackBytes);
+});
+
+test("updateVisitorFiles rejects only documentFront when stored documents are expired", async () => {
   const { res, updateCalled } = await callUpdateVisitorFiles(
-    makeUpdateVisitorFilesReq(validVisitorFiles({ documentBack: undefined })),
-    inconsistentStoredVisitorFiles
+    makeUpdateVisitorFilesReq(
+      validVisitorFiles({ photo: undefined, documentBack: undefined })
+    ),
+    expiredDocumentStoredVisitorFiles
   );
 
   assert.equal(res.statusCode, 400);
@@ -580,16 +598,103 @@ test("updateVisitorFiles rejects partial update when visitor files are inconsist
   assert.equal(updateCalled, false);
 });
 
-test("updateVisitorFiles allows complete upload to regularize inconsistent visitor files", async () => {
-  const inconsistentStoredVisitorFiles = {
-    ...emptyStoredVisitorFiles,
-    photoBytes: Buffer.from("stored photo"),
-    photoMime: "image/jpeg",
-  };
+test("updateVisitorFiles rejects only documentBack when stored documents are expired", async () => {
+  const { res, updateCalled } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(
+      validVisitorFiles({ photo: undefined, documentFront: undefined })
+    ),
+    expiredDocumentStoredVisitorFiles
+  );
 
+  assert.equal(res.statusCode, 400);
+  assert.equal(
+    res.body.message,
+    "Cadastro do visitante est\u00e1 inconsistente. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o para regularizar."
+  );
+  assert.equal(updateCalled, false);
+});
+
+test("updateVisitorFiles accepts documentFront and documentBack when stored documents are expired", async () => {
+  const { res, updateData } = await callUpdateVisitorFiles(
+    makeUpdateVisitorFilesReq(validVisitorFiles({ photo: undefined })),
+    expiredDocumentStoredVisitorFiles
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal("photoBytes" in updateData, false);
+  assert.equal("photoMime" in updateData, false);
+  assert.equal("photoUpdatedAt" in updateData, false);
+  assert.ok(updateData.documentFrontBytes);
+  assert.ok(updateData.documentBackBytes);
+  assert.ok(updateData.documentFrontUpdatedAt instanceof Date);
+  assert.ok(updateData.documentBackUpdatedAt instanceof Date);
+});
+
+const inconsistentStoredVisitorFileCases = [
+  {
+    name: "photo and documentFront",
+    stored: {
+      ...expiredDocumentStoredVisitorFiles,
+      documentFrontBytes: Buffer.from("stored front"),
+      documentFrontMime: "image/jpeg",
+    },
+  },
+  {
+    name: "photo and documentBack",
+    stored: {
+      ...expiredDocumentStoredVisitorFiles,
+      documentBackBytes: Buffer.from("stored back"),
+      documentBackMime: "image/jpeg",
+    },
+  },
+  {
+    name: "documentFront and documentBack",
+    stored: {
+      ...emptyStoredVisitorFiles,
+      documentFrontBytes: Buffer.from("stored front"),
+      documentFrontMime: "image/jpeg",
+      documentBackBytes: Buffer.from("stored back"),
+      documentBackMime: "image/jpeg",
+    },
+  },
+  {
+    name: "only documentFront",
+    stored: {
+      ...emptyStoredVisitorFiles,
+      documentFrontBytes: Buffer.from("stored front"),
+      documentFrontMime: "image/jpeg",
+    },
+  },
+  {
+    name: "only documentBack",
+    stored: {
+      ...emptyStoredVisitorFiles,
+      documentBackBytes: Buffer.from("stored back"),
+      documentBackMime: "image/jpeg",
+    },
+  },
+];
+
+for (const { name, stored } of inconsistentStoredVisitorFileCases) {
+  test(`updateVisitorFiles rejects document-only upload for inconsistent stored state with ${name}`, async () => {
+    const { res, updateCalled } = await callUpdateVisitorFiles(
+      makeUpdateVisitorFilesReq(validVisitorFiles({ photo: undefined })),
+      stored
+    );
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(
+      res.body.message,
+      "Cadastro do visitante est\u00e1 inconsistente. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o para regularizar."
+    );
+    assert.equal(updateCalled, false);
+  });
+}
+
+test("updateVisitorFiles allows complete upload to regularize inconsistent visitor files", async () => {
   const { res, updateData } = await callUpdateVisitorFiles(
     makeUpdateVisitorFilesReq(validVisitorFiles()),
-    inconsistentStoredVisitorFiles
+    expiredDocumentStoredVisitorFiles
   );
 
   assert.equal(res.statusCode, 200);

@@ -90,12 +90,20 @@ function validateVisitorFileCompleteness({ visitor, files }) {
   const missingUploadFields = requiredFields.filter((field) => !files[field]);
   const allFieldsUploaded = missingUploadFields.length === 0;
   const storedFields = requiredFields.filter((field) => hasStoredVisitorFile(visitor, field));
+  const hasOnlyStoredPhoto =
+    storedFields.length === 1 && storedFields[0] === "photo";
+  const documentFieldsUploaded =
+    Boolean(files.documentFront) && Boolean(files.documentBack) && !files.photo;
 
   if (storedFields.length === requiredFields.length) {
     return { ok: true };
   }
 
   if (allFieldsUploaded) {
+    return { ok: true };
+  }
+
+  if (hasOnlyStoredPhoto && documentFieldsUploaded) {
     return { ok: true };
   }
 
