@@ -1,4 +1,5 @@
 import * as authService from "../services/auth.service.js";
+import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 import { logInfo, logWarn } from "../utils/logger.js";
 
 export async function login(req, res, next) {
@@ -16,6 +17,16 @@ export async function login(req, res, next) {
       requestId: req.requestId,
       userId: result.user.id,
       branchId: result.user.branch.id,
+    });
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      userId: result.user.id,
+      branchId: result.user.branch?.id,
+      action: "LOGIN",
+      entity: "AUTH",
+      entityId: String(result.user.id),
+      metadata: { success: true },
     });
 
     return res.json({ token: result.token, user: result.user });

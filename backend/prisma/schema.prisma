@@ -23,14 +23,15 @@ enum TvContentType {
 }
 
 model Branch {
-  id             Int               @id @default(autoincrement())
-  name           String
-  users          User[]
-  visits         Visit[]
-  createdVisitors Visitor[]        @relation("VisitorCreatedInBranch")
-  agendaEvents   AgendaEvent[]
-  tvContentLinks TvContentBranch[]
-  createdAt      DateTime          @default(now())
+  id              Int               @id @default(autoincrement())
+  name            String
+  users           User[]
+  visits          Visit[]
+  createdVisitors Visitor[]         @relation("VisitorCreatedInBranch")
+  agendaEvents    AgendaEvent[]
+  tvContentLinks  TvContentBranch[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime          @default(now())
 
   @@map("branches")
 }
@@ -44,11 +45,12 @@ model User {
   branchId Int
   branch   Branch @relation(fields: [branchId], references: [id])
 
-  checkins     Visit[]       @relation("CheckinBy")
-  checkouts    Visit[]       @relation("CheckoutBy")
-  createdVisitors Visitor[]  @relation("VisitorCreatedBy")
-  agendaEvents AgendaEvent[]
-  tvContents   TvContent[]
+  checkins        Visit[]       @relation("CheckinBy")
+  checkouts       Visit[]       @relation("CheckoutBy")
+  createdVisitors Visitor[]     @relation("VisitorCreatedBy")
+  agendaEvents    AgendaEvent[]
+  tvContents      TvContent[]
+  auditLogs       AuditLog[]
 
   isActive Boolean @default(true)
 
@@ -185,4 +187,29 @@ model TvContentBranch {
   @@id([tvContentId, branchId])
   @@index([branchId])
   @@map("tv_content_branches")
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  userId      Int?
+  branchId    Int?
+  action      String
+  entity      String
+  entityId    String?
+  description String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([action, createdAt])
+  @@index([entity, entityId, createdAt])
+  @@map("audit_logs")
 }

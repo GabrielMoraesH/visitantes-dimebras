@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { randomBytes } from "crypto";
 import * as visitService from "../services/visit.service.js";
+import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 import { logInfo, logWarn } from "../utils/logger.js";
 
 function escapeHtml(value = "") {
@@ -209,6 +210,15 @@ export async function checkin(req, res, next) {
       userId: req.user?.id ?? null,
     });
 
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      branchId: result.visit.branchId,
+      action: "CHECKIN",
+      entity: "VISIT",
+      entityId: String(result.visit.id),
+      metadata: { visitorId: result.visit.visitorId },
+    });
+
     return res.status(201).json(result.visit);
   } catch (error) {
     return next(error);
@@ -314,6 +324,15 @@ export async function checkout(req, res, next) {
       visitorId: result.visit.visitorId,
       branchId: result.visit.branchId,
       userId: req.user?.id ?? null,
+    });
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      branchId: result.visit.branchId,
+      action: "CHECKOUT",
+      entity: "VISIT",
+      entityId: String(result.visit.id),
+      metadata: { visitorId: result.visit.visitorId },
     });
 
     return res.json(result.visit);

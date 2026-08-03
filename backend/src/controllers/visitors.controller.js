@@ -1,4 +1,5 @@
 import * as VisitorService from "../services/visitor.service.js";
+import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 import { badRequest } from "../utils/errors.js";
 
 function sendSensitiveFileHeaders(res, contentType) {
@@ -65,6 +66,14 @@ export async function createVisitor(req, res, next) {
       body: req.body,
     });
 
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: "VISITOR_CREATE",
+      entity: "VISITOR",
+      entityId: String(created.id),
+      metadata: { withFiles: false },
+    });
+
     return res.status(201).json(created);
   } catch (error) {
     return next(error);
@@ -110,6 +119,14 @@ export async function createVisitorWithFiles(req, res, next) {
         .status(result.validation.statusCode)
         .json({ message: result.validation.message });
     }
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: "VISITOR_CREATE",
+      entity: "VISITOR",
+      entityId: String(result.visitor.id),
+      metadata: { withFiles: true },
+    });
 
     return res.status(201).json(result.visitor);
   } catch (error) {
@@ -183,6 +200,18 @@ export async function updateVisitorFiles(req, res, next) {
         .status(result.validation.statusCode)
         .json({ message: result.validation.message });
     }
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: "VISITOR_FILES_UPDATE",
+      entity: "VISITOR",
+      entityId: String(result.visitor.id),
+      metadata: {
+        photoUpdated: Boolean(files.photo),
+        documentFrontUpdated: Boolean(files.documentFront),
+        documentBackUpdated: Boolean(files.documentBack),
+      },
+    });
 
     return res.json(result.visitor);
   } catch (error) {
