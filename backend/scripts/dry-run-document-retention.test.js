@@ -124,8 +124,8 @@ test("query selects only safe fields and never selects document bytes", () => {
   assert.deepEqual(query.where, {
     documentFrontBytes: { not: null },
     documentBackBytes: { not: null },
-    documentFrontUpdatedAt: { lte: cutoff },
-    documentBackUpdatedAt: { lte: cutoff },
+    documentFrontUpdatedAt: { not: null, lte: cutoff },
+    documentBackUpdatedAt: { not: null, lte: cutoff },
   });
   assert.deepEqual(query.select, {
     id: true,
