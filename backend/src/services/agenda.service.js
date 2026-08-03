@@ -11,7 +11,7 @@ import {
 
 const asString = (v) => (v === null || v === undefined ? "" : String(v));
 const PAST_AGENDA_MESSAGE =
-  "N\u00e3o \u00e9 permitido agendar uma visita para uma data ou hor\u00e1rio anterior ao momento atual.";
+  "Não é permitido agendar uma visita para uma data ou horário anterior ao momento atual.";
 
 const createAgendaSchema = z.object({
   visitorName: z.preprocess(
@@ -94,7 +94,7 @@ function parseAgendaInput(input) {
   const eventDate = new Date(data.eventDateTime);
 
   if (isNaN(eventDate.getTime())) {
-    return { ok: false, reason: "invalid-date", message: "Data do evento inv\u00e1lida." };
+    return { ok: false, reason: "invalid-date", message: "Data do evento inválida." };
   }
 
   const eventDateError = validateFutureDate(eventDate);
@@ -128,7 +128,7 @@ async function findAccessibleEvent({ user, eventId }) {
   });
 
   if (!event) {
-    return { ok: false, reason: "not-found", message: "Agendamento n\u00e3o encontrado." };
+    return { ok: false, reason: "not-found", message: "Agendamento não encontrado." };
   }
 
   return { ok: true, event };
@@ -159,7 +159,7 @@ export async function listPublicTvNowEvents({ query }) {
     return {
       ok: false,
       reason: "missing-branch",
-      message: "Filial obrigat\u00f3ria para exibi\u00e7\u00e3o da TV.",
+      message: "Filial obrigatória para exibição da TV.",
     };
   }
 
@@ -170,7 +170,7 @@ export async function listPublicTvNowEvents({ query }) {
   });
 
   if (!branch) {
-    return { ok: false, reason: "branch-not-found", message: "Filial n\u00e3o encontrada." };
+    return { ok: false, reason: "branch-not-found", message: "Filial não encontrada." };
   }
 
   const now = new Date();

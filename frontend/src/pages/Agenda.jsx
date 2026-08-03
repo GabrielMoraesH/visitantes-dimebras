@@ -81,7 +81,7 @@ export default function Agenda() {
       setEvents([]);
       setLoadError(
         error?.response?.data?.message ||
-        "N\u00e3o foi poss\u00edvel carregar a agenda."
+        "Não foi possível carregar a agenda."
       );
     } finally {
       loadingAgendaRef.current = false;

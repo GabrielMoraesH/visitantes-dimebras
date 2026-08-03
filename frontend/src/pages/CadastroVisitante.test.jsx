@@ -453,9 +453,9 @@ describe("CadastroVisitante CPF feedback", () => {
 
   it("preserva disabled nos botoes de captura durante salvamento sem mudar o submit", async () => {
     const user = userEvent.setup();
-    let resolvePut;
-    api.put.mockReturnValue(new Promise((resolve) => {
-      resolvePut = resolve;
+    let resolvePost;
+    api.post.mockReturnValue(new Promise((resolve) => {
+      resolvePost = resolve;
     }));
     renderCadastro();
 
@@ -473,15 +473,15 @@ describe("CadastroVisitante CPF feedback", () => {
       expect(button).toHaveClass("btn-capture");
     }
 
-    resolvePut({});
+    resolvePost({ status: 201, data: { id: 10 } });
     await waitFor(() => expect(screen.getByText("Checkin destino")).toBeInTheDocument());
   });
 
   it("mostra status visual e acessivel durante o salvamento sem duplicar nome acessivel", async () => {
     const user = userEvent.setup();
-    let resolvePut;
-    api.put.mockReturnValue(new Promise((resolve) => {
-      resolvePut = resolve;
+    let resolvePost;
+    api.post.mockReturnValue(new Promise((resolve) => {
+      resolvePost = resolve;
     }));
     const { container } = renderCadastro();
 
@@ -495,7 +495,7 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(screen.getAllByText("Salvando cadastro, aguarde...")).toHaveLength(1);
     expect(container.querySelector(".cadastro-savingSpinner")).toHaveAttribute("aria-hidden", "true");
 
-    resolvePut({});
+    resolvePost({ status: 201, data: { id: 10 } });
     await waitFor(() => expect(screen.getByText("Checkin destino")).toBeInTheDocument());
   });
 
@@ -720,7 +720,7 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("continua enviando o mesmo payload depois da reorganizacao visual", async () => {
+  it("envia o FormData transacional depois da reorganizacao visual", async () => {
     const user = userEvent.setup();
     renderCadastro();
 
@@ -728,19 +728,24 @@ describe("CadastroVisitante CPF feedback", () => {
 
     await user.click(screen.getByRole("button", { name: /salvar/i }));
 
-    await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith("/visitors", {
-        company: "Dimebras",
-        cpf: "52998224725",
-        name: "Maria Silva",
-        phone: "45999999999",
-      })
-    );
-    expect(api.put).toHaveBeenCalledWith(
-      "/visitors/10/files",
-      expect.any(FormData),
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith("/visitors/with-files", expect.any(FormData)));
+    const formData = api.post.mock.calls[0][1];
+    expect(api.post.mock.calls[0]).toHaveLength(2);
+    expect(Array.from(formData.keys())).toEqual([
+      "name",
+      "cpf",
+      "phone",
+      "company",
+      "photo",
+      "documentFront",
+      "documentBack",
+    ]);
+    expect(formData.get("name")).toBe("Maria Silva");
+    expect(formData.get("cpf")).toBe("52998224725");
+    expect(formData.get("phone")).toBe("45999999999");
+    expect(formData.get("company")).toBe("Dimebras");
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
   });
 
   it("impede que o foco escape para a pagina atras da camera", async () => {

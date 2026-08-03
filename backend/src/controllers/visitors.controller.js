@@ -1,4 +1,5 @@
 import * as VisitorService from "../services/visitor.service.js";
+import { badRequest } from "../utils/errors.js";
 
 function sendSensitiveFileHeaders(res, contentType) {
   res.setHeader("Content-Type", contentType || "image/jpeg");
@@ -17,22 +18,22 @@ async function ensureVisitorFileAccess(req, res) {
   if (access.ok) return access.id;
 
   if (access.reason === "invalid-id") {
-    res.status(400).json({ message: "ID inv\u00e1lido" });
+    res.status(400).json({ message: "ID inválido" });
     return null;
   }
 
-  res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
+  res.status(404).json({ message: "Visitante não encontrado." });
   return null;
 }
 
 function sendFileAccessError(res, result) {
   if (result.reason === "invalid-id") {
-    res.status(400).json({ message: "ID inv\u00e1lido" });
+    res.status(400).json({ message: "ID inválido" });
     return true;
   }
 
   if (result.reason === "not-found") {
-    res.status(404).json({ message: "Visitante n\u00e3o encontrado." });
+    res.status(404).json({ message: "Visitante não encontrado." });
     return true;
   }
 
@@ -47,7 +48,7 @@ export async function getByCpf(req, res, next) {
     });
 
     if (!result.found) {
-      const message = result.inaccessible ? "Visitante não encontrado" : "Visitante n\u00e3o encontrado";
+      const message = result.inaccessible ? "Visitante não encontrado" : "Visitante não encontrado";
       return res.status(404).json({ message });
     }
 
@@ -65,6 +66,52 @@ export async function createVisitor(req, res, next) {
     });
 
     return res.status(201).json(created);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function collectRequiredVisitorFiles(req) {
+  const files = {
+    photo: req.files?.photo || [],
+    documentFront: req.files?.documentFront || [],
+    documentBack: req.files?.documentBack || [],
+  };
+
+  const missing = Object.entries(files)
+    .filter(([, value]) => value.length !== 1)
+    .map(([field]) => field);
+
+  if (missing.length > 0) {
+    throw badRequest(
+      `Envie exatamente um arquivo para cada campo obrigatório: photo, documentFront e documentBack. Campos ausentes ou incompletos: ${missing.join(", ")}.`,
+      "VISITOR_FILES_REQUIRED"
+    );
+  }
+
+  return {
+    photo: files.photo[0],
+    documentFront: files.documentFront[0],
+    documentBack: files.documentBack[0],
+  };
+}
+
+export async function createVisitorWithFiles(req, res, next) {
+  try {
+    const files = collectRequiredVisitorFiles(req);
+    const result = await VisitorService.createWithFiles({
+      user: req.user,
+      body: req.body,
+      files,
+    });
+
+    if (!result.ok) {
+      return res
+        .status(result.validation.statusCode)
+        .json({ message: result.validation.message });
+    }
+
+    return res.status(201).json(result.visitor);
   } catch (error) {
     return next(error);
   }
@@ -97,7 +144,7 @@ export async function updateVisitor(req, res, next) {
 
     if (!result.ok) {
       if (result.reason === "invalid-id") {
-        return res.status(400).json({ message: "ID inv\u00e1lido" });
+        return res.status(400).json({ message: "ID inválido" });
       }
 
       return res.status(404).json({ message: "Visitante não encontrado" });

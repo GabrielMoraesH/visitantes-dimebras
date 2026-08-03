@@ -7,7 +7,7 @@ import {
 import { useToast } from "./Feedback/ToastProvider";
 
 const PAST_AGENDA_MESSAGE =
-    "N\u00e3o \u00e9 permitido agendar uma visita para uma data ou hor\u00e1rio anterior ao momento atual.";
+    "Não é permitido agendar uma visita para uma data ou horário anterior ao momento atual.";
 
 function formatDateForInput(date) {
     const year = date.getFullYear();

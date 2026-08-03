@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildVisitorFilesFormData,
   buildVisitorRegistrationPayload,
+  buildVisitorWithFilesFormData,
   getFirstVisitorRegistrationError,
   isValidCPF,
   isValidPhone,
@@ -66,6 +67,39 @@ describe("visitor registration utils", () => {
     const docBack = new File(["back"], "back.jpg", { type: "image/jpeg" });
     const formData = buildVisitorFilesFormData({ docBack, docFront, photo });
 
+    expect(formData.get("photo")).toBe(photo);
+    expect(formData.get("documentFront")).toBe(docFront);
+    expect(formData.get("documentBack")).toBe(docBack);
+  });
+
+  it("monta FormData transacional com os campos exatos e normalizados", () => {
+    const photo = new File(["photo"], "photo.jpg", { type: "image/jpeg" });
+    const docFront = new File(["front"], "front.jpg", { type: "image/jpeg" });
+    const docBack = new File(["back"], "back.jpg", { type: "image/jpeg" });
+
+    const formData = buildVisitorWithFilesFormData({
+      company: " Dimebras ",
+      cpfDigits: "52998224725",
+      docBack,
+      docFront,
+      name: " Maria Silva ",
+      phoneDisplay: "(45) 99999-9999",
+      photo,
+    });
+
+    expect(Array.from(formData.keys())).toEqual([
+      "name",
+      "cpf",
+      "phone",
+      "company",
+      "photo",
+      "documentFront",
+      "documentBack",
+    ]);
+    expect(formData.get("name")).toBe("Maria Silva");
+    expect(formData.get("cpf")).toBe("52998224725");
+    expect(formData.get("phone")).toBe("45999999999");
+    expect(formData.get("company")).toBe("Dimebras");
     expect(formData.get("photo")).toBe(photo);
     expect(formData.get("documentFront")).toBe(docFront);
     expect(formData.get("documentBack")).toBe(docBack);

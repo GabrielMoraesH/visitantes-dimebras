@@ -59,6 +59,19 @@ export function buildVisitorFilesFormData({ photo, docFront, docBack }) {
   return fd;
 }
 
+export function buildVisitorWithFilesFormData({ company, cpfDigits, docBack, docFront, name, phoneDisplay, photo }) {
+  const payload = buildVisitorRegistrationPayload({ company, cpfDigits, name, phoneDisplay });
+  const fd = new FormData();
+  fd.set("name", payload.name);
+  fd.set("cpf", payload.cpf);
+  fd.set("phone", payload.phone);
+  fd.set("company", payload.company);
+  fd.set("photo", photo);
+  fd.set("documentFront", docFront);
+  fd.set("documentBack", docBack);
+  return fd;
+}
+
 export function uploadVisitorRegistrationErrorMessage(err) {
   const status = err?.response?.status;
   const code = err?.response?.data?.code;

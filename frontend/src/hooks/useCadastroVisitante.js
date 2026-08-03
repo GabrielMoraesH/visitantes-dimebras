@@ -5,6 +5,7 @@ import { getToken } from "../services/session";
 import {
   buildVisitorFilesFormData,
   buildVisitorRegistrationPayload,
+  buildVisitorWithFilesFormData,
   formatCPF,
   formatPhone,
   getFirstVisitorRegistrationError,
@@ -174,6 +175,12 @@ export default function useCadastroVisitante() {
     });
   }
 
+  function isVisitorWithFilesEndpointUnavailable(err) {
+    const status = err?.response?.status;
+    const code = err?.response?.data?.code;
+    return status === 404 || status === 405 || (!status && code === "VISITOR_WITH_FILES_ENDPOINT_NOT_FOUND");
+  }
+
   async function cleanupIncompleteVisitor(visitorId) {
     try {
       await api.delete(`/visitors/${visitorId}/incomplete-created`);
@@ -182,6 +189,47 @@ export default function useCadastroVisitante() {
       console.warn("Falha ao executar compensacao de visitante incompleto.");
       return false;
     }
+  }
+
+  async function submitVisitorLegacyFlow() {
+    let createdVisitorId = null;
+    let created;
+
+    try {
+      const response = await api.post(
+        "/visitors",
+        buildVisitorRegistrationPayload({ company, cpfDigits, name, phoneDisplay })
+      );
+      created = response.data;
+      createdVisitorId = created.id;
+    } catch (createErr) {
+      if (createErr?.response?.status !== 409) throw createErr;
+
+      const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`);
+      created = existing.data;
+    }
+
+    try {
+      await uploadVisitorFiles(created.id);
+    } catch (uploadErr) {
+      if (createdVisitorId) {
+        const cleaned = await cleanupIncompleteVisitor(createdVisitorId);
+        uploadErr.cleanupFailed = !cleaned;
+      }
+      throw uploadErr;
+    }
+  }
+
+  async function submitVisitorWithFiles() {
+    return api.post(
+      "/visitors/with-files",
+      buildVisitorWithFilesFormData({ company, cpfDigits, docBack, docFront, name, phoneDisplay, photo })
+    );
+  }
+
+  async function submitExistingVisitorFiles() {
+    const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`);
+    await uploadVisitorFiles(existing.data.id);
   }
 
   function onChangeCpfInput(value) {
@@ -271,32 +319,18 @@ export default function useCadastroVisitante() {
     setSaving(true);
     setMsg("");
 
-    let createdVisitorId = null;
-
     try {
-      let created;
       try {
-        const response = await api.post(
-          "/visitors",
-          buildVisitorRegistrationPayload({ company, cpfDigits, name, phoneDisplay })
-        );
-        created = response.data;
-        createdVisitorId = created.id;
-      } catch (createErr) {
-        if (createErr?.response?.status !== 409) throw createErr;
-
-        const existing = await api.get(`/visitors/by-cpf/${cpfDigits}`);
-        created = existing.data;
-      }
-
-      try {
-        await uploadVisitorFiles(created.id);
-      } catch (uploadErr) {
-        if (createdVisitorId) {
-          const cleaned = await cleanupIncompleteVisitor(createdVisitorId);
-          uploadErr.cleanupFailed = !cleaned;
+        await submitVisitorWithFiles();
+      } catch (submitErr) {
+        if (submitErr?.response?.status === 409) {
+          await submitExistingVisitorFiles();
+        } else if (isVisitorWithFilesEndpointUnavailable(submitErr)) {
+          // Fallback temporario para deploys onde o frontend novo chega antes da rota transacional.
+          await submitVisitorLegacyFlow();
+        } else {
+          throw submitErr;
         }
-        throw uploadErr;
       }
 
       navigate(`/checkin?cpf=${cpfDigits}`);

@@ -17,6 +17,13 @@ const createVisitorSchema = z.object({
   company: optionalTrimmedString(LIMITS.company),
 }).strict();
 
+const createVisitorWithFilesSchema = z.object({
+  name: trimmedString(LIMITS.name, "Nome inválido").min(2, "Nome inválido"),
+  cpf: cpfSchema,
+  phone: z.string().pipe(phoneSchema),
+  company: trimmedString(LIMITS.company, "Empresa inválida"),
+}).strict();
+
 const updateVisitorSchema = z.object({
   phone: phoneSchema.optional(),
   company: optionalTrimmedString(LIMITS.company).optional(),
@@ -53,6 +60,23 @@ function buildVisitorFileUpdate(files) {
   return { ok: true, data };
 }
 
+function buildRequiredVisitorFileCreate(files, now) {
+  const data = {};
+
+  for (const [fileKey, bytesKey, mimeKey, updatedAtKey] of visitorFileFields) {
+    const validation = validateVisitorFile(files[fileKey]);
+    if (!validation?.ok) {
+      return { ok: false, validation };
+    }
+
+    data[bytesKey] = files[fileKey].buffer;
+    data[mimeKey] = validation.detected.mime;
+    data[updatedAtKey] = now;
+  }
+
+  return { ok: true, data };
+}
+
 function hasStoredVisitorFile(visitor, fileKey) {
   const field = visitorFileFields.find(([key]) => key === fileKey);
   if (!field) return false;
@@ -80,7 +104,7 @@ function validateVisitorFileCompleteness({ visitor, files }) {
       ok: false,
       validation: {
         statusCode: 400,
-        message: `Faltam arquivos obrigat\u00f3rios: ${missingUploadFields.join(", ")}. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o.`,
+        message: `Faltam arquivos obrigatórios: ${missingUploadFields.join(", ")}. Envie photo, documentFront e documentBack na mesma requisição.`,
       },
     };
   }
@@ -90,7 +114,7 @@ function validateVisitorFileCompleteness({ visitor, files }) {
     validation: {
       statusCode: 400,
       message:
-        "Cadastro do visitante est\u00e1 inconsistente. Envie photo, documentFront e documentBack na mesma requisi\u00e7\u00e3o para regularizar.",
+        "Cadastro do visitante está inconsistente. Envie photo, documentFront e documentBack na mesma requisição para regularizar.",
     },
   };
 }
@@ -159,6 +183,40 @@ export async function create({ user, body }) {
       createdAt: true,
     },
   });
+}
+
+export async function createWithFiles({ user, body, files }) {
+  const data = createVisitorWithFilesSchema.parse(body);
+  const now = new Date();
+  const fileData = buildRequiredVisitorFileCreate(files, now);
+  if (!fileData.ok) return fileData;
+
+  const visitor = await prisma.$transaction((tx) =>
+    tx.visitor.create({
+      data: {
+        name: data.name,
+        cpf: data.cpf,
+        phone: data.phone,
+        company: data.company,
+        createdById: user.id,
+        createdInBranchId: user.branchId,
+        ...fileData.data,
+      },
+      select: {
+        id: true,
+        name: true,
+        cpf: true,
+        phone: true,
+        company: true,
+        photoUpdatedAt: true,
+        documentFrontUpdatedAt: true,
+        documentBackUpdatedAt: true,
+        createdAt: true,
+      },
+    })
+  );
+
+  return { ok: true, visitor };
 }
 
 export async function deleteIncompleteFromCurrentAttempt({ user, id }) {

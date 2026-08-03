@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import useCadastroVisitante from "./useCadastroVisitante";
@@ -199,7 +199,7 @@ describe("useCadastroVisitante", () => {
     vi.useRealTimers();
   });
 
-  it("submit valido preserva payload, upload, bloqueio duplicado e finalizacao do saving", async () => {
+  it("submit valido usa endpoint transacional, bloqueia duplicidade, navega e finaliza saving", async () => {
     let resolvePost;
     api.post.mockReturnValue(new Promise((resolve) => {
       resolvePost = resolve;
@@ -215,24 +215,134 @@ describe("useCadastroVisitante", () => {
     });
 
     expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post.mock.calls[0][0]).toBe("/visitors/with-files");
     expect(result.current.submission.saving).toBe(true);
 
     await act(async () => {
-      resolvePost({ data: { id: 10 } });
+      resolvePost({ status: 201, data: { id: 10 } });
       await firstSubmit;
     });
 
-    expect(api.post).toHaveBeenCalledWith("/visitors", {
-      company: "Dimebras",
-      cpf: "52998224725",
-      name: "Maria Silva",
-      phone: "45999999999",
+    const formData = api.post.mock.calls[0][1];
+    expect(api.post.mock.calls[0]).toHaveLength(2);
+    expect(Array.from(formData.keys())).toEqual([
+      "name",
+      "cpf",
+      "phone",
+      "company",
+      "photo",
+      "documentFront",
+      "documentBack",
+    ]);
+    expect(formData.get("name")).toBe("Maria Silva");
+    expect(formData.get("cpf")).toBe("52998224725");
+    expect(formData.get("phone")).toBe("45999999999");
+    expect(formData.get("company")).toBe("Dimebras");
+    expect(formData.get("photo")).toBe(result.current.media.photo);
+    expect(formData.get("documentFront")).toBe(result.current.media.docFront);
+    expect(formData.get("documentBack")).toBe(result.current.media.docBack);
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(screen.getByText("Checkin destino")).toBeInTheDocument();
+    expect(result.current.submission.saving).toBe(false);
+  });
+
+  it("409 busca visitante existente, envia apenas arquivos pelo endpoint legado e navega", async () => {
+    api.post.mockRejectedValueOnce({
+      response: { status: 409, data: { code: "VISITOR_CPF_CONFLICT" } },
     });
+    api.get.mockResolvedValueOnce({ data: { id: 55, name: "Nome Antigo", phone: "1111111111", company: "Antiga" } });
+    const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
+    await fillValidRegistration(result);
+
+    await act(async () => {
+      await result.current.handlers.onSubmit();
+    });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post.mock.calls[0][0]).toBe("/visitors/with-files");
+    expect(api.get).toHaveBeenCalledWith("/visitors/by-cpf/52998224725");
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith(
+      "/visitors/55/files",
+      expect.any(FormData),
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    expect(Array.from(api.put.mock.calls[0][1].keys())).toEqual(["photo", "documentFront", "documentBack"]);
+    expect(screen.getByText("Checkin destino")).toBeInTheDocument();
+    expect(result.current.submission.saving).toBe(false);
+  });
+
+  it.each([404, 405])("fallback temporario legado para %s do endpoint transacional", async (status) => {
+    api.post
+      .mockRejectedValueOnce({ response: { status } })
+      .mockResolvedValueOnce({ data: { id: 10 } });
+    const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
+    await fillValidRegistration(result);
+
+    await act(async () => {
+      await result.current.handlers.onSubmit();
+    });
+
+    expect(api.post).toHaveBeenCalledTimes(2);
+    expect(api.post.mock.calls[0][0]).toBe("/visitors/with-files");
+    expect(api.post.mock.calls[1]).toEqual([
+      "/visitors",
+      {
+        company: "Dimebras",
+        cpf: "52998224725",
+        name: "Maria Silva",
+        phone: "45999999999",
+      },
+    ]);
     expect(api.put).toHaveBeenCalledWith(
       "/visitors/10/files",
       expect.any(FormData),
       { headers: { "Content-Type": "multipart/form-data" } }
     );
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(screen.getByText("Checkin destino")).toBeInTheDocument();
+  });
+
+  it("fallback legado preserva compensacao quando upload falha apos criacao", async () => {
+    api.post
+      .mockRejectedValueOnce({ response: { status: 404 } })
+      .mockResolvedValueOnce({ data: { id: 10 } });
+    api.put.mockRejectedValueOnce({ response: { data: { message: "Falha no upload" } } });
+    const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
+    await fillValidRegistration(result);
+
+    await act(async () => {
+      await result.current.handlers.onSubmit();
+    });
+
+    expect(api.delete).toHaveBeenCalledWith("/visitors/10/incomplete-created");
+    expect(result.current.submission.message).toBe("Falha no upload");
+    expect(result.current.submission.saving).toBe(false);
+  });
+
+  it.each([
+    [{ response: { status: 400, data: { message: "Dados invalidos" } } }, "Dados invalidos"],
+    [{ response: { status: 401, data: { message: "Nao autorizado" } } }, "Nao autorizado"],
+    [{ response: { status: 413 } }, "Imagem excede o limite permitido."],
+    [{ response: { status: 415 } }, "Imagem em formato não permitido."],
+    [{ response: { status: 500, data: { message: "Erro interno" } } }, "Erro interno"],
+    [{ request: {} }, "Erro ao salvar visitante"],
+    [{ code: "ECONNABORTED", message: "timeout" }, "Erro ao salvar visitante"],
+  ])("nao ativa fallback legado para erro %o", async (submitError, expectedMessage) => {
+    api.post.mockRejectedValueOnce(submitError);
+    const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
+    await fillValidRegistration(result);
+
+    await act(async () => {
+      await result.current.handlers.onSubmit();
+    });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post.mock.calls[0][0]).toBe("/visitors/with-files");
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(result.current.submission.message).toBe(expectedMessage);
     expect(result.current.submission.saving).toBe(false);
   });
 

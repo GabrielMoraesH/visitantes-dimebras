@@ -31,16 +31,16 @@ function translatePrismaError(error) {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
       const code = prismaConflictCode(error);
-      const message = code === "USER_USERNAME_CONFLICT" ? "Username j\u00e1 existe" : "CPF j\u00e1 cadastrado";
+      const message = code === "USER_USERNAME_CONFLICT" ? "Username já existe" : "CPF já cadastrado";
       return appError(message, 409, code);
     }
 
     if (error.code === "P2025") {
-      return appError("Registro n\u00e3o encontrado", 404, "RESOURCE_NOT_FOUND");
+      return appError("Registro não encontrado", 404, "RESOURCE_NOT_FOUND");
     }
 
     if (error.code === "P2003") {
-      return appError("Refer\u00eancia inv\u00e1lida.", 400, "INVALID_REFERENCE");
+      return appError("Referência inválida.", 400, "INVALID_REFERENCE");
     }
   }
 
@@ -48,7 +48,7 @@ function translatePrismaError(error) {
     error instanceof Prisma.PrismaClientInitializationError ||
     error instanceof Prisma.PrismaClientRustPanicError
   ) {
-    return serviceUnavailable("Servi\u00e7o temporariamente indispon\u00edvel.", "DATABASE_UNAVAILABLE");
+    return serviceUnavailable("Serviço temporariamente indisponível.", "DATABASE_UNAVAILABLE");
   }
 
   return null;
@@ -119,7 +119,7 @@ function translateError(error) {
 
   if (Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500) {
     return appError(
-      error.message || "Requisi\u00e7\u00e3o inv\u00e1lida.",
+      error.message || "Requisição inválida.",
       error.statusCode,
       error.code || inferErrorCode(error.message, error.statusCode),
       error.details
