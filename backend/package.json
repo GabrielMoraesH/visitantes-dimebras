@@ -6,6 +6,7 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "ci:migrate:bootstrap": "node scripts/ci-migrate-bootstrap.js",
+    "retention:documents:dry-run": "node scripts/dry-run-document-retention.js",
     "test": "node --test",
     "test:integration": "node scripts/run-integration-tests.js"
   },
