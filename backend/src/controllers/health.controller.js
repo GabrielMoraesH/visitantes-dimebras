@@ -1,19 +1,10 @@
 import * as healthService from "../services/health.service.js";
 
-export function live(req, res) {
-  res.setHeader("Cache-Control", "no-store");
-  return res.json({ ok: true, message: "Backend rodando ✅" });
-}
-
-export async function ready(req, res, next) {
+export async function health(req, res, next) {
   try {
-    const result = await healthService.readiness();
+    const result = await healthService.getHealthStatus();
     res.setHeader("Cache-Control", "no-store");
-    return res.status(result.ok ? 200 : 503).json({
-      ok: result.ok,
-      database: result.database,
-      storage: result.storage,
-    });
+    return res.status(result.httpStatus).json(result.body);
   } catch (err) {
     return next(err);
   }

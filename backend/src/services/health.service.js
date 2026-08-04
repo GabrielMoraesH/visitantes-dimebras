@@ -1,6 +1,9 @@
-import fs from "node:fs";
+import { createRequire } from "node:module";
 import prisma from "../lib/prisma.js";
-import { tvTempUploadDir, tvUploadDir, uploadRoot } from "../config/uploads.js";
+import { logError } from "../utils/logger.js";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json");
 
 const DATABASE_TIMEOUT_MS = 1500;
 
@@ -14,34 +17,38 @@ function withTimeout(promise, timeoutMs) {
 }
 
 export async function checkDatabase() {
-  try {
-    await withTimeout(prisma.$queryRaw`SELECT 1`, DATABASE_TIMEOUT_MS);
-    return "up";
-  } catch {
-    return "down";
-  }
+  await withTimeout(prisma.$queryRaw`SELECT 1`, DATABASE_TIMEOUT_MS);
 }
 
-export async function checkTvStorage() {
-  try {
-    await Promise.all([
-      fs.promises.access(uploadRoot, fs.constants.R_OK | fs.constants.W_OK),
-      fs.promises.access(tvUploadDir, fs.constants.R_OK | fs.constants.W_OK),
-      fs.promises.access(tvTempUploadDir, fs.constants.R_OK | fs.constants.W_OK),
-    ]);
-    return "up";
-  } catch {
-    return "down";
-  }
-}
-
-export async function readiness() {
-  const [database, storage] = await Promise.all([checkDatabase(), checkTvStorage()]);
-
-  return {
-    ok: database === "up" && storage === "up",
-    database,
-    storage,
-    databaseTimeoutMs: DATABASE_TIMEOUT_MS,
+export async function getHealthStatus() {
+  const payload = {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: process.uptime(),
+    database: {
+      status: "ok",
+    },
+    version,
   };
+
+  try {
+    await checkDatabase();
+    return { httpStatus: 200, body: payload };
+  } catch (err) {
+    logError("health_database_check_failed", {
+      errorName: err?.name,
+      errorCode: err?.code,
+    });
+
+    return {
+      httpStatus: 503,
+      body: {
+        ...payload,
+        status: "degraded",
+        database: {
+          status: "error",
+        },
+      },
+    };
+  }
 }
