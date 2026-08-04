@@ -22,7 +22,7 @@ function prismaKnownError(code, meta = {}) {
   });
 }
 
-function validVisitor(id = 55, createdInBranchId = 1) {
+function validVisitor(id = 55, createdInBranchId = 1, overrides = {}) {
   return {
     id,
     createdInBranchId,
@@ -35,6 +35,7 @@ function validVisitor(id = 55, createdInBranchId = 1) {
     documentBackBytes: Buffer.from("b"),
     documentBackMime: "image/jpeg",
     documentBackUpdatedAt: new Date(),
+    ...overrides,
   };
 }
 
@@ -47,6 +48,9 @@ function validInput(extra = {}) {
     ...extra,
   };
 }
+
+const oldMediaDate = new Date("2010-01-01T00:00:00.000Z");
+const recentMediaDate = new Date();
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];
@@ -65,6 +69,38 @@ function withPrismaMocks(mocks, fn) {
         prisma[model][method] = original;
       }
     });
+}
+
+async function checkinWithVisitorMedia(visitorOverrides = {}, extraMocks = {}) {
+  let createCalled = false;
+  let createArgs;
+  let visitorFinds = 0;
+
+  const result = await withPrismaMocks(
+    {
+      visitor: {
+        findUnique: async () =>
+          ++visitorFinds === 1
+            ? validVisitor(55, 1, visitorOverrides)
+            : { id: 55, createdInBranchId: 1 },
+      },
+      branch: {
+        findUnique: async () => ({ id: 1, name: "Filial A" }),
+      },
+      visit: {
+        findFirst: async () => null,
+        create: async (args) => {
+          createCalled = true;
+          createArgs = args;
+          return { id: 10, ...args.data };
+        },
+      },
+      ...extraMocks,
+    },
+    () => checkin({ user: { id: 7, role: "RECEPCAO", branchId: 1 }, input: validInput() })
+  );
+
+  return { result, createCalled, createArgs };
 }
 
 function labelVisit(extra = {}) {
@@ -267,6 +303,110 @@ test("checkin creates a visit using the authenticated user's branch", async () =
   assert.equal(createArgs.data.branchName, "Filial B");
   assert.equal(createArgs.data.checkinByUserId, 7);
 });
+
+for (const { name, overrides } of [
+  {
+    name: "recent photo and recent documents",
+    overrides: {
+      photoUpdatedAt: recentMediaDate,
+      documentFrontUpdatedAt: recentMediaDate,
+      documentBackUpdatedAt: recentMediaDate,
+    },
+  },
+  {
+    name: "old photo and recent documents",
+    overrides: {
+      photoUpdatedAt: oldMediaDate,
+      documentFrontUpdatedAt: recentMediaDate,
+      documentBackUpdatedAt: recentMediaDate,
+    },
+  },
+  {
+    name: "old photo and recaptured documents",
+    overrides: {
+      photoUpdatedAt: oldMediaDate,
+      documentFrontUpdatedAt: recentMediaDate,
+      documentBackUpdatedAt: recentMediaDate,
+    },
+  },
+  {
+    name: "null photoUpdatedAt with existing photo bytes and valid mime",
+    overrides: {
+      photoUpdatedAt: null,
+      documentFrontUpdatedAt: recentMediaDate,
+      documentBackUpdatedAt: recentMediaDate,
+    },
+  },
+]) {
+  test(`checkin allows ${name}`, async () => {
+    const { result, createCalled } = await checkinWithVisitorMedia(overrides);
+
+    assert.equal(result.ok, true);
+    assert.equal(createCalled, true);
+  });
+}
+
+for (const { name, overrides } of [
+  {
+    name: "missing photo bytes",
+    overrides: { photoBytes: null },
+  },
+  {
+    name: "missing photo mime",
+    overrides: { photoMime: null },
+  },
+  {
+    name: "invalid photo mime",
+    overrides: { photoMime: "application/pdf" },
+  },
+  {
+    name: "missing document front bytes",
+    overrides: { documentFrontBytes: null },
+  },
+  {
+    name: "missing document front timestamp",
+    overrides: { documentFrontUpdatedAt: null },
+  },
+  {
+    name: "missing document back bytes",
+    overrides: { documentBackBytes: null },
+  },
+  {
+    name: "missing document back timestamp",
+    overrides: { documentBackUpdatedAt: null },
+  },
+  {
+    name: "expired document front",
+    overrides: { documentFrontUpdatedAt: oldMediaDate },
+  },
+  {
+    name: "expired document back",
+    overrides: { documentBackUpdatedAt: oldMediaDate },
+  },
+  {
+    name: "old front and recent back",
+    overrides: {
+      documentFrontUpdatedAt: oldMediaDate,
+      documentBackUpdatedAt: recentMediaDate,
+    },
+  },
+  {
+    name: "recent front and old back",
+    overrides: {
+      documentFrontUpdatedAt: recentMediaDate,
+      documentBackUpdatedAt: oldMediaDate,
+    },
+  },
+]) {
+  test(`checkin blocks ${name}`, async () => {
+    const { result, createCalled } = await checkinWithVisitorMedia(overrides);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 400);
+    assert.equal(result.message, "Cadastro expirado. Atualização obrigatória.");
+    assert.equal(createCalled, false);
+  });
+}
 
 test("checkin translates open-visit unique index P2002 into the current conflict", async () => {
   let visitorFinds = 0;

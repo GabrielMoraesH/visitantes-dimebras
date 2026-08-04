@@ -11,6 +11,7 @@ import {
   labelTokenVerifyOptions,
 } from "../config/labelToken.js";
 import { userCanAccessVisitor } from "../utils/visitorAccess.js";
+import { VISITOR_IMAGE_MIMES } from "../utils/fileSecurity.js";
 import {
   boundedLimitQuery,
   cpfSchema,
@@ -100,20 +101,28 @@ function visitCpfWhere({ user, cpf }) {
   return where;
 }
 
+function isValidVisitorImageMime(mime) {
+  return VISITOR_IMAGE_MIMES.has(String(mime || ""));
+}
+
 function isVisitorRegistrationExpired(visitor) {
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-  const photoMissing = !visitor.photoBytes || !visitor.photoMime;
-  const frontMissing = !visitor.documentFrontBytes || !visitor.documentFrontMime;
-  const backMissing = !visitor.documentBackBytes || !visitor.documentBackMime;
+  const photoMissingOrInvalid = !visitor.photoBytes || !isValidVisitorImageMime(visitor.photoMime);
+  const frontMissingOrInvalid =
+    !visitor.documentFrontBytes ||
+    !isValidVisitorImageMime(visitor.documentFrontMime) ||
+    !visitor.documentFrontUpdatedAt;
+  const backMissingOrInvalid =
+    !visitor.documentBackBytes ||
+    !isValidVisitorImageMime(visitor.documentBackMime) ||
+    !visitor.documentBackUpdatedAt;
 
-  const photoExpired = !visitor.photoUpdatedAt || visitor.photoUpdatedAt < sixMonthsAgo;
-  const frontExpired =
-    !visitor.documentFrontUpdatedAt || visitor.documentFrontUpdatedAt < sixMonthsAgo;
+  const frontExpired = visitor.documentFrontUpdatedAt < sixMonthsAgo;
   const backExpired = !visitor.documentBackUpdatedAt || visitor.documentBackUpdatedAt < sixMonthsAgo;
 
-  return photoMissing || frontMissing || backMissing || photoExpired || frontExpired || backExpired;
+  return photoMissingOrInvalid || frontMissingOrInvalid || backMissingOrInvalid || frontExpired || backExpired;
 }
 
 async function getBearerUserFromToken(authorization) {

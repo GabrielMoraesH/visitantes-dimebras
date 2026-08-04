@@ -78,7 +78,7 @@ export default function useVisitorMedia(visitor) {
 
       if (!visitor?.id) return;
 
-      if (visitor.photoUpdatedAt) {
+      if (visitor.photoMime) {
         try {
           const url = await fetchBlobAsUrl(`/visitors/${visitor.id}/photo`);
           if (!cancelled) setTrackedUrl("photoDbUrl", setPhotoDbUrl, url);
@@ -118,6 +118,7 @@ export default function useVisitorMedia(visitor) {
     clearStoredMedia,
     setTrackedUrl,
     visitor?.id,
+    visitor?.photoMime,
     visitor?.photoUpdatedAt,
     visitor?.documentFrontUpdatedAt,
     visitor?.documentBackUpdatedAt,

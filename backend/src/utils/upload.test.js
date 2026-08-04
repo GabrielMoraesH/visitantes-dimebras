@@ -628,6 +628,14 @@ test("updateVisitorFiles accepts documentFront and documentBack when stored docu
   assert.ok(updateData.documentBackBytes);
   assert.ok(updateData.documentFrontUpdatedAt instanceof Date);
   assert.ok(updateData.documentBackUpdatedAt instanceof Date);
+  assert.deepEqual(Object.keys(updateData).sort(), [
+    "documentBackBytes",
+    "documentBackMime",
+    "documentBackUpdatedAt",
+    "documentFrontBytes",
+    "documentFrontMime",
+    "documentFrontUpdatedAt",
+  ]);
 });
 
 const inconsistentStoredVisitorFileCases = [

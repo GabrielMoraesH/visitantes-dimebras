@@ -178,7 +178,7 @@ export default function Checkin() {
 
   const photoExpired = useMemo(() => {
     if (!visitor) return false;
-    return !visitor.photoUpdatedAt || isOlderThan6Months(visitor.photoUpdatedAt);
+    return !visitor.photoMime;
   }, [visitor]);
 
   const docExpired = useMemo(() => {
