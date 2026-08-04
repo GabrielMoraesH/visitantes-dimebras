@@ -1,4 +1,5 @@
 import * as agendaService from "../services/agenda.service.js";
+import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 
 function agendaErrorStatus(result) {
   if (result.reason === "not-found" || result.reason === "branch-not-found") return 404;
@@ -57,6 +58,16 @@ export async function createEvent(req, res, next) {
       });
     }
 
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      branchId: result.event.branchId,
+      action: "AGENDA_EVENT_CREATE",
+      entity: "AGENDA_EVENT",
+      entityId: String(result.event.id),
+      description: "Evento de agenda criado",
+      metadata: result.audit,
+    });
+
     return res.status(201).json(result.event);
   } catch (error) {
     return next(error);
@@ -77,6 +88,18 @@ export async function updateEvent(req, res, next) {
       });
     }
 
+    if (result.auditShouldLog) {
+      await safeAuditLog({
+        ...auditRequestContext(req),
+        branchId: result.event.branchId,
+        action: "AGENDA_EVENT_UPDATE",
+        entity: "AGENDA_EVENT",
+        entityId: String(result.event.id),
+        description: "Evento de agenda atualizado",
+        metadata: result.audit,
+      });
+    }
+
     return res.json(result.event);
   } catch (error) {
     return next(error);
@@ -93,6 +116,18 @@ export async function cancelEvent(req, res, next) {
     if (!result.ok) {
       return res.status(agendaErrorStatus(result)).json({
         message: result.message,
+      });
+    }
+
+    if (result.auditShouldLog) {
+      await safeAuditLog({
+        ...auditRequestContext(req),
+        branchId: result.event.branchId,
+        action: "AGENDA_EVENT_DEACTIVATE",
+        entity: "AGENDA_EVENT",
+        entityId: String(result.event.id),
+        description: "Evento de agenda desativado",
+        metadata: result.audit,
       });
     }
 

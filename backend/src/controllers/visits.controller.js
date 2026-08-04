@@ -180,6 +180,16 @@ export async function labelToken(req, res, next) {
 
     if (!result.ok) return sendServiceError(res, result);
 
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      branchId: result.visit.branchId,
+      action: "VISIT_LABEL_GENERATE",
+      entity: "VISIT",
+      entityId: String(result.visit.id),
+      description: "Etiqueta de visita gerada",
+      metadata: { reprint: false },
+    });
+
     return res.json({ token: result.token, expiresInSeconds: result.expiresInSeconds });
   } catch (error) {
     return next(error);

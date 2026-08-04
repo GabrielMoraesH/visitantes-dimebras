@@ -192,7 +192,7 @@ export async function createLabelToken({ user, visitId }) {
     labelTokenSignOptions()
   );
 
-  return { ok: true, token, expiresInSeconds: labelTokenExpiresInSeconds() };
+  return { ok: true, token, expiresInSeconds: labelTokenExpiresInSeconds(), visit };
 }
 
 export async function checkin({ user, input }) {

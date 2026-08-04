@@ -9,6 +9,7 @@ export default function Header({
   showAgenda = true,
   showHistory = true,
   showUsers = true,
+  showAudit = true,
   showTvContent = true,
   showRefresh = false,
   onRefresh,
@@ -69,6 +70,16 @@ export default function Header({
             type="button"
           >
             USUÁRIOS
+          </button>
+        )}
+
+        {isAdmin && showAudit && (
+          <button
+            className="appHeader-btn appHeader-btn-ghost"
+            onClick={() => navigate("/audit")}
+            type="button"
+          >
+            AUDITORIA
           </button>
         )}
 

@@ -167,6 +167,17 @@ export async function updateVisitor(req, res, next) {
       return res.status(404).json({ message: "Visitante não encontrado" });
     }
 
+    if (result.auditShouldLog) {
+      await safeAuditLog({
+        ...auditRequestContext(req),
+        action: "VISITOR_UPDATE",
+        entity: "VISITOR",
+        entityId: String(result.visitor.id),
+        description: "Cadastro do visitante atualizado",
+        metadata: result.audit,
+      });
+    }
+
     return res.json(result.visitor);
   } catch (error) {
     return next(error);

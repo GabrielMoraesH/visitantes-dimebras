@@ -117,6 +117,10 @@ function buildAgendaData({ data, eventDate }) {
   };
 }
 
+function sameTime(left, right) {
+  return new Date(left).getTime() === new Date(right).getTime();
+}
+
 async function findAccessibleEvent({ user, eventId }) {
   const id = parseAgendaId(eventId);
 
@@ -209,7 +213,13 @@ export async function createEvent({ user, input }) {
     },
   });
 
-  return { ok: true, event };
+  return {
+    ok: true,
+    event,
+    audit: {
+      hasEventDateTime: Boolean(event.eventDateTime),
+    },
+  };
 }
 
 export async function updateEvent({ user, eventId, input }) {
@@ -226,7 +236,22 @@ export async function updateEvent({ user, eventId, input }) {
     data: buildAgendaData(parsed),
   });
 
-  return { ok: true, event };
+  const audit = {
+    dateTimeChanged: !sameTime(access.event.eventDateTime, event.eventDateTime),
+    detailsChanged:
+      access.event.visitorName !== event.visitorName ||
+      access.event.company !== event.company ||
+      access.event.eventWith !== event.eventWith ||
+      access.event.department !== event.department,
+    observationChanged: (access.event.observation ?? null) !== (event.observation ?? null),
+  };
+
+  return {
+    ok: true,
+    event,
+    audit,
+    auditShouldLog: Object.values(audit).some(Boolean),
+  };
 }
 
 export async function cancelEvent({ user, eventId }) {
@@ -242,5 +267,12 @@ export async function cancelEvent({ user, eventId }) {
     },
   });
 
-  return { ok: true, event };
+  return {
+    ok: true,
+    event,
+    audit: {
+      active: event.status !== "CANCELADO",
+    },
+    auditShouldLog: access.event.status !== event.status,
+  };
 }

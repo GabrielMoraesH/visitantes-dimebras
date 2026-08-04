@@ -76,7 +76,15 @@ export async function createUser({ actor, input }) {
     select: USER_SAFE_SELECT,
   });
 
-  return { ok: true, user };
+  return {
+    ok: true,
+    user,
+    audit: {
+      role: user.role,
+      branchId: user.branchId,
+      active: Boolean(user.isActive),
+    },
+  };
 }
 
 export async function disableUser({ actor, userId }) {
@@ -94,15 +102,25 @@ export async function disableUser({ actor, userId }) {
   if (!exists) return { ok: false, status: 404, message: "Usuário não encontrado" };
 
   if (exists.isActive === false) {
-    return { ok: true };
+    return {
+      ok: true,
+      audit: { active: false },
+      auditShouldLog: false,
+    };
   }
 
-  await prisma.user.update({
+  const user = await prisma.user.update({
     where: { id },
     data: { isActive: false },
+    select: USER_SAFE_SELECT,
   });
 
-  return { ok: true };
+  return {
+    ok: true,
+    user,
+    audit: { active: Boolean(user.isActive) },
+    auditShouldLog: exists.isActive !== user.isActive,
+  };
 }
 
 export async function enableUser({ actor, userId }) {
@@ -114,15 +132,25 @@ export async function enableUser({ actor, userId }) {
   }
 
   if (exists.isActive === true) {
-    return { ok: true };
+    return {
+      ok: true,
+      audit: { active: true },
+      auditShouldLog: false,
+    };
   }
 
-  await prisma.user.update({
+  const user = await prisma.user.update({
     where: { id },
     data: { isActive: true },
+    select: USER_SAFE_SELECT,
   });
 
-  return { ok: true };
+  return {
+    ok: true,
+    user,
+    audit: { active: Boolean(user.isActive) },
+    auditShouldLog: exists.isActive !== user.isActive,
+  };
 }
 
 export async function updateUser({ actor, userId, input }) {
@@ -156,7 +184,17 @@ export async function updateUser({ actor, userId, input }) {
       select: USER_SAFE_SELECT,
     });
 
-    return { ok: true, user };
+    return {
+      ok: true,
+      user,
+      audit: {
+        usernameChanged: false,
+        roleChanged: false,
+        branchChanged: false,
+        credentialsChanged: true,
+      },
+      auditShouldLog: true,
+    };
   }
 
   if (data.username && data.username !== exists.username) {
@@ -188,5 +226,19 @@ export async function updateUser({ actor, userId, input }) {
     select: USER_SAFE_SELECT,
   });
 
-  return { ok: true, user };
+  const audit = {
+    usernameChanged:
+      Object.prototype.hasOwnProperty.call(updateData, "username") && user.username !== exists.username,
+    roleChanged: Object.prototype.hasOwnProperty.call(updateData, "role") && user.role !== exists.role,
+    branchChanged:
+      Object.prototype.hasOwnProperty.call(updateData, "branchId") && user.branchId !== exists.branchId,
+    credentialsChanged: Object.prototype.hasOwnProperty.call(updateData, "passwordHash"),
+  };
+
+  return {
+    ok: true,
+    user,
+    audit,
+    auditShouldLog: Object.values(audit).some(Boolean),
+  };
 }

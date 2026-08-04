@@ -9,17 +9,23 @@ import { setSession as storeSession } from "./services/session";
 const lazyMocks = vi.hoisted(() => {
   let resolveCheckin;
   let resolveAdminUsers;
+  let resolveAuditLogs;
 
   return {
     adminUsersMounted: vi.fn(),
+    auditLogsMounted: vi.fn(),
     checkin: new Promise((resolve) => {
       resolveCheckin = resolve;
     }),
     adminUsers: new Promise((resolve) => {
       resolveAdminUsers = resolve;
     }),
+    auditLogs: new Promise((resolve) => {
+      resolveAuditLogs = resolve;
+    }),
     resolveCheckin: (module) => resolveCheckin(module),
     resolveAdminUsers: (module) => resolveAdminUsers(module),
+    resolveAuditLogs: (module) => resolveAuditLogs(module),
   };
 });
 
@@ -29,12 +35,13 @@ vi.mock("./pages/Login", () => ({
 
 vi.mock("./pages/Checkin", () => lazyMocks.checkin);
 vi.mock("./pages/AdminUsers", () => lazyMocks.adminUsers);
+vi.mock("./pages/AuditLogs", () => lazyMocks.auditLogs);
 
 vi.mock("./pages/TvDisplay", () => ({
   default: () => {
     return (
       <div>
-        TV pública mock
+        TV publica mock
         <span data-testid="tv-path">{window.location.pathname}</span>
         <span data-testid="tv-search">{window.location.search}</span>
       </div>
@@ -86,6 +93,14 @@ function AdminUsersMock() {
   return <div>Admin users lazy mock</div>;
 }
 
+function AuditLogsMock() {
+  useEffect(() => {
+    lazyMocks.auditLogsMounted();
+  }, []);
+
+  return <div>Audit logs lazy mock</div>;
+}
+
 function setSession(role) {
   storeSession("token-teste", { id: 1, username: role.toLowerCase(), role });
   getCurrentUser.mockResolvedValue({ id: 1, username: role.toLowerCase(), role });
@@ -101,13 +116,13 @@ describe("App routes and lazy loading", () => {
     getCurrentUser.mockReset();
   });
 
-  it("exibe fallback acessível e preserva query string em rota lazy comum", async () => {
+  it("exibe fallback acessivel e preserva query string em rota lazy comum", async () => {
     setSession("RECEPCAO");
 
     renderAppAt("/checkin?cpf=12345678901");
 
     const fallback = await screen.findByRole("status");
-    expect(fallback).toHaveTextContent("Carregando sessão...");
+    expect(fallback).toHaveTextContent("Carregando sess");
     expect(fallback).toHaveAttribute("aria-live", "polite");
 
     lazyMocks.resolveCheckin({ default: CheckinMock });
@@ -123,14 +138,14 @@ describe("App routes and lazy loading", () => {
 
     renderAppAt("/admin/users");
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Carregando sessão...");
+    expect(await screen.findByRole("status")).toHaveTextContent("Carregando sess");
     lazyMocks.resolveAdminUsers({ default: AdminUsersMock });
 
     expect(await screen.findByText("Admin users lazy mock")).toBeInTheDocument();
     expect(lazyMocks.adminUsersMounted).toHaveBeenCalledTimes(1);
   });
 
-  it("bloqueia RECEPCAO em rota ADMIN sem montar conteúdo ADMIN", async () => {
+  it("bloqueia RECEPCAO em rota ADMIN sem montar conteudo ADMIN", async () => {
     setSession("RECEPCAO");
 
     renderAppAt("/admin/users");
@@ -140,45 +155,67 @@ describe("App routes and lazy loading", () => {
     expect(lazyMocks.adminUsersMounted).not.toHaveBeenCalled();
   });
 
-  it("mantem login público acessível sem token", () => {
+  it("carrega rota /audit para ADMIN autorizado", async () => {
+    setSession("ADMIN");
+
+    renderAppAt("/audit");
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Carregando sess");
+    lazyMocks.resolveAuditLogs({ default: AuditLogsMock });
+
+    expect(await screen.findByText("Audit logs lazy mock")).toBeInTheDocument();
+    expect(lazyMocks.auditLogsMounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("bloqueia RECEPCAO em /audit sem montar auditoria", async () => {
+    setSession("RECEPCAO");
+
+    renderAppAt("/audit");
+
+    await waitFor(() => expect(window.location.pathname).toBe("/checkin"));
+    expect(screen.queryByText("Audit logs lazy mock")).not.toBeInTheDocument();
+    expect(lazyMocks.auditLogsMounted).not.toHaveBeenCalled();
+  });
+
+  it("mantem login publico acessivel sem token", () => {
     renderAppAt("/login");
 
     expect(screen.getByText("Login mock")).toBeInTheDocument();
   });
 
-  it("mantem TV pública acessível sem token", async () => {
+  it("mantem TV publica acessivel sem token", async () => {
     renderAppAt("/tv");
 
-    expect(await screen.findByText("TV pública mock")).toBeInTheDocument();
+    expect(await screen.findByText("TV publica mock")).toBeInTheDocument();
   });
 
   it.each(["/tv1", "/tv2", "/tv3", "/tv5", "/tv6"])(
-    "mantem rota curta de TV pública acessível sem token em %s",
+    "mantem rota curta de TV publica acessivel sem token em %s",
     async (path) => {
       renderAppAt(path);
 
-      expect(await screen.findByText("TV pública mock")).toBeInTheDocument();
+      expect(await screen.findByText("TV publica mock")).toBeInTheDocument();
       expect(screen.getByTestId("tv-path")).toHaveTextContent(path);
     }
   );
 
-  it("não captura /tv-content como rota curta da TV pública", async () => {
+  it("nao captura /tv-content como rota curta da TV publica", async () => {
     setSession("ADMIN");
 
     renderAppAt("/tv-content");
 
     expect(await screen.findByText("TV content mock")).toBeInTheDocument();
-    expect(screen.queryByText("TV pública mock")).not.toBeInTheDocument();
+    expect(screen.queryByText("TV publica mock")).not.toBeInTheDocument();
   });
 
   it.each(["/tv-config", "/tv-relatorio", "/tvabc", "/tv1abc", "/tv-1", "/tv/1"])(
-    "não captura rota textual ou futura %s como TV pública",
+    "nao captura rota textual ou futura %s como TV publica",
     async (path) => {
       renderAppAt(path);
 
       await waitFor(() => expect(window.location.pathname).toBe("/login"));
       expect(screen.getByText("Login mock")).toBeInTheDocument();
-      expect(screen.queryByText("TV pública mock")).not.toBeInTheDocument();
+      expect(screen.queryByText("TV publica mock")).not.toBeInTheDocument();
     }
   );
 

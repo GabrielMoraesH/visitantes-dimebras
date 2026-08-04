@@ -256,6 +256,15 @@ export async function update({ user, id, body }) {
   if (!canAccess) return { ok: false, reason: "not-found" };
 
   const parsedBody = updateVisitorSchema.parse(body);
+  const current = await prisma.visitor.findUnique({
+    where: { id: visitorId },
+    select: {
+      phone: true,
+      company: true,
+    },
+  });
+  if (!current) return { ok: false, reason: "not-found" };
+
   const data = {};
 
   if ("phone" in parsedBody) {
@@ -279,7 +288,18 @@ export async function update({ user, id, body }) {
     },
   });
 
-  return { ok: true, visitor };
+  const audit = {
+    phoneChanged: Object.prototype.hasOwnProperty.call(data, "phone") && data.phone !== current.phone,
+    companyChanged:
+      Object.prototype.hasOwnProperty.call(data, "company") && data.company !== current.company,
+  };
+
+  return {
+    ok: true,
+    visitor,
+    audit,
+    auditShouldLog: audit.phoneChanged || audit.companyChanged,
+  };
 }
 
 export async function updateFiles({ user, id, files }) {

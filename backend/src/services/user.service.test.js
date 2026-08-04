@@ -186,6 +186,11 @@ test("createUser hashes password, persists only allowed fields and returns safe 
   assert.equal(createArgs.data.password, undefined);
   assert.equal(createArgs.select.passwordHash, undefined);
   assert.deepEqual(result.user, safeUser);
+  assert.deepEqual(result.audit, {
+    role: safeUser.role,
+    branchId: safeUser.branchId,
+    active: true,
+  });
 });
 
 test("createUser returns current duplicate username conflict without creating", async () => {
@@ -293,6 +298,13 @@ test("updateUser without password preserves passwordHash and uses safe select", 
   assert.deepEqual(updateArgs.data, { username: "novo", role: "ADMIN", branchId: 2 });
   assert.equal(updateArgs.data.passwordHash, undefined);
   assert.equal(updateArgs.select.passwordHash, undefined);
+  assert.deepEqual(result.audit, {
+    usernameChanged: true,
+    roleChanged: false,
+    branchChanged: false,
+    credentialsChanged: false,
+  });
+  assert.equal(result.auditShouldLog, true);
 });
 
 test("updateUser with password creates a new hash", async () => {
@@ -413,6 +425,13 @@ test("updateUser preserves ADMIN id=1 password-only rule", async () => {
 
   assert.equal(result.ok, true);
   assert.deepEqual(updateArgs.data, { passwordHash: "admin-hash" });
+  assert.deepEqual(result.audit, {
+    usernameChanged: false,
+    roleChanged: false,
+    branchChanged: false,
+    credentialsChanged: true,
+  });
+  assert.equal(result.auditShouldLog, true);
 });
 
 test("bcrypt errors are propagated without updating user", async () => {
@@ -490,8 +509,13 @@ test("disableUser and enableUser change only isActive when needed", async () => 
     },
     () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
   );
-  assert.deepEqual(disabled, { ok: true });
-  assert.deepEqual(updates.at(-1), { where: { id: 2 }, data: { isActive: false } });
+  assert.equal(disabled.ok, true);
+  assert.deepEqual(disabled.user, { ...safeUser, isActive: false });
+  assert.deepEqual(disabled.audit, { active: false });
+  assert.equal(disabled.auditShouldLog, true);
+  assert.deepEqual(updates.at(-1).where, { id: 2 });
+  assert.deepEqual(updates.at(-1).data, { isActive: false });
+  assert.equal(updates.at(-1).select.passwordHash, undefined);
 
   const enabled = await withPrismaMocks(
     {
@@ -505,8 +529,13 @@ test("disableUser and enableUser change only isActive when needed", async () => 
     },
     () => enableUser({ actor: { id: 9 }, userId: { id: "2" } })
   );
-  assert.deepEqual(enabled, { ok: true });
-  assert.deepEqual(updates.at(-1), { where: { id: 2 }, data: { isActive: true } });
+  assert.equal(enabled.ok, true);
+  assert.deepEqual(enabled.user, { ...safeUser, isActive: true });
+  assert.deepEqual(enabled.audit, { active: true });
+  assert.equal(enabled.auditShouldLog, true);
+  assert.deepEqual(updates.at(-1).where, { id: 2 });
+  assert.deepEqual(updates.at(-1).data, { isActive: true });
+  assert.equal(updates.at(-1).select.passwordHash, undefined);
 });
 
 test("disableUser preserves admin, self-disable, already inactive and not-found behavior", async () => {
@@ -534,7 +563,7 @@ test("disableUser preserves admin, self-disable, already inactive and not-found 
     },
     () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
   );
-  assert.deepEqual(inactive, { ok: true });
+  assert.deepEqual(inactive, { ok: true, audit: { active: false }, auditShouldLog: false });
   assert.equal(updateCalled, false);
 
   const notFound = await withPrismaMocks(

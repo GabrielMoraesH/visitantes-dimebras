@@ -160,7 +160,9 @@ test("createEvent uses trusted user branch and creator and ignores protected cli
     )
   );
 
-  assert.deepEqual(result, { ok: true, event: created });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.event, created);
+  assert.deepEqual(result.audit, { hasEventDateTime: true });
   assert.equal(createArgs.data.visitorName, futureInput.visitorName);
   assert.equal(createArgs.data.company, futureInput.company);
   assert.equal(createArgs.data.eventWith, futureInput.eventWith);
@@ -297,7 +299,8 @@ test("updateEvent searches by id and authenticated branch and updates allowed fi
     )
   );
 
-  assert.deepEqual(result, { ok: true, event: updated });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.event, updated);
   assert.deepEqual(findFirstArgs.where, { id: 44, branchId: user.branchId });
   assert.deepEqual(updateArgs.where, { id: 44 });
   assert.equal(updateArgs.data.visitorName, futureInput.visitorName);
@@ -404,7 +407,10 @@ test("cancelEvent searches by id and branch and only sets status to CANCELADO", 
     () => cancelEvent({ user, eventId: { id: "55" } })
   );
 
-  assert.deepEqual(result, { ok: true, event: cancelled });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.event, cancelled);
+  assert.deepEqual(result.audit, { active: false });
+  assert.equal(result.auditShouldLog, true);
   assert.deepEqual(findFirstArgs.where, { id: 55, branchId: user.branchId });
   assert.deepEqual(updateArgs, {
     where: { id: 55 },

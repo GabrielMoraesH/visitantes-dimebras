@@ -10,8 +10,8 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-function renderHeader() {
-  setSession("token-teste", { id: 1, username: "admin", role: "ADMIN" });
+function renderHeader(role = "ADMIN") {
+  setSession("token-teste", { id: 1, username: role.toLowerCase(), role });
 
   return render(
     <MemoryRouter initialEntries={["/checkin"]}>
@@ -34,6 +34,15 @@ function renderHeader() {
             </>
           }
         />
+        <Route
+          path="/audit"
+          element={
+            <>
+              <LocationProbe />
+              <div>Auditoria destino</div>
+            </>
+          }
+        />
       </Routes>
     </MemoryRouter>
   );
@@ -49,5 +58,20 @@ describe("Header", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
     expect(getToken()).toBeNull();
     expect(getUser()).toBeNull();
+  });
+
+  it("exibe Auditoria somente para ADMIN e navega para /audit", async () => {
+    renderHeader("ADMIN");
+
+    await userEvent.click(screen.getByRole("button", { name: "AUDITORIA" }));
+
+    expect(screen.getByText("Auditoria destino")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/audit");
+  });
+
+  it("nao exibe Auditoria para RECEPCAO", () => {
+    renderHeader("RECEPCAO");
+
+    expect(screen.queryByRole("button", { name: "AUDITORIA" })).not.toBeInTheDocument();
   });
 });

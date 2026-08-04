@@ -111,6 +111,7 @@ test("createLabelToken signs only the required label payload with explicit polic
 
   assert.equal(result.ok, true);
   assert.equal(result.expiresInSeconds, 600);
+  assert.deepEqual(result.visit, { id: 78, branchId: 4 });
 
   const decoded = jwt.decode(result.token, { complete: true });
   assert.equal(decoded.header.alg, LABEL_TOKEN.algorithm);

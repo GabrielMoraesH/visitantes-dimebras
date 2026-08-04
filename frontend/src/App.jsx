@@ -12,6 +12,7 @@ const History = lazy(() => import("./pages/History"));
 const VisitDetails = lazy(() => import("./pages/VisitDetails"));
 const CadastroVisitante = lazy(() => import("./pages/CadastroVisitante"));
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
+const AuditLogs = lazy(() => import("./pages/AuditLogs"));
 const Agenda = lazy(() => import("./pages/Agenda"));
 const TvContent = lazy(() => import("./pages/TvContent"));
 const TvDisplay = lazy(() => import("./pages/TvDisplay"));
@@ -54,6 +55,10 @@ export default function App() {
                 <Route
                   path="/admin/users"
                   element={<ProtectedRoute roles={["ADMIN"]}><AdminUsers /></ProtectedRoute>}
+                />
+                <Route
+                  path="/audit"
+                  element={<ProtectedRoute roles={["ADMIN"]}><AuditLogs /></ProtectedRoute>}
                 />
                 <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
                 <Route

@@ -484,7 +484,11 @@ test("toggleTvContent updates only isActive", async () => {
   );
 
   assert.deepEqual(updateArgs, { where: { id: 4 }, data: { isActive: false } });
-  assert.deepEqual(result, { ok: true, content: { id: 4, isActive: false, branches: [] } });
+  assert.deepEqual(result, {
+    ok: true,
+    content: { id: 4, isActive: false, branches: [] },
+    audit: { active: false },
+  });
 });
 
 test("deleteTvContent ignores unsafe fileUrl paths", async () => {

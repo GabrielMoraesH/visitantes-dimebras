@@ -10,6 +10,7 @@ import usersRoutes from "./routes/users.routes.js";
 import branchesRoutes from "./routes/branches.routes.js";
 import agendaRoutes from "./routes/agenda.routes.js";
 import tvContentRoutes from "./routes/tvContent.routes.js";
+import auditLogsRoutes from "./routes/auditLogs.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import { tvPublicPrefix, tvUploadDir } from "./config/uploads.js";
 import { validateJwtSecret } from "./config/auth.js";
@@ -112,6 +113,7 @@ app.use("/users", usersRoutes);
 app.use("/branches", branchesRoutes);
 app.use("/agenda", agendaRoutes);
 app.use("/tv-content", tvContentRoutes);
+app.use("/audit-logs", auditLogsRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

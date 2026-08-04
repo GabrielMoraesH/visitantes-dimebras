@@ -11,6 +11,7 @@ import {
 import { toErrorPayload } from "../utils/errors.js";
 import * as tvContentService from "../services/tvContent.service.js";
 import { logInfo, logWarn } from "../utils/logger.js";
+import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 
 fs.mkdirSync(tvTempUploadDir, { recursive: true });
 
@@ -183,6 +184,15 @@ export async function createTvContent(req, res, next) {
       branchId: req.user?.branchId ?? null,
     });
 
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: "TV_CONTENT_CREATE",
+      entity: "TV_CONTENT",
+      entityId: String(result.content.id),
+      description: "Conteudo de TV criado",
+      metadata: result.audit,
+    });
+
     return res.status(201).json(result.content);
   } catch (err) {
     req.tvTempUploadCleanupHandled = true;
@@ -204,6 +214,17 @@ export async function updateTvContent(req, res, next) {
     });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
+    if (result.auditShouldLog) {
+      await safeAuditLog({
+        ...auditRequestContext(req),
+        action: "TV_CONTENT_UPDATE",
+        entity: "TV_CONTENT",
+        entityId: String(result.content.id),
+        description: "Conteudo de TV atualizado",
+        metadata: result.audit,
+      });
+    }
+
     return res.json(result.content);
   } catch (err) {
     return forwardError(err, next);
@@ -214,6 +235,15 @@ export async function toggleTvContent(req, res, next) {
   try {
     const result = await tvContentService.toggleTvContent({ contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: result.content.isActive ? "TV_CONTENT_ACTIVATE" : "TV_CONTENT_DEACTIVATE",
+      entity: "TV_CONTENT",
+      entityId: String(result.content.id),
+      description: result.content.isActive ? "Conteudo de TV ativado" : "Conteudo de TV desativado",
+      metadata: result.audit,
+    });
 
     return res.json(result.content);
   } catch (err) {
@@ -231,6 +261,15 @@ export async function deleteTvContent(req, res, next) {
       tvContentId: Number(req.params.id),
       userId: req.user?.id ?? null,
       branchId: req.user?.branchId ?? null,
+    });
+
+    await safeAuditLog({
+      ...auditRequestContext(req),
+      action: "TV_CONTENT_DELETE",
+      entity: "TV_CONTENT",
+      entityId: String(Number(req.params.id)),
+      description: "Conteudo de TV excluido",
+      metadata: result.audit,
     });
 
     return res.json({ ok: true });

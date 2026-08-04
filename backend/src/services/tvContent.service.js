@@ -65,6 +65,20 @@ function serialize(item) {
   };
 }
 
+function branchIdsFromContent(content) {
+  return Array.isArray(content?.branches)
+    ? content.branches
+        .map((link) => link.branchId ?? link.branch?.id)
+        .filter((id) => Number.isInteger(id))
+        .sort((a, b) => a - b)
+    : [];
+}
+
+function sameIds(left, right) {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
 async function findAllowedContent(id) {
   return prisma.tvContent.findUnique({
     where: { id },
@@ -332,7 +346,16 @@ export async function createTvContent({ actor, input, file }) {
     });
 
     completed = true;
-    return { ok: true, content: serialize(created) };
+    const content = serialize(created);
+    return {
+      ok: true,
+      content,
+      audit: {
+        mediaType: content.type,
+        branchCount: content.branches.length,
+        active: Boolean(content.isActive),
+      },
+    };
   } finally {
     if (!completed) {
       if (!promotedFile && file?.path) {
@@ -354,6 +377,9 @@ export async function updateTvContent({ contentId, input }) {
   const exists = await findAllowedContent(id);
   if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
+  const previousBranchIds = branchIdsFromContent(exists);
+  let nextBranchIds = previousBranchIds;
+
   const updated = await prisma.$transaction(async (tx) => {
     const updateData = {};
     if (typeof data.title !== "undefined") updateData.title = data.title;
@@ -362,6 +388,7 @@ export async function updateTvContent({ contentId, input }) {
 
     if (hasBranchIds) {
       const branchIds = await validateBranchIds(data.branchIds, tx);
+      nextBranchIds = [...branchIds].sort((a, b) => a - b);
       await tx.tvContentBranch.deleteMany({ where: { tvContentId: id } });
       await tx.tvContentBranch.createMany({
         data: branchIds.map((branchId) => ({ tvContentId: id, branchId })),
@@ -386,7 +413,21 @@ export async function updateTvContent({ contentId, input }) {
     });
   });
 
-  return { ok: true, content: serialize(updated) };
+  const audit = {
+    titleChanged: Object.prototype.hasOwnProperty.call(data, "title") && data.title !== exists.title,
+    orderChanged: Object.prototype.hasOwnProperty.call(data, "order") && data.order !== exists.order,
+    branchesChanged: hasBranchIds && !sameIds(previousBranchIds, nextBranchIds),
+    activeChanged:
+      Object.prototype.hasOwnProperty.call(data, "isActive") && data.isActive !== exists.isActive,
+  };
+
+  return {
+    ok: true,
+    content: serialize(updated),
+    audit,
+    auditShouldLog:
+      audit.titleChanged || audit.orderChanged || audit.branchesChanged || audit.activeChanged,
+  };
 }
 
 export async function toggleTvContent({ contentId }) {
@@ -399,7 +440,12 @@ export async function toggleTvContent({ contentId }) {
     data: { isActive: !exists.isActive },
   });
 
-  return { ok: true, content: serialize(updated) };
+  const content = serialize(updated);
+  return {
+    ok: true,
+    content,
+    audit: { active: Boolean(content.isActive) },
+  };
 }
 
 export async function deleteTvContent({ contentId }) {
@@ -410,5 +456,5 @@ export async function deleteTvContent({ contentId }) {
   await prisma.tvContent.delete({ where: { id } });
   await removeFileInside(tvUploadDir, filePathFromUrl(exists.fileUrl));
 
-  return { ok: true };
+  return { ok: true, audit: exists.type ? { mediaType: exists.type } : {} };
 }
