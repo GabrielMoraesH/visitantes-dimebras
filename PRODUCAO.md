@@ -20,3 +20,7 @@ pm2 restart visitantes-frontend
 pm2 status
 pm2 logs visitantes-backend --lines 50
 curl http://127.0.0.1:3007/health
+curl http://127.0.0.1:3007/health/ready
+
+`GET /health` é liveness público: valida apenas que o processo Node responde HTTP e não verifica banco.
+`GET /health/ready` é readiness público: verifica PostgreSQL e retorna `503` se o banco estiver indisponível.

@@ -126,8 +126,8 @@ D:\VisitantesStorage\tv
 
 - Toda resposta do backend inclui `X-Request-Id`. Se o cliente enviar um UUID válido em `X-Request-Id`, ele será preservado; valores inválidos são substituídos.
 - Logs do backend são emitidos em uma linha JSON por evento, via stdout/stderr, com `timestamp`, `level`, `event` e `requestId` quando a requisição passa pelo middleware.
-- `GET /health` permanece como liveness simples e público.
-- `GET /health/ready` verifica banco e storage de TV, retorna `200` quando pronto e `503` quando banco ou storage estiver indisponível. A resposta não expõe host, usuário, URL de banco ou caminhos absolutos.
+- `GET /health` permanece como liveness simples e público: confirma apenas que o processo Node responde HTTP e não verifica banco.
+- `GET /health/ready` é readiness: verifica o PostgreSQL com `SELECT 1`, retorna `200` quando pronto e `503` quando o banco estiver indisponível. A resposta não expõe host, usuário, URL de banco, stack trace ou detalhes internos do Prisma.
 
 A URL pública permanece no formato:
 

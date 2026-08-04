@@ -7,6 +7,15 @@ const { version } = require("../../package.json");
 
 const DATABASE_TIMEOUT_MS = 1500;
 
+function createBasePayload() {
+  return {
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: process.uptime(),
+    version,
+  };
+}
+
 function withTimeout(promise, timeoutMs) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
@@ -20,15 +29,19 @@ export async function checkDatabase() {
   await withTimeout(prisma.$queryRaw`SELECT 1`, DATABASE_TIMEOUT_MS);
 }
 
-export async function getHealthStatus() {
+export function getLiveness() {
+  return {
+    httpStatus: 200,
+    body: createBasePayload(),
+  };
+}
+
+export async function getReadiness() {
   const payload = {
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    uptimeSeconds: process.uptime(),
+    ...createBasePayload(),
     database: {
       status: "ok",
     },
-    version,
   };
 
   try {

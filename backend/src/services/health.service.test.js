@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../lib/prisma.js";
-import { checkDatabase, getHealthStatus } from "./health.service.js";
+import { checkDatabase, getLiveness, getReadiness } from "./health.service.js";
 
 function withQueryRawMock(queryRaw, fn) {
   const originalQueryRaw = prisma.$queryRaw;
@@ -28,31 +28,50 @@ test("checkDatabase uses only the minimal SELECT 1 query", async () => {
   assert.equal(queryText.trim(), "SELECT 1");
 });
 
-test("getHealthStatus returns ok payload with version, timestamp and uptime", async () => {
+function assertBasePayload(body) {
+  assert.doesNotThrow(() => new Date(body.timestamp).toISOString());
+  assert.equal(new Date(body.timestamp).toISOString(), body.timestamp);
+  assert.equal(typeof body.uptimeSeconds, "number");
+  assert.ok(body.uptimeSeconds >= 0);
+  assert.equal(typeof body.version, "string");
+  assert.ok(body.version.length > 0);
+}
+
+test("getLiveness returns ok payload without checking Prisma", async () => {
+  let queryCount = 0;
+
+  const result = await withQueryRawMock(() => {
+    queryCount += 1;
+    throw new Error("database unavailable");
+  }, getLiveness);
+
+  assert.equal(result.httpStatus, 200);
+  assert.equal(result.body.status, "ok");
+  assertBasePayload(result.body);
+  assert.equal(Object.hasOwn(result.body, "database"), false);
+  assert.equal(queryCount, 0);
+});
+
+test("getReadiness returns ok payload with version, timestamp, uptime and database status", async () => {
   const result = await withQueryRawMock(
     async () => [{ "?column?": 1 }],
-    getHealthStatus
+    getReadiness
   );
 
   assert.equal(result.httpStatus, 200);
   assert.equal(result.body.status, "ok");
   assert.deepEqual(result.body.database, { status: "ok" });
-  assert.doesNotThrow(() => new Date(result.body.timestamp).toISOString());
-  assert.equal(new Date(result.body.timestamp).toISOString(), result.body.timestamp);
-  assert.equal(typeof result.body.uptimeSeconds, "number");
-  assert.ok(result.body.uptimeSeconds >= 0);
-  assert.equal(typeof result.body.version, "string");
-  assert.ok(result.body.version.length > 0);
+  assertBasePayload(result.body);
 });
 
-test("getHealthStatus returns degraded payload without Prisma details on failure", async () => {
+test("getReadiness returns degraded payload without Prisma details on failure", async () => {
   const prismaError = new Error("DATABASE_URL=postgresql://user:pass@host/db");
   prismaError.code = "P1001";
   prismaError.stack = "stack trace with credentials";
 
   const result = await withQueryRawMock(async () => {
     throw prismaError;
-  }, getHealthStatus);
+  }, getReadiness);
 
   const serialized = JSON.stringify(result.body);
 
@@ -65,9 +84,9 @@ test("getHealthStatus returns degraded payload without Prisma details on failure
   assert.equal(serialized.includes("P1001"), false);
 });
 
-test("getHealthStatus times out a stuck database check", async () => {
+test("getReadiness times out a stuck database check", async () => {
   const startedAt = performance.now();
-  const result = await withQueryRawMock(() => new Promise(() => {}), getHealthStatus);
+  const result = await withQueryRawMock(() => new Promise(() => {}), getReadiness);
   const durationMs = performance.now() - startedAt;
 
   assert.equal(result.httpStatus, 503);

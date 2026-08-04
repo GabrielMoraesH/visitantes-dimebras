@@ -56,8 +56,8 @@ Não execute este checklist diretamente sem validar os itens marcados como `A CO
 - [ ] Processo frontend em PM2: `visitantes-frontend` em `PRODUCAO.md`; finalidade exata `A CONFIRMAR`.
 - [ ] Banco: PostgreSQL, acessado pelo Prisma via `DATABASE_URL`.
 - [ ] Migrations: `backend/prisma/migrations`, aplicadas por `npx prisma migrate deploy`.
-- [ ] Health check liveness: `GET /health`.
-- [ ] Health check readiness: `GET /health/ready`.
+- [ ] Health check liveness: `GET /health`, público, confirma apenas que o processo Node responde HTTP e não verifica banco.
+- [ ] Health check readiness: `GET /health/ready`, público, verifica PostgreSQL e retorna `503` se o banco estiver indisponível.
 - [ ] CORS: em produção, backend exige `FRONTEND_URL`.
 - [ ] Uploads de TV: filesystem em `UPLOAD_ROOT/tv`, exposto pelo backend em `/uploads/tv`.
 - [ ] Temporarios de TV: `UPLOAD_ROOT/tmp/tv`.
@@ -408,8 +408,8 @@ Arquivos de proxy não estão versionados. Validar no ambiente real:
 
 ### Publico
 
-- [ ] `GET /health`: espera `200` e `ok: true`.
-- [ ] `GET /health/ready`: espera `200` com `database: "up"` e `storage: "up"`; se indisponível, espera `503` sem detalhes internos.
+- [ ] `GET /health`: espera `200` com `status: "ok"`; não inclui `database` e não verifica banco.
+- [ ] `GET /health/ready`: espera `200` com `status: "ok"` e `database.status: "ok"`; se o PostgreSQL estiver indisponível, espera `503`, `status: "degraded"` e `database.status: "error"` sem detalhes internos.
 - [ ] `POST /auth/login` com credencial inválida: espera `401` ou erro controlado, sem stack trace.
 - [ ] `GET /agenda/public/tv-now`: espera `200` com lista ou resposta vazia válida.
 - [ ] `GET /tv-content/public/active?branchId=<ID_FILIAL_TESTE>`: espera `200` com lista ou resposta vazia válida.

@@ -60,7 +60,54 @@ async function requestReady() {
   }
 }
 
-test("GET /health returns 200 with safe public shape when database is healthy", async () => {
+function assertBasePayload(body) {
+  assert.doesNotThrow(() => new Date(body.timestamp).toISOString());
+  assert.equal(new Date(body.timestamp).toISOString(), body.timestamp);
+  assert.equal(typeof body.uptimeSeconds, "number");
+  assert.ok(body.uptimeSeconds >= 0);
+  assert.equal(typeof body.version, "string");
+  assert.ok(body.version.length > 0);
+}
+
+test("GET /health returns 200 with liveness shape and does not check Prisma", async () => {
+  let queryCount = 0;
+
+  const { response, body } = await withQueryRawMock(() => {
+    queryCount += 1;
+    throw new Error("database unavailable");
+  }, requestHealth);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(Object.keys(body).sort(), [
+    "status",
+    "timestamp",
+    "uptimeSeconds",
+    "version",
+  ]);
+  assert.equal(body.status, "ok");
+  assertBasePayload(body);
+  assert.equal(queryCount, 0);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
+test("GET /health is public and does not require authentication", async () => {
+  const { response, body } = await requestHealth();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "ok");
+});
+
+test("GET /health ignores authorization header and keeps the same public contract", async () => {
+  const { response, body } = await requestHealth({
+    authorization: "Bearer invalid-token",
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "ok");
+  assert.equal(Object.hasOwn(body, "database"), false);
+});
+
+test("GET /health/ready returns 200 with readiness shape when database is healthy", async () => {
   let queryCount = 0;
   let queryText = "";
 
@@ -68,7 +115,7 @@ test("GET /health returns 200 with safe public shape when database is healthy", 
     queryCount += 1;
     queryText = strings.join("");
     return Promise.resolve([{ "?column?": 1 }]);
-  }, requestHealth);
+  }, requestReady);
 
   assert.equal(response.status, 200);
   assert.deepEqual(Object.keys(body).sort(), [
@@ -80,39 +127,14 @@ test("GET /health returns 200 with safe public shape when database is healthy", 
   ]);
   assert.equal(body.status, "ok");
   assert.deepEqual(body.database, { status: "ok" });
-  assert.doesNotThrow(() => new Date(body.timestamp).toISOString());
-  assert.equal(new Date(body.timestamp).toISOString(), body.timestamp);
-  assert.equal(typeof body.uptimeSeconds, "number");
-  assert.ok(body.uptimeSeconds >= 0);
-  assert.equal(typeof body.version, "string");
-  assert.ok(body.version.length > 0);
+  assertBasePayload(body);
   assert.equal(queryCount, 1);
   assert.equal(queryText.trim(), "SELECT 1");
+  assert.equal(Object.hasOwn(body, "storage"), false);
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
-test("GET /health is public and does not require authentication", async () => {
-  const { response, body } = await withQueryRawMock(
-    async () => [{ "?column?": 1 }],
-    () => requestHealth()
-  );
-
-  assert.equal(response.status, 200);
-  assert.equal(body.status, "ok");
-});
-
-test("GET /health ignores authorization header and keeps the same public contract", async () => {
-  const { response, body } = await withQueryRawMock(
-    async () => [{ "?column?": 1 }],
-    () => requestHealth({ authorization: "Bearer invalid-token" })
-  );
-
-  assert.equal(response.status, 200);
-  assert.equal(body.status, "ok");
-  assert.deepEqual(body.database, { status: "ok" });
-});
-
-test("existing GET /health/ready route returns the same safe health contract", async () => {
+test("GET /health/ready is public and does not require authentication", async () => {
   const { response, body } = await withQueryRawMock(
     async () => [{ "?column?": 1 }],
     requestReady
@@ -120,11 +142,9 @@ test("existing GET /health/ready route returns the same safe health contract", a
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
-  assert.deepEqual(body.database, { status: "ok" });
-  assert.equal(Object.hasOwn(body, "storage"), false);
 });
 
-test("GET /health returns 503 without sensitive details when database fails", async () => {
+test("GET /health/ready returns 503 without sensitive details when database fails", async () => {
   const sensitiveError = new Error(
     `Prisma failed with ${process.env.DATABASE_URL || "postgresql://user:pass@host/db"}`
   );
@@ -132,7 +152,7 @@ test("GET /health returns 503 without sensitive details when database fails", as
 
   const { response, body } = await withQueryRawMock(async () => {
     throw sensitiveError;
-  }, requestHealth);
+  }, requestReady);
 
   const serialized = JSON.stringify(body);
 
@@ -144,15 +164,30 @@ test("GET /health returns 503 without sensitive details when database fails", as
   assert.equal(serialized.includes("DATABASE_URL"), false);
   assert.equal(serialized.includes("postgresql://"), false);
   assert.equal(serialized.includes("user:pass"), false);
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
-test("GET /health handles unexpected database check failures without exposing details", async () => {
+test("GET /health/ready handles unexpected database check failures without exposing details", async () => {
   const { response, body } = await withQueryRawMock(async () => {
     throw "unexpected secret failure";
-  }, requestHealth);
+  }, requestReady);
 
   assert.equal(response.status, 503);
   assert.equal(body.status, "degraded");
   assert.deepEqual(body.database, { status: "error" });
   assert.equal(JSON.stringify(body).includes("unexpected secret failure"), false);
+});
+
+test("GET /health/ready returns 503 on database timeout", async () => {
+  const startedAt = performance.now();
+  const { response, body } = await withQueryRawMock(
+    () => new Promise(() => {}),
+    requestReady
+  );
+  const durationMs = performance.now() - startedAt;
+
+  assert.equal(response.status, 503);
+  assert.equal(body.status, "degraded");
+  assert.deepEqual(body.database, { status: "error" });
+  assert.ok(durationMs < 2500);
 });
