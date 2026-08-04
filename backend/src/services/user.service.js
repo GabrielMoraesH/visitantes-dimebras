@@ -1,8 +1,23 @@
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../lib/prisma.js";
 import { ALL_USER_ROLES } from "../constants/roles.js";
 import { idParamSchema, passwordSchema, usernameSchema } from "../utils/validation.js";
+
+const LAST_ACTIVE_ADMIN_REQUIRED = {
+  ok: false,
+  status: 409,
+  code: "LAST_ACTIVE_ADMIN_REQUIRED",
+  message: "Não é possível desativar ou remover o perfil do último administrador ativo.",
+};
+
+const SERIALIZATION_CONFLICT = {
+  ok: false,
+  status: 409,
+  code: "SERIALIZATION_CONFLICT",
+  message: "Não foi possível concluir a alteração de usuário. Tente novamente.",
+};
 
 const USER_SAFE_SELECT = {
   id: true,
@@ -37,12 +52,46 @@ async function hashPassword(password) {
   return bcrypt.hash(password, 10);
 }
 
-async function branchExists(branchId) {
-  const branch = await prisma.branch.findUnique({
+async function branchExists(branchId, db = prisma) {
+  const branch = await db.branch.findUnique({
     where: { id: branchId },
   });
 
   return Boolean(branch);
+}
+
+function shouldKeepActiveAdmin(currentUser, updateData) {
+  if (currentUser.role !== "ADMIN" || currentUser.isActive !== true) return true;
+  if (updateData.isActive === false) return false;
+  if (updateData.role && updateData.role !== "ADMIN") return false;
+  return true;
+}
+
+async function assertActiveAdminWillRemain(db, currentUser, updateData) {
+  if (shouldKeepActiveAdmin(currentUser, updateData)) return null;
+
+  const otherActiveAdmins = await db.user.count({
+    where: {
+      id: { not: currentUser.id },
+      role: "ADMIN",
+      isActive: true,
+    },
+  });
+
+  return otherActiveAdmins > 0 ? null : { ...LAST_ACTIVE_ADMIN_REQUIRED };
+}
+
+async function runCriticalUserTransaction(callback) {
+  try {
+    return await prisma.$transaction(callback, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  } catch (error) {
+    if (error?.code === "P2034") {
+      return { ...SERIALIZATION_CONFLICT };
+    }
+    throw error;
+  }
 }
 
 export async function listUsers() {
@@ -98,29 +147,34 @@ export async function disableUser({ actor, userId }) {
     return { ok: false, status: 400, message: "Você não pode desativar seu próprio usuário" };
   }
 
-  const exists = await prisma.user.findUnique({ where: { id } });
-  if (!exists) return { ok: false, status: 404, message: "Usuário não encontrado" };
+  return runCriticalUserTransaction(async (tx) => {
+    const exists = await tx.user.findUnique({ where: { id } });
+    if (!exists) return { ok: false, status: 404, message: "Usuário não encontrado" };
 
-  if (exists.isActive === false) {
+    if (exists.isActive === false) {
+      return {
+        ok: true,
+        audit: { active: false },
+        auditShouldLog: false,
+      };
+    }
+
+    const activeAdminError = await assertActiveAdminWillRemain(tx, exists, { isActive: false });
+    if (activeAdminError) return activeAdminError;
+
+    const user = await tx.user.update({
+      where: { id },
+      data: { isActive: false },
+      select: USER_SAFE_SELECT,
+    });
+
     return {
       ok: true,
-      audit: { active: false },
-      auditShouldLog: false,
+      user,
+      audit: { active: Boolean(user.isActive) },
+      auditShouldLog: exists.isActive !== user.isActive,
     };
-  }
-
-  const user = await prisma.user.update({
-    where: { id },
-    data: { isActive: false },
-    select: USER_SAFE_SELECT,
   });
-
-  return {
-    ok: true,
-    user,
-    audit: { active: Boolean(user.isActive) },
-    auditShouldLog: exists.isActive !== user.isActive,
-  };
 }
 
 export async function enableUser({ actor, userId }) {
@@ -197,16 +251,6 @@ export async function updateUser({ actor, userId, input }) {
     };
   }
 
-  if (data.username && data.username !== exists.username) {
-    const conflict = await prisma.user.findUnique({ where: { username: data.username } });
-    if (conflict) return { ok: false, status: 400, message: "Username já existe" };
-  }
-
-  if (typeof data.branchId === "number") {
-    const hasBranch = await branchExists(data.branchId);
-    if (!hasBranch) return { ok: false, status: 400, message: "Filial (branchId) não existe" };
-  }
-
   const updateData = {};
   if (data.username) updateData.username = data.username;
   if (data.role) updateData.role = data.role;
@@ -220,25 +264,43 @@ export async function updateUser({ actor, userId, input }) {
     return { ok: false, status: 400, message: "Nada para atualizar" };
   }
 
-  const user = await prisma.user.update({
-    where: { id },
-    data: updateData,
-    select: USER_SAFE_SELECT,
+  return runCriticalUserTransaction(async (tx) => {
+    const current = await tx.user.findUnique({ where: { id } });
+    if (!current) return { ok: false, status: 404, message: "Usuário não encontrado" };
+
+    if (data.username && data.username !== current.username) {
+      const conflict = await tx.user.findUnique({ where: { username: data.username } });
+      if (conflict) return { ok: false, status: 400, message: "Username já existe" };
+    }
+
+    if (typeof data.branchId === "number") {
+      const hasBranch = await branchExists(data.branchId, tx);
+      if (!hasBranch) return { ok: false, status: 400, message: "Filial (branchId) não existe" };
+    }
+
+    const activeAdminError = await assertActiveAdminWillRemain(tx, current, updateData);
+    if (activeAdminError) return activeAdminError;
+
+    const user = await tx.user.update({
+      where: { id },
+      data: updateData,
+      select: USER_SAFE_SELECT,
+    });
+
+    const audit = {
+      usernameChanged:
+        Object.prototype.hasOwnProperty.call(updateData, "username") && user.username !== current.username,
+      roleChanged: Object.prototype.hasOwnProperty.call(updateData, "role") && user.role !== current.role,
+      branchChanged:
+        Object.prototype.hasOwnProperty.call(updateData, "branchId") && user.branchId !== current.branchId,
+      credentialsChanged: Object.prototype.hasOwnProperty.call(updateData, "passwordHash"),
+    };
+
+    return {
+      ok: true,
+      user,
+      audit,
+      auditShouldLog: Object.values(audit).some(Boolean),
+    };
   });
-
-  const audit = {
-    usernameChanged:
-      Object.prototype.hasOwnProperty.call(updateData, "username") && user.username !== exists.username,
-    roleChanged: Object.prototype.hasOwnProperty.call(updateData, "role") && user.role !== exists.role,
-    branchChanged:
-      Object.prototype.hasOwnProperty.call(updateData, "branchId") && user.branchId !== exists.branchId,
-    credentialsChanged: Object.prototype.hasOwnProperty.call(updateData, "passwordHash"),
-  };
-
-  return {
-    ok: true,
-    user,
-    audit,
-    auditShouldLog: Object.values(audit).some(Boolean),
-  };
 }

@@ -84,19 +84,35 @@ const tvPngBytes = Buffer.from([
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];
+  const hasTransactionMock = Object.prototype.hasOwnProperty.call(mocks, "$transaction");
 
   for (const [model, methods] of Object.entries(mocks)) {
+    if (model === "$transaction") {
+      originals.push([model, null, prisma.$transaction]);
+      prisma.$transaction = methods;
+      continue;
+    }
+
     for (const [method, replacement] of Object.entries(methods)) {
       originals.push([model, method, prisma[model][method]]);
       prisma[model][method] = replacement;
     }
   }
 
+  if (!hasTransactionMock && Object.prototype.hasOwnProperty.call(mocks, "user")) {
+    originals.push(["$transaction", null, prisma.$transaction]);
+    prisma.$transaction = async (callback) => callback(prisma);
+  }
+
   return Promise.resolve()
     .then(fn)
     .finally(() => {
       for (const [model, method, original] of originals.reverse()) {
-        prisma[model][method] = original;
+        if (model === "$transaction") {
+          prisma.$transaction = original;
+        } else {
+          prisma[model][method] = original;
+        }
       }
     });
 }

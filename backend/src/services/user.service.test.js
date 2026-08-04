@@ -12,19 +12,35 @@ import {
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];
+  const hasTransactionMock = Object.prototype.hasOwnProperty.call(mocks, "$transaction");
 
   for (const [model, methods] of Object.entries(mocks)) {
+    if (model === "$transaction") {
+      originals.push([model, null, prisma.$transaction]);
+      prisma.$transaction = methods;
+      continue;
+    }
+
     for (const [method, replacement] of Object.entries(methods)) {
       originals.push([model, method, prisma[model][method]]);
       prisma[model][method] = replacement;
     }
   }
 
+  if (!hasTransactionMock) {
+    originals.push(["$transaction", null, prisma.$transaction]);
+    prisma.$transaction = async (callback) => callback(prisma);
+  }
+
   return Promise.resolve()
     .then(fn)
     .finally(() => {
       for (const [model, method, original] of originals.reverse()) {
-        prisma[model][method] = original;
+        if (model === "$transaction") {
+          prisma.$transaction = original;
+        } else {
+          prisma[model][method] = original;
+        }
       }
     });
 }
@@ -575,6 +591,210 @@ test("disableUser preserves admin, self-disable, already inactive and not-found 
     () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
   );
   assert.deepEqual(notFound, { ok: false, status: 404, message: "Usuário não encontrado" });
+});
+
+test("disableUser rejects deactivating the last active ADMIN inside a serializable transaction", async () => {
+  let updateCalled = false;
+  let transactionOptions;
+
+  const result = await withPrismaMocks(
+    {
+      $transaction: async (callback, options) => {
+        transactionOptions = options;
+        return callback(prisma);
+      },
+      user: {
+        findUnique: async () => ({ ...safeUser, role: "ADMIN", isActive: true }),
+        count: async (args) => {
+          assert.deepEqual(args, {
+            where: { id: { not: 2 }, role: "ADMIN", isActive: true },
+          });
+          return 0;
+        },
+        update: async () => {
+          updateCalled = true;
+          return { ...safeUser, role: "ADMIN", isActive: false };
+        },
+      },
+    },
+    () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 409,
+    code: "LAST_ACTIVE_ADMIN_REQUIRED",
+    message: "Não é possível desativar ou remover o perfil do último administrador ativo.",
+  });
+  assert.deepEqual(transactionOptions, { isolationLevel: "Serializable" });
+  assert.equal(updateCalled, false);
+});
+
+test("disableUser allows deactivating ADMIN when another active ADMIN exists", async () => {
+  let updateCalled = false;
+
+  const result = await withPrismaMocks(
+    {
+      user: {
+        findUnique: async () => ({ ...safeUser, role: "ADMIN", isActive: true }),
+        count: async () => 1,
+        update: async (args) => {
+          updateCalled = true;
+          assert.deepEqual(args.data, { isActive: false });
+          return { ...safeUser, role: "ADMIN", isActive: false };
+        },
+      },
+    },
+    () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.auditShouldLog, true);
+  assert.equal(updateCalled, true);
+});
+
+test("updateUser rejects changing the last active ADMIN to RECEPCAO without partial update", async () => {
+  let updateCalled = false;
+
+  const result = await withPrismaMocks(
+    {
+      user: {
+        findUnique: async () => ({ ...safeUser, role: "ADMIN", isActive: true }),
+        count: async () => 0,
+        update: async () => {
+          updateCalled = true;
+          return { ...safeUser, role: "RECEPCAO", isActive: true };
+        },
+      },
+    },
+    () => updateUser({ userId: { id: "2" }, input: { role: "RECEPCAO" } })
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 409,
+    code: "LAST_ACTIVE_ADMIN_REQUIRED",
+    message: "Não é possível desativar ou remover o perfil do último administrador ativo.",
+  });
+  assert.equal(updateCalled, false);
+});
+
+test("updateUser counts only other active ADMIN users before removing ADMIN role", async () => {
+  const scenarios = [
+    { name: "inactive ADMIN does not count", count: 0, allowed: false },
+    { name: "active RECEPCAO does not count", count: 0, allowed: false },
+    { name: "target user is not counted as another ADMIN", count: 0, allowed: false },
+    { name: "another active ADMIN permits role change", count: 1, allowed: true },
+  ];
+
+  for (const scenario of scenarios) {
+    let countArgs;
+    let updateCalled = false;
+
+    const result = await withPrismaMocks(
+      {
+        user: {
+          findUnique: async () => ({ ...safeUser, role: "ADMIN", isActive: true }),
+          count: async (args) => {
+            countArgs = args;
+            return scenario.count;
+          },
+          update: async () => {
+            updateCalled = true;
+            return { ...safeUser, role: "RECEPCAO", isActive: true };
+          },
+        },
+      },
+      () => updateUser({ userId: { id: "2" }, input: { role: "RECEPCAO" } })
+    );
+
+    assert.deepEqual(
+      countArgs,
+      { where: { id: { not: 2 }, role: "ADMIN", isActive: true } },
+      scenario.name
+    );
+    assert.equal(result.ok, scenario.allowed, scenario.name);
+    assert.equal(updateCalled, scenario.allowed, scenario.name);
+  }
+});
+
+test("updateUser does not block edits that keep the user as active ADMIN", async () => {
+  const result = await withPrismaMocks(
+    {
+      user: {
+        findUnique: async ({ where }) =>
+          where.username ? null : { ...safeUser, username: "admin", role: "ADMIN", isActive: true },
+        count: async () => {
+          throw new Error("count should not run");
+        },
+        update: async () => ({ ...safeUser, username: "admin2", role: "ADMIN", isActive: true }),
+      },
+    },
+    () => updateUser({ userId: { id: "2" }, input: { username: "admin2" } })
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.audit.usernameChanged, true);
+});
+
+test("updateUser preserves RECEPCAO to ADMIN promotion and inactive ADMIN edit behavior", async () => {
+  const promoted = await withPrismaMocks(
+    {
+      user: {
+        findUnique: async () => ({ ...safeUser, role: "RECEPCAO", isActive: true }),
+        count: async () => {
+          throw new Error("count should not run");
+        },
+        update: async () => ({ ...safeUser, role: "ADMIN", isActive: true }),
+      },
+    },
+    () => updateUser({ userId: { id: "2" }, input: { role: "ADMIN" } })
+  );
+  assert.equal(promoted.ok, true);
+  assert.equal(promoted.audit.roleChanged, true);
+
+  const inactiveAdmin = await withPrismaMocks(
+    {
+      user: {
+        findUnique: async ({ where }) =>
+          where.username ? null : { ...safeUser, role: "ADMIN", isActive: false },
+        count: async () => {
+          throw new Error("count should not run");
+        },
+        update: async () => ({ ...safeUser, username: "admin-inativo", role: "ADMIN", isActive: false }),
+      },
+    },
+    () => updateUser({ userId: { id: "2" }, input: { username: "admin-inativo" } })
+  );
+  assert.equal(inactiveAdmin.ok, true);
+});
+
+test("critical user transactions return safe serialization conflict without partial update", async () => {
+  let updateCalled = false;
+
+  const result = await withPrismaMocks(
+    {
+      $transaction: async () => {
+        const error = new Error("serialization failed");
+        error.code = "P2034";
+        throw error;
+      },
+      user: {
+        update: async () => {
+          updateCalled = true;
+        },
+      },
+    },
+    () => disableUser({ actor: { id: 9 }, userId: { id: "2" } })
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    status: 409,
+    code: "SERIALIZATION_CONFLICT",
+    message: "Não foi possível concluir a alteração de usuário. Tente novamente.",
+  });
+  assert.equal(updateCalled, false);
 });
 
 test("invalid user id is rejected before Prisma and Prisma errors are propagated", async () => {

@@ -50,19 +50,35 @@ const pngHead = Buffer.from([
 
 function withPrismaMocks(mocks, fn) {
   const originals = [];
+  const hasTransactionMock = Object.prototype.hasOwnProperty.call(mocks, "$transaction");
 
   for (const [model, methods] of Object.entries(mocks)) {
+    if (model === "$transaction") {
+      originals.push([model, null, prisma.$transaction]);
+      prisma.$transaction = methods;
+      continue;
+    }
+
     for (const [method, replacement] of Object.entries(methods)) {
       originals.push([model, method, prisma[model][method]]);
       prisma[model][method] = replacement;
     }
   }
 
+  if (!hasTransactionMock && Object.prototype.hasOwnProperty.call(mocks, "user")) {
+    originals.push(["$transaction", null, prisma.$transaction]);
+    prisma.$transaction = async (callback) => callback(prisma);
+  }
+
   return Promise.resolve()
     .then(fn)
     .finally(() => {
       for (const [model, method, original] of originals.reverse()) {
-        prisma[model][method] = original;
+        if (model === "$transaction") {
+          prisma.$transaction = original;
+        } else {
+          prisma[model][method] = original;
+        }
       }
     });
 }
@@ -1843,6 +1859,79 @@ test("user activate and deactivate audit only after confirmed status changes", a
         assert.equal(calls[0].entity, "USER");
         assert.equal(calls[0].entityId, "901");
         assert.deepEqual(calls[0].metadata, { active: true });
+      }
+    )
+  );
+});
+
+test("last active ADMIN deactivation rejection does not register USER_DEACTIVATE", async () => {
+  await withAuditMock(null, (calls) =>
+    withPrismaMocks(
+      {
+        user: {
+          findUnique: async () => ({
+            id: 901,
+            username: "old.user",
+            role: "ADMIN",
+            branchId: 2,
+            isActive: true,
+          }),
+          count: async () => 0,
+          update: async () => {
+            throw new Error("update should not run");
+          },
+        },
+      },
+      async () => {
+        const response = await request((app) => app.patch("/test/:id/disable", disableUser), {
+          method: "PATCH",
+          path: "/test/901/disable",
+        });
+
+        assert.equal(response.status, 409);
+        assert.deepEqual(response.body, {
+          message: "Não é possível desativar ou remover o perfil do último administrador ativo.",
+          code: "LAST_ACTIVE_ADMIN_REQUIRED",
+          details: null,
+        });
+        assert.equal(calls.length, 0);
+      }
+    )
+  );
+});
+
+test("last active ADMIN role removal rejection does not register USER_UPDATE", async () => {
+  await withAuditMock(null, (calls) =>
+    withPrismaMocks(
+      {
+        user: {
+          findUnique: async () => ({
+            id: 901,
+            username: "old.user",
+            role: "ADMIN",
+            branchId: 2,
+            isActive: true,
+          }),
+          count: async () => 0,
+          update: async () => {
+            throw new Error("update should not run");
+          },
+        },
+      },
+      async () => {
+        const response = await request((app) => app.put("/test/:id", updateUser), {
+          method: "PUT",
+          path: "/test/901",
+          body: { role: "RECEPCAO" },
+        });
+
+        assert.equal(response.status, 409);
+        assert.deepEqual(response.body, {
+          message: "Não é possível desativar ou remover o perfil do último administrador ativo.",
+          code: "LAST_ACTIVE_ADMIN_REQUIRED",
+          details: null,
+        });
+        assert.equal(calls.length, 0);
       }
     )
   );

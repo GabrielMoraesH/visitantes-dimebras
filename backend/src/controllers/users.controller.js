@@ -1,10 +1,14 @@
 import * as userService from "../services/user.service.js";
 import { auditRequestContext, safeAuditLog } from "../utils/audit.js";
 
+function userErrorPayload(result) {
+  return result.code ? { message: result.message, code: result.code } : { message: result.message };
+}
+
 export async function createUser(req, res, next) {
   try {
     const result = await userService.createUser({ actor: req.user, input: req.body });
-    if (!result.ok) return res.status(result.status).json({ message: result.message });
+    if (!result.ok) return res.status(result.status).json(userErrorPayload(result));
 
     await safeAuditLog({
       ...auditRequestContext(req),
@@ -34,7 +38,7 @@ export async function listUsers(req, res, next) {
 export async function disableUser(req, res, next) {
   try {
     const result = await userService.disableUser({ actor: req.user, userId: req.params });
-    if (!result.ok) return res.status(result.status).json({ message: result.message });
+    if (!result.ok) return res.status(result.status).json(userErrorPayload(result));
 
     if (result.auditShouldLog) {
       await safeAuditLog({
@@ -57,7 +61,7 @@ export async function enableUser(req, res, next) {
   try {
     const result = await userService.enableUser({ actor: req.user, userId: req.params });
     if (!result.ok) {
-      return res.status(result.status).json({ message: result.message });
+      return res.status(result.status).json(userErrorPayload(result));
     }
 
     if (result.auditShouldLog) {
@@ -84,7 +88,7 @@ export async function updateUser(req, res, next) {
       userId: req.params,
       input: req.body,
     });
-    if (!result.ok) return res.status(result.status).json({ message: result.message });
+    if (!result.ok) return res.status(result.status).json(userErrorPayload(result));
 
     if (result.auditShouldLog) {
       await safeAuditLog({
