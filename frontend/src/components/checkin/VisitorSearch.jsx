@@ -1,6 +1,8 @@
 import { uniqueFieldErrorMessages } from "../../utils/checkin";
 
 export default function VisitorSearch({
+  alertRef,
+  alertTitle = "Corrija os campos:",
   cpf,
   cpfInputRef,
   fieldErrors,
@@ -37,8 +39,16 @@ export default function VisitorSearch({
       {message && <div className="alert">{message}</div>}
 
       {fieldErrorMessages.length > 0 && (
-        <div className="alert alert-list">
-          <div className="alert-title">Corrija os campos:</div>
+        <div
+          ref={alertRef}
+          className="alert alert-list"
+          role="alert"
+          tabIndex={-1}
+          aria-labelledby="checkin-alert-title"
+        >
+          <div className="alert-title" id="checkin-alert-title">
+            {alertTitle}
+          </div>
           <ul>
             {fieldErrorMessages.map((text) => (
               <li key={text}>{text}</li>

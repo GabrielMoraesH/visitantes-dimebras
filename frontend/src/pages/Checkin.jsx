@@ -14,9 +14,11 @@ import api, { openVisitLabel } from "../services/api";
 import { clearSession, getToken, getUser } from "../services/session";
 import {
   buildVisitorImageFile,
-  isOlderThan6Months,
   onlyDigits,
+  requiredVisitFieldErrors,
   uploadErrorMessage,
+  visitorDocumentPendencies,
+  visitorDocumentStatusMessage,
 } from "../utils/checkin";
 import "../styles/checkin.css";
 
@@ -34,6 +36,8 @@ export default function Checkin() {
   const [visitor, setVisitor] = useState(null);
   const [msg, setMsg] = useState("");
   const [fieldErrors, setFieldErrors] = useState([]);
+  const [showDocumentAlert, setShowDocumentAlert] = useState(false);
+  const [focusPendingAlert, setFocusPendingAlert] = useState(false);
 
   const [areaToVisit, setAreaToVisit] = useState(DEFAULT_AREA_TO_VISIT);
   const [attendedBy, setAttendedBy] = useState("");
@@ -53,6 +57,7 @@ export default function Checkin() {
   const [savingVisitor, setSavingVisitor] = useState(false);
 
   const cpfInputRef = useRef(null);
+  const alertRef = useRef(null);
   const updatingFilesRef = useRef(false);
 
   const showToast = useCallback((text, type = "success") => {
@@ -96,6 +101,8 @@ export default function Checkin() {
     setOpenVisitId(null);
     setMsg("");
     setFieldErrors([]);
+    setShowDocumentAlert(false);
+    setFocusPendingAlert(false);
     resetVisitForm();
     setVisitStats(null);
     setRecentVisits([]);
@@ -142,6 +149,8 @@ export default function Checkin() {
   const buscarComCpf = useCallback(async (cpfDigits) => {
     setMsg("");
     setFieldErrors([]);
+    setShowDocumentAlert(false);
+    setFocusPendingAlert(false);
     setVisitor(null);
     setOpenVisitId(null);
     setVisitStats(null);
@@ -154,6 +163,7 @@ export default function Checkin() {
       setVisitor(data);
       setCompanyEdit(data.company || "");
       setPhoneEdit(data.phone || "");
+      setMsg(visitorDocumentStatusMessage(visitorDocumentPendencies(data)));
 
       await buscarVisitaAberta(cpfDigits);
       await loadExtrasByCpf(cpfDigits);
@@ -181,21 +191,43 @@ export default function Checkin() {
     return !visitor.photoMime;
   }, [visitor]);
 
-  const docExpired = useMemo(() => {
-    if (!visitor) return false;
+  const documentPendencies = useMemo(() => visitorDocumentPendencies(visitor), [visitor]);
 
-    const frontMissing = !visitor.documentFrontUpdatedAt;
-    const backMissing = !visitor.documentBackUpdatedAt;
-    const frontExpired = isOlderThan6Months(visitor.documentFrontUpdatedAt);
-    const backExpired = isOlderThan6Months(visitor.documentBackUpdatedAt);
-
-    return frontMissing || backMissing || frontExpired || backExpired;
-  }, [visitor]);
+  const docExpired = documentPendencies.length > 0;
 
   const noPendingUpdates = useMemo(() => {
     if (!visitor) return false;
     return !photoExpired && !docExpired;
   }, [visitor, photoExpired, docExpired]);
+
+  const visibleFieldErrors = useMemo(() => {
+    if (!showDocumentAlert) return fieldErrors;
+
+    return [
+      ...fieldErrors,
+      ...documentPendencies.map((item) => ({
+        path: item.field,
+        message: item.message,
+      })),
+    ];
+  }, [documentPendencies, fieldErrors, showDocumentAlert]);
+
+  const alertTitle = fieldErrors.length > 0 ? "Corrija os campos:" : "Atualize os documentos:";
+
+  useEffect(() => {
+    if (!focusPendingAlert || visibleFieldErrors.length === 0) return;
+
+    const alertElement = alertRef.current;
+    if (!alertElement) return;
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    alertElement.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    alertElement.focus({ preventScroll: true });
+    setFocusPendingAlert(false);
+  }, [focusPendingAlert, visibleFieldErrors.length]);
 
   function logout() {
     clearSession();
@@ -324,6 +356,14 @@ export default function Checkin() {
 
     setMsg("");
     setFieldErrors([]);
+    setShowDocumentAlert(false);
+
+    if (documentPendencies.length > 0) {
+      setFieldErrors(requiredVisitFieldErrors({ attendedBy, serviceType }));
+      setShowDocumentAlert(true);
+      setFocusPendingAlert(true);
+      return;
+    }
 
     try {
       const payload = {
@@ -368,9 +408,11 @@ export default function Checkin() {
 
       <main className="checkin-container">
         <VisitorSearch
+          alertRef={alertRef}
+          alertTitle={alertTitle}
           cpf={cpf}
           cpfInputRef={cpfInputRef}
-          fieldErrors={fieldErrors}
+          fieldErrors={visibleFieldErrors}
           message={msg}
           onCpfChange={setCpf}
           onSubmit={buscar}

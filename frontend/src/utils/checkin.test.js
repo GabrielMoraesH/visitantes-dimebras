@@ -5,8 +5,11 @@ import {
   formatPhone,
   isOlderThan6Months,
   onlyDigits,
+  requiredVisitFieldErrors,
   uniqueFieldErrorMessages,
   uploadErrorMessage,
+  visitorDocumentPendencies,
+  visitorDocumentStatusMessage,
 } from "./checkin";
 
 describe("checkin utils", () => {
@@ -41,5 +44,34 @@ describe("checkin utils", () => {
         null,
       ])
     ).toEqual(["Campo obrigatorio"]);
+  });
+  it("deriva pendencias de documentos na ordem frente e verso", () => {
+    expect(
+      visitorDocumentPendencies({
+        documentFrontUpdatedAt: null,
+        documentBackUpdatedAt: "2025-01-01T10:00:00-03:00",
+      }).map((item) => item.message)
+    ).toEqual([
+      "Fotografe a frente do documento.",
+      "O verso do documento está expirado. Fotografe-o novamente.",
+    ]);
+  });
+
+  it("gera mensagem inicial especifica para documentos pendentes", () => {
+    const pendencies = visitorDocumentPendencies({
+      documentFrontUpdatedAt: "2025-01-01T10:00:00-03:00",
+      documentBackUpdatedAt: "2025-01-01T10:00:00-03:00",
+    });
+
+    expect(visitorDocumentStatusMessage(pendencies)).toBe(
+      "Os documentos deste visitante estão expirados. Atualize a frente e o verso para continuar."
+    );
+  });
+
+  it("valida campos obrigatorios da visita antes de consolidar com documentos", () => {
+    expect(requiredVisitFieldErrors({ attendedBy: "", serviceType: "  " }).map((item) => item.message)).toEqual([
+      "Informe com quem veio falar.",
+      "Informe o que veio fazer na empresa.",
+    ]);
   });
 });
