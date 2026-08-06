@@ -14,7 +14,7 @@ export default function VisitorMediaCard({
         {photoSrc ? (
           <img className="photo-preview" src={photoSrc} alt="Foto" />
         ) : (
-          <div className="photo-placeholder">FOTO OBRIGATÓRIA</div>
+          <div className="photo-placeholder">Fotografe o visitante.</div>
         )}
       </div>
 
@@ -25,7 +25,7 @@ export default function VisitorMediaCard({
           disabled={updatingFiles}
           type="button"
         >
-          {updatingFiles ? "ATUALIZANDO..." : photoExpired ? "ATUALIZAR FOTO" : "TROCAR FOTO"}
+          <span aria-live="polite">{updatingFiles ? "Atualizando..." : photoExpired ? "ATUALIZAR FOTO" : "TROCAR FOTO"}</span>
         </button>
 
         {docExpired && (
@@ -36,7 +36,7 @@ export default function VisitorMediaCard({
               disabled={updatingFiles}
               type="button"
             >
-              {updatingFiles ? "ATUALIZANDO..." : "ATUALIZAR DOC (FRENTE)"}
+              <span aria-live="polite">{updatingFiles ? "Atualizando..." : "ATUALIZAR DOC (FRENTE)"}</span>
             </button>
 
             <button
@@ -45,7 +45,7 @@ export default function VisitorMediaCard({
               disabled={updatingFiles}
               type="button"
             >
-              {updatingFiles ? "ATUALIZANDO..." : "ATUALIZAR DOC (VERSO)"}
+              <span aria-live="polite">{updatingFiles ? "Atualizando..." : "ATUALIZAR DOC (VERSO)"}</span>
             </button>
           </>
         )}

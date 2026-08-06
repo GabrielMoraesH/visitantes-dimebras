@@ -8,11 +8,13 @@ import {
   formatCPF,
   formatPhone,
   getFirstVisitorRegistrationError,
+  getVisitorRegistrationErrors,
   isValidCPF,
   isValidPhone,
   makeJpgFile,
   onlyDigits,
   uploadVisitorRegistrationErrorMessage,
+  VISITOR_REGISTRATION_MESSAGES,
 } from "../utils/visitorRegistration";
 import useVisitorRegistrationMedia from "./useVisitorRegistrationMedia";
 
@@ -52,6 +54,7 @@ export default function useCadastroVisitante() {
   const nameInputRef = useRef(null);
   const phoneInputRef = useRef(null);
   const companyInputRef = useRef(null);
+  const formAlertRef = useRef(null);
   const docBackCameraButtonRef = useRef(null);
   const docFrontCameraButtonRef = useRef(null);
   const photoCameraButtonRef = useRef(null);
@@ -92,6 +95,19 @@ export default function useCadastroVisitante() {
   const showPhotoInvalid = !photoOk && submitAttempted;
   const showDocFrontInvalid = !docFrontOk && submitAttempted;
   const showDocBackInvalid = !docBackOk && submitAttempted;
+  const validationErrors = getVisitorRegistrationErrors({
+    company,
+    companyOk,
+    cpfDigits,
+    cpfOk,
+    docBackOk,
+    docFrontOk,
+    name,
+    nameOk,
+    phoneDisplay,
+    phoneOk,
+    photoOk,
+  });
   const formMessageField = !msg
     ? ""
     : !cpfOk
@@ -109,11 +125,15 @@ export default function useCadastroVisitante() {
 
   function getFirstError() {
     return getFirstVisitorRegistrationError({
+      company,
       companyOk,
+      cpfDigits,
       cpfOk,
       docBackOk,
       docFrontOk,
+      name,
       nameOk,
+      phoneDisplay,
       phoneOk,
       photoOk,
     });
@@ -130,28 +150,11 @@ export default function useCadastroVisitante() {
     setCameraTarget(null);
   }
 
-  function focusFirstInvalidField() {
-    const firstInvalidRef = !cpfOk
-      ? cpfInputRef
-      : !nameOk
-        ? nameInputRef
-        : !phoneOk
-          ? phoneInputRef
-          : !companyOk
-            ? companyInputRef
-            : !photoOk
-              ? photoCameraButtonRef
-              : !docFrontOk
-                ? docFrontCameraButtonRef
-                : !docBackOk
-                  ? docBackCameraButtonRef
-                  : null;
-
-    if (firstInvalidRef) {
-      setTimeout(() => {
-        firstInvalidRef.current?.focus({ preventScroll: true });
-      }, 0);
-    }
+  function focusInvalidAlert() {
+    setTimeout(() => {
+      formAlertRef.current?.scrollIntoView?.({ block: "center" });
+      formAlertRef.current?.focus({ preventScroll: true });
+    }, 0);
   }
 
   function handleCaptureBlob(blob) {
@@ -214,12 +217,12 @@ export default function useCadastroVisitante() {
     if (lastLookupCpfRef.current === digits) return false;
     lastLookupCpfRef.current = digits;
 
-    setCpfLookup({ status: "checking", message: "Verificando CPF..." });
+    setCpfLookup({ status: "checking", message: VISITOR_REGISTRATION_MESSAGES.verifyingCpf });
 
     try {
       await api.get(`/visitors/by-cpf/${digits}`);
 
-      setCpfLookup({ status: "exists", message: "CPF ja cadastrado. Indo para o check-in..." });
+      setCpfLookup({ status: "exists", message: VISITOR_REGISTRATION_MESSAGES.cpfConflictCheckin });
 
       setTimeout(() => navigate(`/checkin?cpf=${digits}`), 250);
       return true;
@@ -231,9 +234,14 @@ export default function useCadastroVisitante() {
         return false;
       }
 
+      if (status === 401) {
+        setCpfLookup({ status: "idle", message: "" });
+        return false;
+      }
+
       setCpfLookup({
         status: "error",
-        message: err?.response?.data?.message || "Erro ao verificar CPF",
+        message: uploadVisitorRegistrationErrorMessage(err) || VISITOR_REGISTRATION_MESSAGES.verifyCpfError,
       });
       return false;
     }
@@ -265,7 +273,7 @@ export default function useCadastroVisitante() {
     const err = getFirstError();
     if (err) {
       setMsg(err);
-      focusFirstInvalidField();
+      focusInvalidAlert();
       return;
     }
 
@@ -278,6 +286,7 @@ export default function useCadastroVisitante() {
         await submitVisitorWithFiles();
       } catch (submitErr) {
         if (submitErr?.response?.status === 409) {
+          setMsg(VISITOR_REGISTRATION_MESSAGES.cpfConflictUpdatingFiles);
           await submitExistingVisitorFiles();
         } else {
           throw submitErr;
@@ -312,14 +321,31 @@ export default function useCadastroVisitante() {
     },
     fields: {
       company,
-      companyError: showCompanyInvalid ? "Campo obrigatorio: empresa." : "",
+      companyError: showCompanyInvalid
+        ? company.trim()
+          ? VISITOR_REGISTRATION_MESSAGES.companyInvalid
+          : VISITOR_REGISTRATION_MESSAGES.companyRequired
+        : "",
       cpfDisplay,
+      cpfError: showCpfInvalid
+        ? cpfDigits
+          ? VISITOR_REGISTRATION_MESSAGES.cpfInvalid
+          : VISITOR_REGISTRATION_MESSAGES.cpfRequired
+        : "",
       cpfFeedback,
       cpfLookup,
       name,
-      nameError: showNameInvalid ? "Campo obrigatorio: nome completo." : "",
+      nameError: showNameInvalid
+        ? name.trim()
+          ? VISITOR_REGISTRATION_MESSAGES.nameInvalid
+          : VISITOR_REGISTRATION_MESSAGES.nameRequired
+        : "",
       phoneDisplay,
-      phoneError: showPhoneInvalid ? "Campo invalido: telefone (minimo 10 digitos)." : "",
+      phoneError: showPhoneInvalid
+        ? onlyDigits(phoneDisplay)
+          ? VISITOR_REGISTRATION_MESSAGES.phoneInvalid
+          : VISITOR_REGISTRATION_MESSAGES.phoneRequired
+        : "",
     },
     handlers: {
       onBack: () => navigate(-1),
@@ -347,25 +373,27 @@ export default function useCadastroVisitante() {
     },
     media: {
       docBack,
-      docBackError: showDocBackInvalid ? "Fotografe o verso do documento." : "",
+      docBackError: showDocBackInvalid ? VISITOR_REGISTRATION_MESSAGES.docBackRequired : "",
       docBackPreview,
       docFront,
-      docFrontError: showDocFrontInvalid ? "Fotografe a frente do documento." : "",
+      docFrontError: showDocFrontInvalid ? VISITOR_REGISTRATION_MESSAGES.docFrontRequired : "",
       docFrontPreview,
       photo,
-      photoError: showPhotoInvalid ? "Fotografe o visitante." : "",
+      photoError: showPhotoInvalid ? VISITOR_REGISTRATION_MESSAGES.photoRequired : "",
       photoPreview,
     },
     refs: {
       cameraButtonRefs,
       companyInputRef,
       cpfInputRef,
+      formAlertRef,
       nameInputRef,
       phoneInputRef,
     },
     submission: {
       message: msg,
       saving,
+      validationErrors: msg ? validationErrors : [],
     },
     validation: {
       formMessageField,

@@ -4,6 +4,8 @@ export default function VisitorDetailsPanel({
   areaToVisit,
   attendedBy,
   companyEdit,
+  fieldErrors = [],
+  generatingLabel,
   loadingExtras,
   onAreaToVisitChange,
   onAttendedByChange,
@@ -23,6 +25,9 @@ export default function VisitorDetailsPanel({
   visitStats,
   visitor,
 }) {
+  const hasFieldError = (path) => fieldErrors.some((item) => item?.path === path);
+  const describedBy = (path) => (hasFieldError(path) ? "checkin-alert-title" : undefined);
+
   return (
     <div className="card">
       <div className="kv">
@@ -44,6 +49,8 @@ export default function VisitorDetailsPanel({
               value={companyEdit}
               onChange={(event) => onCompanyEditChange(event.target.value)}
               placeholder="Empresa..."
+              aria-invalid={hasFieldError("company")}
+              aria-describedby={describedBy("company")}
             />
           </div>
         </div>
@@ -64,7 +71,7 @@ export default function VisitorDetailsPanel({
 
       <div className="visitor-save-actions">
         <button className="btn btn-light" type="button" onClick={onSaveVisitor} disabled={savingVisitor}>
-          {savingVisitor ? "SALVANDO..." : "SALVAR DADOS"}
+          {savingVisitor ? "Salvando..." : "SALVAR DADOS"}
         </button>
       </div>
 
@@ -76,6 +83,8 @@ export default function VisitorDetailsPanel({
             className="input"
             value={`Filial: ${user?.role === "ADMIN" ? "TODAS" : user?.branch?.name || "-"}`}
             readOnly
+            aria-invalid={hasFieldError("branch")}
+            aria-describedby={describedBy("branch")}
           />
 
           <select className="input" value={areaToVisit} onChange={(event) => onAreaToVisitChange(event.target.value)}>
@@ -93,6 +102,8 @@ export default function VisitorDetailsPanel({
             placeholder="Falar com quem?"
             value={attendedBy}
             onChange={(event) => onAttendedByChange(event.target.value)}
+            aria-invalid={hasFieldError("attendedBy")}
+            aria-describedby={describedBy("attendedBy")}
           />
 
           <input
@@ -100,6 +111,8 @@ export default function VisitorDetailsPanel({
             placeholder="Motivo da visita?"
             value={serviceType}
             onChange={(event) => setServiceType(event.target.value)}
+            aria-invalid={hasFieldError("serviceType")}
+            aria-describedby={describedBy("serviceType")}
           />
         </div>
 
@@ -113,8 +126,8 @@ export default function VisitorDetailsPanel({
               REIMPRIMIR ETIQUETA
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={onGenerateLabel} type="button">
-              GERAR ETIQUETA
+            <button className="btn btn-primary" onClick={onGenerateLabel} type="button" disabled={generatingLabel}>
+              <span aria-live="polite">{generatingLabel ? "Gerando etiqueta..." : "GERAR ETIQUETA"}</span>
             </button>
           )}
         </div>
@@ -126,7 +139,7 @@ export default function VisitorDetailsPanel({
             <div className="extras-title">VISITAS</div>
 
             {loadingExtras ? (
-              <div className="cpf-status">Carregando...</div>
+              <div className="cpf-status" aria-live="polite">Carregando...</div>
             ) : (
               <div className="cpf-statTitle">
                 <div className="cpf-statSingle">
@@ -142,7 +155,7 @@ export default function VisitorDetailsPanel({
           <div className="extras-title">ÚLTIMAS VISITAS</div>
 
           {loadingExtras ? (
-            <div className="extras-muted">Carregando...</div>
+            <div className="extras-muted" aria-live="polite">Carregando...</div>
           ) : recentVisits.length === 0 ? (
             <div className="extras-muted">Nenhuma visita anterior.</div>
           ) : (

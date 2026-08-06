@@ -6,6 +6,17 @@ import AgendaCard from "../components/AgendaCard";
 import AgendaModal from "../components/AgendaModal";
 import { getAgenda } from "../services/agendaService";
 
+const AGENDA_MESSAGES = {
+  emptyFiltered: "Nenhum agendamento foi encontrado para o período informado.",
+  emptyPlain: "Nenhum agendamento encontrado.",
+  emptyStart: "Crie um agendamento para começar.",
+  loadError: "Não foi possível carregar a agenda.",
+  loadErrorHelp: "Tente novamente.",
+  loading: "Carregando agenda...",
+  loadingAccessible: "Carregando agenda, aguarde...",
+  retry: "Tentar novamente",
+};
+
 function formatDateForInput(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -79,10 +90,7 @@ export default function Agenda() {
     } catch (error) {
       console.error("Erro ao carregar agenda:", error);
       setEvents([]);
-      setLoadError(
-        error?.response?.data?.message ||
-        "Não foi possível carregar a agenda."
-      );
+      setLoadError(AGENDA_MESSAGES.loadError);
     } finally {
       loadingAgendaRef.current = false;
       setLoading(false);
@@ -365,20 +373,23 @@ return (
           </div>
 
           {loading ? (
-            <div className="agenda-empty">
-              <div className="empty-icon">⏳</div>
-              <h2>Carregando agenda...</h2>
+            <div className="agenda-empty" role="status" aria-live="polite">
+              <div className="empty-icon" aria-hidden="true">⏳</div>
+              <h2>{AGENDA_MESSAGES.loading}</h2>
+              <span className="agenda-sr-only">
+                {AGENDA_MESSAGES.loadingAccessible}
+              </span>
             </div>
           ) : loadError ? (
-            <div className="agenda-empty agenda-error">
-              <div className="agenda-error-icon">!</div>
+            <div className="agenda-empty agenda-error" role="alert">
+              <div className="agenda-error-icon" aria-hidden="true">!</div>
 
               <h2 className="agenda-error-title">
-                {"Não foi possível carregar a agenda"}
+                {loadError}
               </h2>
 
               <p className="agenda-error-text">
-                {"Verifique sua conexão ou tente novamente."}
+                {AGENDA_MESSAGES.loadErrorHelp}
               </p>
 
               <button
@@ -386,28 +397,22 @@ return (
                 className="agenda-retry-button"
                 onClick={() => loadAgenda(selectedDate)}
               >
-                Tentar novamente
+                {AGENDA_MESSAGES.retry}
               </button>
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="agenda-empty">
-              <div className="empty-icon">📭</div>
+              <div className="empty-icon" aria-hidden="true">📭</div>
 
               <h2>
                 {hasAgendaEvents
-                  ? "Nenhum resultado encontrado"
-                  : "Nenhum agendamento"}
+                  ? AGENDA_MESSAGES.emptyFiltered
+                  : AGENDA_MESSAGES.emptyPlain}
               </h2>
-
-              {hasAgendaEvents && (
-                <p>
-                  {"Não existem agendamentos correspondentes aos filtros atuais."}
-                </p>
-              )}
 
               {!hasAgendaEvents && (
               <p>
-                Não existem visitantes agendados para esta data.
+                {AGENDA_MESSAGES.emptyStart}
               </p>
               )}
             </div>

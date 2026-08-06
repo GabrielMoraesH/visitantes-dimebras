@@ -53,26 +53,6 @@ export default function Header({
           </button>
         )}
 
-        {isAdmin && showHistory && (
-          <button
-            className="appHeader-btn appHeader-btn-ghost"
-            onClick={() => navigate("/history")}
-            type="button"
-          >
-            HISTÓRICO
-          </button>
-        )}
-
-        {isAdmin && showUsers && (
-          <button
-            className="appHeader-btn appHeader-btn-ghost"
-            onClick={() => navigate("/admin/users")}
-            type="button"
-          >
-            USUÁRIOS
-          </button>
-        )}
-
         {isAdmin && showAudit && (
           <button
             className="appHeader-btn appHeader-btn-ghost"
@@ -90,6 +70,26 @@ export default function Header({
             type="button"
           >
             CONTEÚDO TV
+          </button>
+        )}
+
+        {isAdmin && showHistory && (
+          <button
+            className="appHeader-btn appHeader-btn-ghost"
+            onClick={() => navigate("/history")}
+            type="button"
+          >
+            HISTÓRICO
+          </button>
+        )}
+
+        {isAdmin && showUsers && (
+          <button
+            className="appHeader-btn appHeader-btn-ghost"
+            onClick={() => navigate("/admin/users")}
+            type="button"
+          >
+            USUÁRIOS
           </button>
         )}
 

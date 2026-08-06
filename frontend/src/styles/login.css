@@ -66,9 +66,27 @@
 
 .login-error {
   margin: 6px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(190, 18, 60, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(254, 242, 242, 0.92);
   color: var(--color-danger);
   font-size: 13px;
   font-weight: 800;
+  outline: none;
+}
+
+.login-error:focus {
+  box-shadow: var(--focus-ring);
+}
+
+.login-error p {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.login-error p + p {
+  margin-top: 8px;
 }
 
 .login-btn {
@@ -89,6 +107,12 @@
 
 .login-btn:active {
   transform: translateY(1px);
+}
+
+.login-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+  transform: none;
 }
 
 @media (max-width: 520px) {

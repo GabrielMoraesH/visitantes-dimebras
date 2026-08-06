@@ -14,11 +14,17 @@ import api, { openVisitLabel } from "../services/api";
 import { clearSession, getToken, getUser } from "../services/session";
 import {
   buildVisitorImageFile,
+  cpfSearchErrorMessage,
+  labelGenerationErrorMessage,
+  normalizeCheckinFieldErrors,
   onlyDigits,
   requiredVisitFieldErrors,
+  searchErrorMessage,
   uploadErrorMessage,
   visitorDocumentPendencies,
   visitorDocumentStatusMessage,
+  visitorNotFoundMessage,
+  visitorSaveErrorMessage,
 } from "../utils/checkin";
 import "../styles/checkin.css";
 
@@ -47,6 +53,7 @@ export default function Checkin() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraTarget, setCameraTarget] = useState(null);
   const [updatingFiles, setUpdatingFiles] = useState(false);
+  const [generatingLabel, setGeneratingLabel] = useState(false);
 
   const [visitStats, setVisitStats] = useState(null);
   const [recentVisits, setRecentVisits] = useState([]);
@@ -147,6 +154,16 @@ export default function Checkin() {
   }, []);
 
   const buscarComCpf = useCallback(async (cpfDigits) => {
+    const cpfMessage = cpfSearchErrorMessage(cpfDigits);
+    if (cpfMessage) {
+      setMsg(cpfMessage);
+      setFieldErrors([]);
+      setShowDocumentAlert(false);
+      setFocusPendingAlert(false);
+      setTimeout(() => cpfInputRef.current?.focus(), 0);
+      return;
+    }
+
     setMsg("");
     setFieldErrors([]);
     setShowDocumentAlert(false);
@@ -169,9 +186,10 @@ export default function Checkin() {
       await loadExtrasByCpf(cpfDigits);
     } catch (err) {
       if (err?.response?.status === 404) {
+        setMsg(visitorNotFoundMessage());
         navigate(`/cadastro?cpf=${encodeURIComponent(cpfDigits)}`);
       } else {
-        setMsg(err?.response?.data?.message || "Erro ao buscar");
+        setMsg(searchErrorMessage(err));
       }
     }
   }, [buscarVisitaAberta, clearVisitorMedia, loadExtrasByCpf, navigate]);
@@ -271,7 +289,6 @@ export default function Checkin() {
       return true;
     } catch (err) {
       setMsg(uploadErrorMessage(err, fallbackErrorMessage));
-      showToast(fallbackErrorMessage, "error");
       return false;
     } finally {
       updatingFilesRef.current = false;
@@ -285,7 +302,13 @@ export default function Checkin() {
 
     setPhotoPreviewFromBlob(blob);
 
-    const updated = await uploadVisitorFile(blob, "photo", "foto", "Foto atualizada!", "Erro ao atualizar foto");
+    const updated = await uploadVisitorFile(
+      blob,
+      "photo",
+      "foto",
+      "Foto atualizada.",
+      "Não foi possível capturar a imagem. Tente novamente."
+    );
     if (!updated) {
       clearPreview();
     }
@@ -296,8 +319,8 @@ export default function Checkin() {
       blob,
       "documentFront",
       "doc-frente",
-      "Documento (frente) atualizado!",
-      "Erro ao atualizar documento (frente)"
+      "Documento (frente) atualizado.",
+      "Não foi possível capturar a imagem. Tente novamente."
     );
   }
 
@@ -306,8 +329,8 @@ export default function Checkin() {
       blob,
       "documentBack",
       "doc-verso",
-      "Documento (verso) atualizado!",
-      "Erro ao atualizar documento (verso)"
+      "Documento (verso) atualizado.",
+      "Não foi possível capturar a imagem. Tente novamente."
     );
   }
 
@@ -342,10 +365,10 @@ export default function Checkin() {
         phone: onlyDigits(phoneEdit),
       });
 
-      showToast("Dados atualizados!", "success");
+      showToast("Dados atualizados.", "success");
       await refreshVisitor();
     } catch (err) {
-      showToast(err?.response?.data?.message || "Erro ao salvar", "error");
+      setMsg(visitorSaveErrorMessage(err));
     } finally {
       setSavingVisitor(false);
     }
@@ -366,6 +389,7 @@ export default function Checkin() {
     }
 
     try {
+      setGeneratingLabel(true);
       const payload = {
         visitorId: visitor.id,
         areaToVisit: areaToVisit ?? "",
@@ -376,29 +400,30 @@ export default function Checkin() {
       const { data } = await api.post("/visits/checkin", payload);
 
       setOpenVisitId(null);
-      showToast("Check-in concluído! Etiqueta gerada.", "success");
       openVisitLabel(data.id);
       await loadOpenVisits({ silent: true });
       resetTela();
     } catch (err) {
       const resp = err?.response?.data;
-      const message = resp?.message || "Erro ao gerar etiqueta";
+      const message = labelGenerationErrorMessage(err);
       const details = resp?.details || resp?.issues;
 
       if (Array.isArray(details) && details.length > 0) {
-        setFieldErrors(details.map((item) => ({ path: item.path || item.field, message: item.message })));
+        setFieldErrors(normalizeCheckinFieldErrors(details));
         setMsg("");
-        showToast("Verifique os campos obrigatórios", "error");
+        setFocusPendingAlert(true);
       } else {
         setMsg(message);
       }
 
       if (
         resp?.code === "VISITOR_OPEN_VISIT_CONFLICT" ||
-        String(message).toLowerCase().includes("visita em andamento")
+        String(resp?.message || "").toLowerCase().includes("visita em andamento")
       ) {
         await buscarVisitaAberta(onlyDigits(visitor?.cpf || cpf));
       }
+    } finally {
+      setGeneratingLabel(false);
     }
   }
 
@@ -445,6 +470,8 @@ export default function Checkin() {
               areaToVisit={areaToVisit}
               attendedBy={attendedBy}
               companyEdit={companyEdit}
+              fieldErrors={visibleFieldErrors}
+              generatingLabel={generatingLabel}
               loadingExtras={loadingExtras}
               onAreaToVisitChange={setAreaToVisit}
               onAttendedByChange={setAttendedBy}
@@ -478,6 +505,9 @@ export default function Checkin() {
 
       {cameraOpen && (
         <CameraModal
+          captureErrorMessage="Não foi possível capturar a imagem. Tente novamente."
+          captureTarget={cameraTarget}
+          mode={cameraTarget === "photo" ? "photo" : "document"}
           onClose={() => {
             setCameraOpen(false);
             setCameraTarget(null);

@@ -22,6 +22,7 @@ export default function AdminUsers() {
   }
 
   const adminUsers = useAdminUsers({
+    currentUser: user,
     enabled: isAdmin,
     confirm,
     showToast,
@@ -47,24 +48,30 @@ export default function AdminUsers() {
       <main className="adminUsers-container">
         <AdminUserForm
           branches={adminUsers.branches}
+          fieldErrors={adminUsers.createFieldErrors}
           form={adminUsers.createForm}
+          generalError={adminUsers.createAlert}
           loading={adminUsers.loading}
-          msg={adminUsers.msg}
           onChange={adminUsers.updateCreateField}
           onSubmit={adminUsers.submitCreate}
         />
 
         <AdminUsersTable
-          disableLoading={adminUsers.disableLoading}
+          msg={adminUsers.msg}
           onEdit={adminUsers.openEditModal}
           onToggleStatus={adminUsers.toggleUserStatus}
+          statusLoadingAction={adminUsers.statusLoadingAction}
+          statusLoadingUserId={adminUsers.statusLoadingUserId}
           users={adminUsers.users}
+          usersLoading={adminUsers.usersLoading}
         />
       </main>
 
       <AdminUserEditModal
         branches={adminUsers.branches}
+        fieldErrors={adminUsers.editFieldErrors}
         form={adminUsers.editForm}
+        generalError={adminUsers.editAlert}
         isEditingAdmin={adminUsers.isEditingAdmin}
         loading={adminUsers.editLoading}
         onChange={adminUsers.updateEditField}

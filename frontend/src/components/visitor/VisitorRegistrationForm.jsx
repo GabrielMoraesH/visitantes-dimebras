@@ -1,6 +1,9 @@
+import { VISITOR_REGISTRATION_MESSAGES } from "../../utils/visitorRegistration";
+
 export default function VisitorRegistrationForm({
   company,
   cpfDisplay,
+  cpfError = "",
   cpfInputRef,
   cpfFeedback = "neutral",
   cpfLookup,
@@ -8,6 +11,7 @@ export default function VisitorRegistrationForm({
   companyInputRef,
   formMessageField = "",
   formOk,
+  formAlertRef,
   message,
   name,
   nameError = "",
@@ -27,6 +31,7 @@ export default function VisitorRegistrationForm({
   phoneInputRef,
   saving,
   showSubmit = true,
+  validationErrors = [],
 }) {
   const cpfIsValid = cpfFeedback === "valid";
   const cpfIsInvalid = cpfFeedback === "invalid";
@@ -42,7 +47,7 @@ export default function VisitorRegistrationForm({
   const cpfBadgeClass = ["cadastro-cpfBadge", cpfIsValid ? "ok" : "", cpfIsInvalid ? "bad" : ""]
     .filter(Boolean)
     .join(" ");
-  const cpfDescribedBy = [cpfIsValid || cpfIsInvalid ? cpfStatusId : "", formMessageField === "cpf" ? alertId : ""]
+  const cpfDescribedBy = [cpfIsValid || cpfError ? cpfStatusId : "", formMessageField === "cpf" ? alertId : ""]
     .filter(Boolean)
     .join(" ");
   const nameDescribedBy = [nameError ? nameErrorId : "", formMessageField === "name" ? alertId : ""]
@@ -92,7 +97,7 @@ export default function VisitorRegistrationForm({
       )}
       {cpfIsInvalid && (
         <div className="cadastro-cpfWarn" id={cpfStatusId}>
-          CPF inválido
+          {cpfError}
         </div>
       )}
 
@@ -101,8 +106,19 @@ export default function VisitorRegistrationForm({
       {cpfLookup.status === "error" && <div className="cadastro-info bad">{cpfLookup.message}</div>}
 
       {message && (
-        <div className="alert" id={alertId}>
-          {message}
+        <div className="alert" id={alertId} ref={formAlertRef} role="alert" tabIndex={-1}>
+          {validationErrors.length > 0 ? (
+            <>
+              <div>{VISITOR_REGISTRATION_MESSAGES.alertTitle}</div>
+              <ul>
+                {validationErrors.map((error) => (
+                  <li key={`${error.field}-${error.message}`}>{error.message}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            message
+          )}
         </div>
       )}
 
@@ -203,14 +219,14 @@ export function VisitorRegistrationSubmit({ formOk, onSubmit, saving }) {
         title={!formOk ? "Preencha todos os campos e tire as fotos obrigatórias" : ""}
         type="button"
       >
-        {saving ? "SALVANDO..." : "SALVAR"}
+        {saving ? VISITOR_REGISTRATION_MESSAGES.saving : "Salvar"}
       </button>
 
       <div className="cadastro-savingStatus" role="status" aria-live="polite">
         {saving && (
           <span className="cadastro-savingStatusInner">
             <span className="cadastro-savingSpinner" aria-hidden="true" />
-            <span>Salvando cadastro, aguarde...</span>
+            <span>{VISITOR_REGISTRATION_MESSAGES.savingStatus}</span>
           </span>
         )}
       </div>

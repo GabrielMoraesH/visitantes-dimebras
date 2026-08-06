@@ -3,6 +3,7 @@ import CadastroTopbar from "../components/visitor/CadastroTopbar";
 import VisitorMediaSection from "../components/visitor/VisitorMediaSection";
 import VisitorRegistrationForm from "../components/visitor/VisitorRegistrationForm";
 import useCadastroVisitante from "../hooks/useCadastroVisitante";
+import { VISITOR_REGISTRATION_MESSAGES } from "../utils/visitorRegistration";
 import "../styles/cadastro.css";
 
 export default function CadastroVisitante() {
@@ -30,6 +31,7 @@ export default function CadastroVisitante() {
             <VisitorRegistrationForm
               company={fields.company}
               cpfDisplay={fields.cpfDisplay}
+              cpfError={fields.cpfError}
               cpfInputRef={refs.cpfInputRef}
               cpfFeedback={fields.cpfFeedback}
               cpfLookup={fields.cpfLookup}
@@ -37,6 +39,7 @@ export default function CadastroVisitante() {
               companyInputRef={refs.companyInputRef}
               formMessageField={validation.formMessageField}
               formOk={validation.formOk}
+              formAlertRef={refs.formAlertRef}
               message={submission.message}
               name={fields.name}
               nameError={fields.nameError}
@@ -55,6 +58,7 @@ export default function CadastroVisitante() {
               phoneError={fields.phoneError}
               phoneInputRef={refs.phoneInputRef}
               saving={submission.saving}
+              validationErrors={submission.validationErrors}
             />
 
             <VisitorMediaSection
@@ -79,6 +83,7 @@ export default function CadastroVisitante() {
       {camera.open && (
         <CameraModal
           captureTarget={camera.target}
+          captureErrorMessage={VISITOR_REGISTRATION_MESSAGES.cameraCaptureError}
           mode={camera.mode}
           onClose={camera.onClose}
           onCapture={camera.onCapture}

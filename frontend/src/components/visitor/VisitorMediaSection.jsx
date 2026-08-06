@@ -37,6 +37,7 @@ function CaptureButton({ buttonRef, children, describedBy, onClick, saving }) {
       disabled={saving}
       type="button"
       aria-describedby={describedBy || undefined}
+      aria-invalid={describedBy ? "true" : "false"}
     >
       {children}
     </button>

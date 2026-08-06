@@ -9,10 +9,13 @@ import {
   updateUser,
 } from "../services/userService";
 import {
+  ADMIN_USER_MESSAGES,
+  adminUserErrorMessage,
   buildCreateUserPayload,
   buildEditUserPayload,
   editFormFromUser,
   firstBranchId,
+  hasFieldErrors,
   initialCreateForm,
   isAdminUserId,
   toggleConfirmationForUser,
@@ -20,21 +23,23 @@ import {
   validateEditForm,
 } from "../utils/adminUsers";
 
-function apiMessage(error, fallback) {
-  return error?.response?.data?.message || fallback;
-}
-
-export function useAdminUsers({ enabled, confirm, showToast }) {
+export function useAdminUsers({ currentUser, enabled, confirm, showToast }) {
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState(FALLBACK_BRANCHES);
   const [createForm, setCreateForm] = useState(() =>
     initialCreateForm(FALLBACK_BRANCHES)
   );
+  const [createFieldErrors, setCreateFieldErrors] = useState({});
+  const [createAlert, setCreateAlert] = useState("");
   const [editForm, setEditForm] = useState(null);
+  const [editFieldErrors, setEditFieldErrors] = useState({});
+  const [editAlert, setEditAlert] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
-  const [disableLoading, setDisableLoading] = useState(false);
+  const [statusLoadingUserId, setStatusLoadingUserId] = useState(null);
+  const [statusLoadingAction, setStatusLoadingAction] = useState("");
   const [msg, setMsg] = useState("");
 
   const loadBranches = useCallback(async () => {
@@ -56,17 +61,20 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
         );
       }
     } catch {
-      // fallback ok
+      // Fallback branches keep the screen usable when this auxiliary request fails.
     }
   }, []);
 
   const loadUsers = useCallback(async () => {
     setMsg("");
+    setUsersLoading(true);
     try {
       const { data } = await getUsers();
       setUsers(Array.isArray(data) ? data : []);
     } catch (err) {
-      setMsg(apiMessage(err, "Erro ao carregar usuários"));
+      setMsg(adminUserErrorMessage(err, "load"));
+    } finally {
+      setUsersLoading(false);
     }
   }, []);
 
@@ -79,21 +87,24 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
 
   function updateCreateField(field, value) {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
+    setCreateFieldErrors((prev) => ({ ...prev, [field]: "" }));
+    setCreateAlert("");
   }
 
   function updateEditField(field, value) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setEditFieldErrors((prev) => ({ ...prev, [field]: "" }));
+    setEditAlert("");
   }
 
   async function submitCreate(event) {
     event.preventDefault();
     setMsg("");
+    setCreateAlert("");
 
-    const validationMessage = validateCreateForm(createForm);
-    if (validationMessage) {
-      showToast(validationMessage, "error");
-      return;
-    }
+    const fieldErrors = validateCreateForm(createForm);
+    setCreateFieldErrors(fieldErrors);
+    if (hasFieldErrors(fieldErrors)) return;
 
     try {
       setLoading(true);
@@ -102,12 +113,11 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
         ...initialCreateForm(branches),
         branchId: prev.branchId,
       }));
-      showToast("Usuário criado com sucesso!");
+      setCreateFieldErrors({});
+      showToast(ADMIN_USER_MESSAGES.createSuccess);
       await loadUsers();
     } catch (err) {
-      const message = apiMessage(err, "Erro ao criar usuário");
-      setMsg(message);
-      showToast(message, "error");
+      setCreateAlert(adminUserErrorMessage(err, "create"));
     } finally {
       setLoading(false);
     }
@@ -115,33 +125,38 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
 
   function openEditModal(user) {
     setEditForm(editFormFromUser(user, branches));
+    setEditFieldErrors({});
+    setEditAlert(isAdminUserId(user.id) ? ADMIN_USER_MESSAGES.protectedEdit : "");
     setEditOpen(true);
   }
 
   function closeEditModal() {
     setEditOpen(false);
     setEditForm(null);
+    setEditFieldErrors({});
+    setEditAlert("");
   }
 
   async function saveEdit() {
     if (!editForm?.userId) return;
+    setEditAlert("");
 
-    const validationMessage = validateEditForm(editForm);
-    if (validationMessage) {
-      showToast(validationMessage, "error");
-      return;
-    }
+    const fieldErrors = validateEditForm(editForm);
+    setEditFieldErrors(fieldErrors);
+    if (hasFieldErrors(fieldErrors)) return;
 
     try {
       setEditLoading(true);
       await updateUser(editForm.userId, buildEditUserPayload(editForm));
 
-      showToast(isAdminUserId(editForm.userId) ? "Senha do ADMIN atualizada!" : "Usuário atualizado!");
+      showToast(ADMIN_USER_MESSAGES.editSuccess);
       setEditOpen(false);
       setEditForm(null);
+      setEditFieldErrors({});
+      setEditAlert("");
       await loadUsers();
     } catch (err) {
-      showToast(apiMessage(err, "Erro ao atualizar usuário"), "error");
+      setEditAlert(adminUserErrorMessage(err, "edit"));
     } finally {
       setEditLoading(false);
     }
@@ -155,9 +170,15 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
 
   async function toggleUserStatus(user) {
     if (!user?.id) return;
+    setMsg("");
 
     if (isAdminUserId(user.id)) {
-      showToast("Não é permitido alterar o ADMIN (id=1).", "error");
+      setMsg(ADMIN_USER_MESSAGES.protectedDisable);
+      return;
+    }
+
+    if (user.isActive && Number(currentUser?.id) === Number(user.id)) {
+      setMsg(ADMIN_USER_MESSAGES.selfDisable);
       return;
     }
 
@@ -165,35 +186,43 @@ export function useAdminUsers({ enabled, confirm, showToast }) {
     if (!approved) return;
 
     try {
-      setDisableLoading(true);
+      setStatusLoadingUserId(user.id);
+      setStatusLoadingAction(user.isActive ? "deactivate" : "activate");
 
       if (user.isActive) {
         await disableUser(user.id);
-        showToast("Usuário desativado!");
+        showToast(ADMIN_USER_MESSAGES.deactivateSuccess);
       } else {
         await enableUser(user.id);
-        showToast("Usuário reativado!");
+        showToast(ADMIN_USER_MESSAGES.activateSuccess);
       }
 
       await loadUsers();
     } catch (err) {
-      showToast(apiMessage(err, "Erro ao alterar usuário"), "error");
+      setMsg(adminUserErrorMessage(err, user.isActive ? "deactivate" : "activate"));
     } finally {
-      setDisableLoading(false);
+      setStatusLoadingUserId(null);
+      setStatusLoadingAction("");
     }
   }
 
   return {
     branches,
+    createAlert,
+    createFieldErrors,
     createForm,
-    disableLoading,
+    editAlert,
+    editFieldErrors,
     editForm,
     editLoading,
     editOpen,
     isEditingAdmin: isAdminUserId(editForm?.userId),
     loading,
     msg,
+    statusLoadingAction,
+    statusLoadingUserId,
     users,
+    usersLoading,
     closeEditModal,
     loadUsers,
     openEditModal,

@@ -32,6 +32,7 @@ function getTitle(captureTarget, mode) {
 
 export default function CameraModal({
   captureTarget = null,
+  captureErrorMessage = "Erro ao capturar a imagem.",
   onClose,
   onCapture,
   mode = "photo",
@@ -143,13 +144,13 @@ export default function CameraModal({
     );
 
     if (!blob) {
-      setError("Erro ao capturar a imagem.");
+      setError(captureErrorMessage);
       return;
     }
 
     stop();
     onCapture(blob);
-  }, [mode, onCapture, ready, stop]);
+  }, [captureErrorMessage, mode, onCapture, ready, stop]);
 
   useEffect(() => {
     function handleKeyDown(event) {

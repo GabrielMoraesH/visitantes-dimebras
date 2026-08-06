@@ -4,6 +4,7 @@ import {
   formatTvContentDateTime,
   formatTvContentTitle,
   mediaUrl,
+  TV_CONTENT_MESSAGES,
   tvContentTypeLabel,
 } from "../../utils/tvContent";
 import TvBranchList from "./TvBranchList";
@@ -21,10 +22,20 @@ function formatVideoDuration(value) {
 
 function TvContentPreview({ item, onOpenVideo }) {
   const [duration, setDuration] = useState("");
+  const [previewError, setPreviewError] = useState(false);
   const src = mediaUrl(item.fileUrl);
+  const previewLabel = item.title || "Prévia do conteúdo";
+
+  if (previewError) {
+    return (
+      <span className="tc-previewFallback" role="img" aria-label="Prévia indisponível">
+        Não foi possível carregar a prévia desta mídia.
+      </span>
+    );
+  }
 
   if (item.type === "IMAGE") {
-    return <img src={src} alt={item.title} />;
+    return <img src={src} alt={previewLabel} onError={() => setPreviewError(true)} />;
   }
 
   function handleLoadedMetadata(event) {
@@ -33,13 +44,14 @@ function TvContentPreview({ item, onOpenVideo }) {
 
   function handleDurationError() {
     setDuration("");
+    setPreviewError(true);
   }
 
   return (
     <button
       type="button"
       className="tc-videoPreviewButton"
-      aria-label={`Reproduzir preview de ${item.title}`}
+      aria-label={`Reproduzir prévia de ${previewLabel}`}
       onClick={(event) => onOpenVideo(item, event.currentTarget)}
     >
       <video
@@ -84,6 +96,7 @@ function TvContentTitleCell({ title }) {
 function TvContentVideoModal({ item, onClose, videoRef }) {
   const closeButtonRef = useRef(null);
   const src = mediaUrl(item.fileUrl);
+  const previewLabel = item.title || "Prévia do conteúdo";
 
   useEffect(() => {
     closeButtonRef.current?.focus();
@@ -112,7 +125,7 @@ function TvContentVideoModal({ item, onClose, videoRef }) {
       className="tc-previewModalOverlay"
       role="dialog"
       aria-modal="true"
-      aria-label={`Preview de ${item.title}`}
+      aria-label={`Prévia de ${previewLabel}`}
       onClick={onClose}
     >
       <div className="tc-previewModal" onClick={(event) => event.stopPropagation()}>
@@ -120,7 +133,7 @@ function TvContentVideoModal({ item, onClose, videoRef }) {
           ref={closeButtonRef}
           className="tc-previewModalClose"
           type="button"
-          aria-label="Fechar preview"
+          aria-label="Fechar prévia"
           onClick={onClose}
         >
           x
@@ -140,10 +153,12 @@ function TvContentVideoModal({ item, onClose, videoRef }) {
 
 export default function TvContentList({
   allBranches,
+  error = "",
   items,
   loading,
   onEdit,
   onRemove,
+  onRetry,
   onToggle,
 }) {
   const [previewVideo, setPreviewVideo] = useState(null);
@@ -170,7 +185,7 @@ export default function TvContentList({
   return (
     <section className="tc-card">
       <div className="tc-cardHeader">
-        <div className="tc-cardTitle">Conteudos cadastrados</div>
+        <div className="tc-cardTitle">Conteúdos cadastrados</div>
         <div className="tc-pill">{items.length} total</div>
       </div>
 
@@ -178,7 +193,7 @@ export default function TvContentList({
         <table className="tc-table">
           <thead>
             <tr>
-              <th>Preview</th>
+              <th>Prévia</th>
               <th className="tc-titleCol">Título</th>
               <th>Tipo</th>
               <th>Tamanho</th>
@@ -192,11 +207,33 @@ export default function TvContentList({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="9" className="tc-empty">Carregando...</td>
+                <td colSpan="9" className="tc-empty" aria-live="polite">
+                  Carregando conteúdos...
+                  <span className="tc-srOnly">Carregando conteúdos, aguarde...</span>
+                </td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan="9" className="tc-empty" role="alert">
+                  <div>{error}</div>
+                  <div>{TV_CONTENT_MESSAGES.loadRetry}</div>
+                  {onRetry ? (
+                    <button
+                      className="tc-btn tc-btn-ghost tc-emptyAction"
+                      type="button"
+                      onClick={onRetry}
+                    >
+                      Tentar novamente
+                    </button>
+                  ) : null}
+                </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan="9" className="tc-empty">Nenhum conteúdo cadastrado.</td>
+                <td colSpan="9" className="tc-empty">
+                  <div>Nenhum conteúdo cadastrado.</div>
+                  <div>Adicione um conteúdo para começar.</div>
+                </td>
               </tr>
             ) : (
               items.map((item) => (
@@ -215,7 +252,7 @@ export default function TvContentList({
                   <td>{item.order ?? 0}</td>
                   <td>
                     <span className={`tc-status ${item.isActive ? "is-on" : "is-off"}`}>
-                      {item.isActive ? "ATIVO" : "INATIVO"}
+                      {item.isActive ? "Ativo" : "Inativo"}
                     </span>
                   </td>
                   <td>

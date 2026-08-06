@@ -4,6 +4,41 @@ export const TV_MAX_FILE_SIZE = 200 * 1024 * 1024;
 export const TV_ACCEPT = "image/jpeg,image/png,image/webp,video/mp4,video/webm";
 export const TV_ALLOWED_MIMES = new Set(TV_ACCEPT.split(","));
 
+export const TV_CONTENT_MESSAGES = {
+  createSuccess: "Conteúdo criado com sucesso.",
+  updateSuccess: "Conteúdo atualizado com sucesso.",
+  activateSuccess: "Conteúdo ativado com sucesso.",
+  deactivateSuccess: "Conteúdo desativado com sucesso.",
+  deleteSuccess: "Conteúdo excluído com sucesso.",
+  loadError: "Não foi possível carregar os conteúdos da TV.",
+  loadRetry: "Tente novamente.",
+  networkError: "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
+  unexpectedCreateError: "Não foi possível criar o conteúdo. Tente novamente em alguns instantes.",
+  unexpectedUpdateError: "Não foi possível atualizar o conteúdo. Tente novamente em alguns instantes.",
+  unexpectedActivateError: "Não foi possível ativar o conteúdo. Tente novamente em alguns instantes.",
+  unexpectedDeactivateError: "Não foi possível desativar o conteúdo. Tente novamente em alguns instantes.",
+  unexpectedDeleteError: "Não foi possível excluir o conteúdo. Tente novamente em alguns instantes.",
+  unexpectedOperationError:
+    "Não foi possível concluir a operação. Tente novamente em alguns instantes.",
+  forbidden: "Você não tem permissão para alterar os conteúdos da TV.",
+  notFound: "Este conteúdo não foi encontrado.",
+  fileTooLarge: "A mídia excede o tamanho permitido. Selecione outro arquivo.",
+  invalidFormat:
+    "Formato de arquivo não permitido. Envie uma imagem ou um vídeo compatível.",
+  incompatibleType: "O tipo do arquivo não corresponde à mídia selecionada.",
+  invalidMedia: "Não foi possível utilizar esta mídia. Selecione outro arquivo.",
+};
+
+export const TV_CONTENT_VALIDATION_MESSAGES = {
+  titleRequired: "Informe o título da mídia.",
+  titleInvalid: "Digite um título válido.",
+  mediaRequired: "Selecione uma imagem ou um vídeo.",
+  branchRequired: "Selecione pelo menos uma filial.",
+  orderInvalid: "Informe uma ordem válida.",
+  invalidFormat: "Formato de arquivo não permitido.",
+  fileTooLarge: "A mídia excede o tamanho permitido.",
+};
+
 export function initialTvContentForm() {
   return {
     title: "",
@@ -77,9 +112,24 @@ export function formatTvContentDateTime(value) {
 export function uploadErrorMessage(err, fallback) {
   const status = err?.response?.status;
   const code = err?.response?.data?.code;
-  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Arquivo excede o limite de 200MB.";
-  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Formato de arquivo nÃ£o permitido.";
-  return err?.response?.data?.message || fallback;
+  if (!err?.response) return TV_CONTENT_MESSAGES.networkError;
+  if (status === 403) return TV_CONTENT_MESSAGES.forbidden;
+  if (status === 404) return TV_CONTENT_MESSAGES.notFound;
+  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return TV_CONTENT_MESSAGES.fileTooLarge;
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return TV_CONTENT_MESSAGES.invalidFormat;
+  if (code === "UPLOAD_INCOMPATIBLE_TYPE") return TV_CONTENT_MESSAGES.incompatibleType;
+  if (code === "UPLOAD_INVALID_FILE") return TV_CONTENT_MESSAGES.invalidMedia;
+  if (status >= 500) return TV_CONTENT_MESSAGES.unexpectedOperationError;
+  return fallback;
+}
+
+export function tvContentActionErrorMessage(err, fallback) {
+  const status = err?.response?.status;
+  if (!err?.response) return TV_CONTENT_MESSAGES.networkError;
+  if (status === 403) return TV_CONTENT_MESSAGES.forbidden;
+  if (status === 404) return TV_CONTENT_MESSAGES.notFound;
+  if (status >= 500) return TV_CONTENT_MESSAGES.unexpectedOperationError;
+  return fallback;
 }
 
 export function branchIdsFromItem(item) {
@@ -93,25 +143,46 @@ export function sameBranchSet(selectedIds, branches) {
 }
 
 export function validateCreateTvContentForm(form) {
+  return validateCreateTvContentFields(form)[0]?.message || "";
+}
+
+export function validateCreateTvContentFields(form) {
   const cleanTitle = form.title.trim();
   const file = singleTvContentFile(form.file);
+  const errors = [];
 
-  if (!cleanTitle) return "Informe o tÃ­tulo da midia.";
-  if (!file) return "Selecione um arquivo.";
-  if (!TV_ALLOWED_MIMES.has(file.type)) return "Use JPG, PNG, WEBP, MP4 ou WEBM.";
-  if (file.size > TV_MAX_FILE_SIZE) return "Arquivo excede o limite de 200MB.";
-  if (form.selectedBranchIds.length === 0) return "Selecione pelo menos uma filial.";
+  if (!cleanTitle) errors.push({ field: "title", message: TV_CONTENT_VALIDATION_MESSAGES.titleRequired });
+  if (!file) {
+    errors.push({ field: "file", message: TV_CONTENT_VALIDATION_MESSAGES.mediaRequired });
+  } else {
+    if (!TV_ALLOWED_MIMES.has(file.type)) {
+      errors.push({ field: "file", message: TV_CONTENT_VALIDATION_MESSAGES.invalidFormat });
+    }
+    if (file.size > TV_MAX_FILE_SIZE) {
+      errors.push({ field: "file", message: TV_CONTENT_VALIDATION_MESSAGES.fileTooLarge });
+    }
+  }
+  if (form.selectedBranchIds.length === 0) {
+    errors.push({ field: "branches", message: TV_CONTENT_VALIDATION_MESSAGES.branchRequired });
+  }
 
-  return "";
+  return errors;
 }
 
 export function validateEditTvContentForm(form) {
+  return validateEditTvContentFields(form)[0]?.message || "";
+}
+
+export function validateEditTvContentFields(form) {
   const cleanTitle = form.title.trim();
+  const errors = [];
 
-  if (!cleanTitle) return "Tí­tulo não pode ficar vazio.";
-  if (form.branchIds.length === 0) return "Selecione pelo menos uma filial.";
+  if (!cleanTitle) errors.push({ field: "title", message: TV_CONTENT_VALIDATION_MESSAGES.titleRequired });
+  if (form.branchIds.length === 0) {
+    errors.push({ field: "branches", message: TV_CONTENT_VALIDATION_MESSAGES.branchRequired });
+  }
 
-  return "";
+  return errors;
 }
 
 export function buildCreateTvContentFormData(form) {
@@ -141,16 +212,16 @@ export function buildEditTvContentPayload(form) {
   };
 }
 
-export function deleteConfirmationForTvContent(item) {
+export function deleteConfirmationForTvContent() {
   return {
     title: "Excluir conteúdo",
-    message: `Deseja excluir "${item.title}"? O arquivo físico também será removido quando possível.`,
-    confirmText: "Excluir",
+    message: "Tem certeza de que deseja excluir este conteúdo? Esta ação não poderá ser desfeita.",
+    confirmText: "Excluir conteúdo",
     cancelText: "Cancelar",
     type: "danger",
   };
 }
 
 export function tvContentTypeLabel(type) {
-  return type === "IMAGE" ? "Imagem" : "Video";
+  return type === "IMAGE" ? "Imagem" : "Vídeo";
 }

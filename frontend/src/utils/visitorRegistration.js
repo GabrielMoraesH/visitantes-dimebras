@@ -31,14 +31,95 @@ export function makeJpgFile(blob, filenameBase) {
   return new File([blob], `${filenameBase}.jpg`, { type: "image/jpeg" });
 }
 
+export const VISITOR_REGISTRATION_MESSAGES = {
+  alertTitle: "Corrija os campos:",
+  cameraCaptureError: "Não foi possível capturar a imagem. Tente novamente.",
+  companyInvalid: "Digite o nome da empresa com pelo menos 2 caracteres.",
+  companyRequired: "Informe a empresa.",
+  cpfConflictCheckin: "CPF já cadastrado. Abrindo o check-in do visitante.",
+  cpfConflictUpdatingFiles: "CPF já cadastrado. Atualizando os documentos do visitante.",
+  cpfInvalid: "Digite um CPF válido.",
+  cpfRequired: "Informe o CPF.",
+  docBackRequired: "Fotografe o verso do documento.",
+  docFrontRequired: "Fotografe a frente do documento.",
+  imageInvalid: "Não foi possível usar esta imagem. Capture-a novamente.",
+  imageTooLarge: "A imagem excede o tamanho permitido. Capture outra imagem.",
+  imageUnsupported: "Formato de imagem não permitido. Capture a imagem novamente.",
+  nameInvalid: "Digite o nome completo com pelo menos 3 caracteres.",
+  nameRequired: "Informe o nome completo.",
+  networkComplement: "Verifique sua conexão e tente novamente.",
+  networkError: "Não foi possível conectar ao servidor.",
+  photoRequired: "Fotografe o visitante.",
+  phoneInvalid: "Digite um telefone com DDD.",
+  phoneRequired: "Informe o telefone.",
+  saveError: "Não foi possível concluir o cadastro.",
+  saveErrorComplement: "Tente novamente em alguns instantes.",
+  saving: "Salvando...",
+  savingStatus: "Salvando cadastro, aguarde...",
+  success: "Visitante cadastrado com sucesso.",
+  verifyCpfError: "Não foi possível verificar o CPF.",
+  verifyingCpf: "Verificando CPF...",
+  forbiddenBranch: "Você não tem permissão para cadastrar visitantes nesta filial.",
+};
+
+const FIELD_LABELS = {
+  company: "company",
+  "body.company": "company",
+  cpf: "cpf",
+  "body.cpf": "cpf",
+  documentBack: "docBack",
+  documentFront: "docFront",
+  name: "name",
+  "body.name": "name",
+  phone: "phone",
+  "body.phone": "phone",
+  photo: "photo",
+};
+
+function fieldError(field, value, ok) {
+  if (ok) return "";
+
+  const text = typeof value === "string" ? value.trim() : "";
+
+  if (field === "cpf") return onlyDigits(text) ? VISITOR_REGISTRATION_MESSAGES.cpfInvalid : VISITOR_REGISTRATION_MESSAGES.cpfRequired;
+  if (field === "name") return text ? VISITOR_REGISTRATION_MESSAGES.nameInvalid : VISITOR_REGISTRATION_MESSAGES.nameRequired;
+  if (field === "phone") return onlyDigits(text) ? VISITOR_REGISTRATION_MESSAGES.phoneInvalid : VISITOR_REGISTRATION_MESSAGES.phoneRequired;
+  if (field === "company") return text ? VISITOR_REGISTRATION_MESSAGES.companyInvalid : VISITOR_REGISTRATION_MESSAGES.companyRequired;
+  if (field === "photo") return VISITOR_REGISTRATION_MESSAGES.photoRequired;
+  if (field === "docFront") return VISITOR_REGISTRATION_MESSAGES.docFrontRequired;
+  if (field === "docBack") return VISITOR_REGISTRATION_MESSAGES.docBackRequired;
+  return "";
+}
+
+export function getVisitorRegistrationErrors(validation) {
+  const errors = [
+    { field: "cpf", message: fieldError("cpf", validation.cpfDigits, validation.cpfOk) },
+    { field: "name", message: fieldError("name", validation.name, validation.nameOk) },
+    { field: "phone", message: fieldError("phone", validation.phoneDisplay, validation.phoneOk) },
+    { field: "company", message: fieldError("company", validation.company, validation.companyOk) },
+    { field: "photo", message: fieldError("photo", null, validation.photoOk) },
+    { field: "docFront", message: fieldError("docFront", null, validation.docFrontOk) },
+    { field: "docBack", message: fieldError("docBack", null, validation.docBackOk) },
+  ].filter((error) => error.message);
+
+  return errors.filter((error, index, current) => current.findIndex((item) => item.message === error.message) === index);
+}
+
 export function getFirstVisitorRegistrationError(validation) {
-  if (!validation.cpfOk) return "CPF inválido.";
-  if (!validation.nameOk) return "Nome completo é obrigatório.";
-  if (!validation.phoneOk) return "Telefone inválido (mínimo 10 dígitos).";
-  if (!validation.companyOk) return "Empresa é obrigatória.";
-  if (!validation.photoOk) return "Foto do visitante é obrigatória.";
-  if (!validation.docFrontOk) return "Documento (frente) é obrigatório.";
-  if (!validation.docBackOk) return "Documento (verso) é obrigatório.";
+  return getVisitorRegistrationErrors(validation)[0]?.message || "";
+}
+
+function fieldMessageFromServerDetail(detail) {
+  const field = FIELD_LABELS[detail?.field] || FIELD_LABELS[String(detail?.field || "").replace(/^files\./, "")];
+  if (!field) return "";
+
+  if (field === "cpf") return VISITOR_REGISTRATION_MESSAGES.cpfInvalid;
+  if (field === "name") return VISITOR_REGISTRATION_MESSAGES.nameInvalid;
+  if (field === "phone") return VISITOR_REGISTRATION_MESSAGES.phoneInvalid;
+  if (field === "company") return VISITOR_REGISTRATION_MESSAGES.companyInvalid;
+  if (field === "photo") return VISITOR_REGISTRATION_MESSAGES.photoRequired;
+  if (field === "docFront") return VISITOR_REGISTRATION_MESSAGES.docFrontRequired;
+  if (field === "docBack") return VISITOR_REGISTRATION_MESSAGES.docBackRequired;
   return "";
 }
 
@@ -75,7 +156,26 @@ export function buildVisitorWithFilesFormData({ company, cpfDigits, docBack, doc
 export function uploadVisitorRegistrationErrorMessage(err) {
   const status = err?.response?.status;
   const code = err?.response?.data?.code;
-  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return "Imagem excede o limite permitido.";
-  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return "Imagem em formato não permitido.";
-  return err?.response?.data?.message || "Erro ao salvar visitante";
+  const details = err?.response?.data?.details;
+
+  if (!err?.response) {
+    return `${VISITOR_REGISTRATION_MESSAGES.networkError} ${VISITOR_REGISTRATION_MESSAGES.networkComplement}`;
+  }
+
+  if (status === 401) return "";
+
+  if (status === 400 && Array.isArray(details)) {
+    const messages = details.map(fieldMessageFromServerDetail).filter(Boolean);
+    const uniqueMessages = [...new Set(messages)];
+    if (uniqueMessages.length > 0) return uniqueMessages.join(" ");
+  }
+
+  if (status === 403) return VISITOR_REGISTRATION_MESSAGES.forbiddenBranch;
+  if (status === 413 || code === "UPLOAD_FILE_TOO_LARGE") return VISITOR_REGISTRATION_MESSAGES.imageTooLarge;
+  if (status === 415 || code === "UPLOAD_INVALID_TYPE") return VISITOR_REGISTRATION_MESSAGES.imageUnsupported;
+  if (status === 500) {
+    return `${VISITOR_REGISTRATION_MESSAGES.saveError} ${VISITOR_REGISTRATION_MESSAGES.saveErrorComplement}`;
+  }
+
+  return `${VISITOR_REGISTRATION_MESSAGES.saveError} ${VISITOR_REGISTRATION_MESSAGES.saveErrorComplement}`;
 }

@@ -4,6 +4,7 @@ import { PencilIcon, SpinnerIcon, ToggleIcon, TrashIcon } from "./TvContentIcons
 export default function TvContentActions({ item, onEdit, onRemove, onToggle }) {
   const [pendingActions, setPendingActions] = useState({});
   const toggleText = item.isActive ? "Desativar conteúdo" : "Ativar conteúdo";
+  const toggleLoadingText = item.isActive ? "Desativando..." : "Ativando...";
   const isToggling = Boolean(pendingActions.toggle);
   const isRemoving = Boolean(pendingActions.remove);
 
@@ -33,23 +34,41 @@ export default function TvContentActions({ item, onEdit, onRemove, onToggle }) {
         className="tc-iconBtn tc-iconBtn-toggle tc-iconBtn-warning"
         disabled={isToggling}
         onClick={() => runAction("toggle", onToggle)}
-        title={toggleText}
-        aria-label={`${toggleText} ${item.title}`}
+        title={isToggling ? toggleLoadingText : toggleText}
+        aria-label={isToggling ? `${toggleLoadingText} ${item.title}` : `${toggleText} ${item.title}`}
         aria-busy={isToggling ? "true" : undefined}
         type="button"
       >
-        {isToggling ? <SpinnerIcon /> : <ToggleIcon />}
+        {isToggling ? (
+          <>
+            <SpinnerIcon />
+            <span className="tc-srOnly">
+              {item.isActive
+                ? "Desativando conteúdo, aguarde..."
+                : "Ativando conteúdo, aguarde..."}
+            </span>
+          </>
+        ) : (
+          <ToggleIcon />
+        )}
       </button>
       <button
         className="tc-iconBtn tc-iconBtn-del"
         disabled={isRemoving}
         onClick={() => runAction("remove", onRemove)}
-        title="Excluir conteúdo"
-        aria-label={`Excluir conteúdo ${item.title}`}
+        title={isRemoving ? "Excluindo..." : "Excluir conteúdo"}
+        aria-label={isRemoving ? `Excluindo... ${item.title}` : `Excluir conteúdo ${item.title}`}
         aria-busy={isRemoving ? "true" : undefined}
         type="button"
       >
-        {isRemoving ? <SpinnerIcon /> : <TrashIcon />}
+        {isRemoving ? (
+          <>
+            <SpinnerIcon />
+            <span className="tc-srOnly">Excluindo conteúdo, aguarde...</span>
+          </>
+        ) : (
+          <TrashIcon />
+        )}
       </button>
     </div>
   );

@@ -75,6 +75,29 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: /acessar sistema/i })).toBeInTheDocument();
   });
 
+  it("valida campos obrigatórios no formulário sem chamar a API", async () => {
+    renderLogin();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Informe o usuário.");
+    expect(alert).toHaveTextContent("Informe a senha.");
+    expect(alert).toHaveFocus();
+    expect(screen.getByPlaceholderText(/usu.rio/i)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByPlaceholderText(/usu.rio/i)).toHaveAttribute(
+      "aria-describedby",
+      "login-username-error"
+    );
+    expect(screen.getByPlaceholderText(/senha/i)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByPlaceholderText(/senha/i)).toHaveAttribute(
+      "aria-describedby",
+      "login-password-error"
+    );
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it("salva token e usuário e navega para checkin em login bem-sucedido", async () => {
     api.post.mockResolvedValue({
       data: {
@@ -107,7 +130,7 @@ describe("Login", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/checkin");
   });
 
-  it("exibe mensagem de credenciais inválidas sem persistir sessão", async () => {
+  it("normaliza credenciais inválidas sem persistir sessão", async () => {
     api.post.mockRejectedValue({
       response: { status: 401, data: { message: "Credenciais inválidas" } },
     });
@@ -116,15 +139,34 @@ describe("Login", () => {
     const user = await fillLoginForm();
     await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
 
-    expect(await screen.findByText("Credenciais inválidas")).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Usuário ou senha inválidos.");
+    expect(alert).toHaveFocus();
+    expect(screen.queryByText("Credenciais inválidas")).not.toBeInTheDocument();
     expect(getToken()).toBeNull();
     expect(getUser()).toBeNull();
     expect(setSession).not.toHaveBeenCalled();
     expect(screen.getByTestId("location")).toHaveTextContent("/login");
   });
 
-  it("exibe mensagem padrão em falha técnica e permite nova tentativa", async () => {
-    api.post.mockRejectedValueOnce({ response: { status: 500 } });
+  it("exibe usuário inativo com orientação ao administrador", async () => {
+    api.post.mockRejectedValue({
+      response: { status: 403, data: { code: "USER_INACTIVE", message: "Usuário inativo" } },
+    });
+
+    renderLogin();
+    const user = await fillLoginForm();
+    await user.click(screen.getByRole("button", { name: /acessar sistema/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Seu usuário está inativo.");
+    expect(alert).toHaveTextContent("Entre em contato com um administrador.");
+  });
+
+  it("diferencia erro de rede de erro inesperado", async () => {
+    api.post
+      .mockRejectedValueOnce(new Error("Network Error"))
+      .mockRejectedValueOnce({ response: { status: 500 } });
 
     renderLogin();
     const user = await fillLoginForm();
@@ -132,11 +174,37 @@ describe("Login", () => {
 
     await user.click(button);
 
-    expect(await screen.findByText("Erro no login")).toBeInTheDocument();
-    expect(button).toBeEnabled();
-    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
+    let alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Não foi possível conectar ao servidor.");
+    expect(alert).toHaveTextContent("Verifique sua conexão e tente novamente.");
+
+    await user.click(button);
+
+    alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Não foi possível realizar o login.");
+    expect(alert).toHaveTextContent("Tente novamente em alguns instantes.");
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
     expect(getToken()).toBeNull();
     expect(getUser()).toBeNull();
     expect(setSession).not.toHaveBeenCalled();
+  });
+
+  it("mantém o erro visível até nova tentativa e usa loading padronizado", async () => {
+    api.post.mockRejectedValueOnce({ response: { status: 401 } });
+
+    renderLogin();
+    const user = await fillLoginForm();
+    const button = screen.getByRole("button", { name: /acessar sistema/i });
+
+    await user.click(button);
+
+    expect(await screen.findByText("Usuário ou senha inválidos.")).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText(/senha/i), "x");
+    expect(screen.getByText("Usuário ou senha inválidos.")).toBeInTheDocument();
+
+    api.post.mockReturnValue(new Promise(() => {}));
+    await user.click(button);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Entrando..." })).toBeDisabled());
   });
 });

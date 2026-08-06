@@ -136,17 +136,17 @@ describe("useCadastroVisitante", () => {
       result.current.handlers.onBlurCompany();
     });
 
-    expect(result.current.fields.nameError).toBe("Campo obrigatorio: nome completo.");
-    expect(result.current.fields.phoneError).toBe("Campo invalido: telefone (minimo 10 digitos).");
-    expect(result.current.fields.companyError).toBe("Campo obrigatorio: empresa.");
+    expect(result.current.fields.nameError).toBe("Informe o nome completo.");
+    expect(result.current.fields.phoneError).toBe("Informe o telefone.");
+    expect(result.current.fields.companyError).toBe("Informe a empresa.");
 
     act(() => {
       result.current.handlers.onChangeName("Maria Silva");
     });
 
     expect(result.current.fields.nameError).toBe("");
-    expect(result.current.fields.phoneError).toBe("Campo invalido: telefone (minimo 10 digitos).");
-    expect(result.current.fields.companyError).toBe("Campo obrigatorio: empresa.");
+    expect(result.current.fields.phoneError).toBe("Informe o telefone.");
+    expect(result.current.fields.companyError).toBe("Informe a empresa.");
   });
 
   it("abre e fecha a camera, capturando a midia correta por tipo", () => {
@@ -176,18 +176,19 @@ describe("useCadastroVisitante", () => {
     expect(result.current.media.docBack.name).toBe("52998224725-doc-verso.jpg");
   });
 
-  it("submit invalido nao chama API, ativa erros e foca o primeiro invalido", async () => {
+  it("submit invalido nao chama API, ativa erros e foca o alerta consolidado", async () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
     const focus = vi.fn();
-    result.current.refs.cpfInputRef.current = { focus };
+    const scrollIntoView = vi.fn();
+    result.current.refs.formAlertRef.current = { focus, scrollIntoView };
 
     await act(async () => {
       await result.current.handlers.onSubmit();
     });
 
     expect(api.post).not.toHaveBeenCalled();
-    expect(result.current.submission.message).toBe("CPF inválido.");
+    expect(result.current.submission.message).toBe("Informe o CPF.");
     expect(result.current.fields.cpfFeedback).toBe("invalid");
     expect(result.current.media.photoError).toBe("Fotografe o visitante.");
 
@@ -195,6 +196,7 @@ describe("useCadastroVisitante", () => {
       vi.runOnlyPendingTimers();
     });
 
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     vi.useRealTimers();
   });
@@ -279,19 +281,41 @@ describe("useCadastroVisitante", () => {
     expect(result.current.submission.saving).toBe(false);
   });
 
+  it("409 informa que os documentos do visitante existente estao sendo atualizados", async () => {
+    let resolveGet;
+    api.post.mockRejectedValueOnce({
+      response: { status: 409, data: { code: "VISITOR_CPF_CONFLICT" } },
+    });
+    api.get.mockReturnValueOnce(new Promise((resolve) => {
+      resolveGet = resolve;
+    }));
+    const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
+    await fillValidRegistration(result);
+
+    await act(async () => {
+      result.current.handlers.onSubmit();
+    });
+
+    expect(result.current.submission.message).toBe("CPF já cadastrado. Atualizando os documentos do visitante.");
+
+    await act(async () => {
+      resolveGet({ data: { id: 55 } });
+    });
+  });
+
   it.each([
-    [{ response: { status: 400, data: { message: "Dados invalidos" } } }, "Dados invalidos"],
-    [{ response: { status: 401, data: { message: "Nao autorizado" } } }, "Nao autorizado"],
-    [{ response: { status: 403, data: { message: "Acesso negado" } } }, "Acesso negado"],
-    [{ response: { status: 404 } }, "Erro ao salvar visitante"],
-    [{ response: { status: 405 } }, "Erro ao salvar visitante"],
-    [{ response: { status: 413 } }, "Imagem excede o limite permitido."],
-    [{ response: { status: 415 } }, "Imagem em formato não permitido."],
-    [{ response: { status: 422, data: { message: "Validacao falhou" } } }, "Validacao falhou"],
-    [{ response: { status: 500, data: { message: "Erro interno" } } }, "Erro interno"],
-    [{ request: {} }, "Erro ao salvar visitante"],
-    [{ code: "ECONNABORTED", message: "timeout" }, "Erro ao salvar visitante"],
-    [{ response: { data: { code: "VISITOR_WITH_FILES_ENDPOINT_NOT_FOUND" } } }, "Erro ao salvar visitante"],
+    [{ response: { status: 400, data: { message: "Dados invalidos" } } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
+    [{ response: { status: 401, data: { message: "Nao autorizado" } } }, ""],
+    [{ response: { status: 403, data: { message: "Acesso negado" } } }, "Você não tem permissão para cadastrar visitantes nesta filial."],
+    [{ response: { status: 404 } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
+    [{ response: { status: 405 } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
+    [{ response: { status: 413 } }, "A imagem excede o tamanho permitido. Capture outra imagem."],
+    [{ response: { status: 415 } }, "Formato de imagem não permitido. Capture a imagem novamente."],
+    [{ response: { status: 422, data: { message: "Validacao falhou" } } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
+    [{ response: { status: 500, data: { message: "Erro interno" } } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
+    [{ request: {} }, "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."],
+    [{ code: "ECONNABORTED", message: "timeout" }, "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."],
+    [{ response: { data: { code: "VISITOR_WITH_FILES_ENDPOINT_NOT_FOUND" } } }, "Não foi possível concluir o cadastro. Tente novamente em alguns instantes."],
   ])("nao ativa fluxo alternativo para erro %o", async (submitError, expectedMessage) => {
     api.post.mockRejectedValueOnce(submitError);
     const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
@@ -310,7 +334,7 @@ describe("useCadastroVisitante", () => {
     expect(result.current.submission.saving).toBe(false);
   });
 
-  it("erro da API preserva mensagem e dados preenchidos", async () => {
+  it("erro da API usa mensagem amigavel e preserva dados preenchidos", async () => {
     api.post.mockRejectedValueOnce({ response: { data: { message: "Falha controlada" } } });
     const { result } = renderHook(() => useCadastroVisitante(), { wrapper: wrapper() });
     await fillValidRegistration(result);
@@ -319,7 +343,7 @@ describe("useCadastroVisitante", () => {
       await result.current.handlers.onSubmit();
     });
 
-    expect(result.current.submission.message).toBe("Falha controlada");
+    expect(result.current.submission.message).toBe("Não foi possível concluir o cadastro. Tente novamente em alguns instantes.");
     expect(result.current.fields.name).toBe("Maria Silva");
     expect(result.current.media.photo).not.toBeNull();
     expect(result.current.submission.saving).toBe(false);

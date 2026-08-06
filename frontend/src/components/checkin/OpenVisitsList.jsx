@@ -20,14 +20,14 @@ export default function OpenVisitsList({
           onClick={onRefresh}
           disabled={loading || refreshing}
         >
-          {loading ? "CARREGANDO..." : refreshing ? "ATUALIZANDO..." : "ATUALIZAR"}
+          <span aria-live="polite">{loading ? "Carregando..." : refreshing ? "Atualizando..." : "ATUALIZAR"}</span>
         </button>
       </div>
 
-      {refreshing && openVisits.length > 0 && <div className="openvisits-refreshing">Atualizando...</div>}
+      {refreshing && openVisits.length > 0 && <div className="openvisits-refreshing" aria-live="polite">Atualizando...</div>}
 
       {initialLoading && openVisits.length === 0 ? (
-        <div className="openvisits-empty">Carregando...</div>
+        <div className="openvisits-empty" aria-live="polite">Carregando...</div>
       ) : openVisits.length === 0 ? (
         <div className="openvisits-empty">
           {isAdmin ? "Nenhum check-in em aberto em todas as filiais." : "Nenhum check-in em aberto nesta filial."}

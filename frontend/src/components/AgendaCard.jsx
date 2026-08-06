@@ -1,7 +1,17 @@
+import { useState } from "react";
 import "../styles/agendaCard.css";
 import { cancelAgenda } from "../services/agendaService";
 import { useConfirm } from "./Feedback/ConfirmProvider";
 import { useToast } from "./Feedback/ToastProvider";
+
+const AGENDA_CARD_MESSAGES = {
+  cancelConfirmMessage: "Tem certeza de que deseja cancelar este agendamento?",
+  cancelConfirmTitle: "Cancelar agendamento",
+  cancelError: "Não foi possível cancelar o agendamento. Tente novamente em alguns instantes.",
+  cancelLoading: "Cancelando...",
+  cancelLoadingAccessible: "Cancelando agendamento, aguarde...",
+  cancelSuccess: "Agendamento cancelado com sucesso.",
+};
 
 export default function AgendaCard({
   event,
@@ -11,6 +21,7 @@ export default function AgendaCard({
 }) {
   const confirm = useConfirm();
   const toast = useToast();
+  const [canceling, setCanceling] = useState(false);
   const eventTime = new Date(event.eventDateTime).toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -24,27 +35,30 @@ export default function AgendaCard({
   }
 
   async function handleCancel() {
-    if (isCanceled) return;
+    if (isCanceled || canceling) return;
 
     const confirmCancel = await confirm({
-      title: "Cancelar agendamento",
-      message: "Deseja realmente cancelar este agendamento?",
+      title: AGENDA_CARD_MESSAGES.cancelConfirmTitle,
+      message: AGENDA_CARD_MESSAGES.cancelConfirmMessage,
       confirmText: "Cancelar agendamento",
-      cancelText: "Manter",
+      cancelText: "Voltar",
       type: "danger",
     });
 
     if (!confirmCancel) return;
 
     try {
+      setCanceling(true);
       await cancelAgenda(event.id);
 
       await onCancel();
-      toast.success("Agendamento cancelado com sucesso.");
+      toast.success(AGENDA_CARD_MESSAGES.cancelSuccess);
 
     } catch (err) {
       console.error(err);
-      toast.error("Erro ao cancelar agendamento.");
+      toast.error(AGENDA_CARD_MESSAGES.cancelError);
+    } finally {
+      setCanceling(false);
     }
   }
 
@@ -132,9 +146,14 @@ export default function AgendaCard({
           <button
             className="agenda-cancel-button"
             onClick={handleCancel}
+            disabled={canceling}
+            aria-live="polite"
           >
-            Cancelar
+            {canceling ? AGENDA_CARD_MESSAGES.cancelLoading : "Cancelar"}
           </button>
+          <span className="agenda-card-loading-status" role="status" aria-live="polite">
+            {canceling ? AGENDA_CARD_MESSAGES.cancelLoadingAccessible : ""}
+          </span>
         </div>
       )}
     </div>

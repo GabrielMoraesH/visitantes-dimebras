@@ -21,8 +21,11 @@ export default function TvContent() {
     editForm,
     editLoading,
     editOpen,
+    editErrors,
     form,
+    formErrors,
     items,
+    listError,
     loading,
     msg,
     uploading,
@@ -50,6 +53,7 @@ export default function TvContent() {
         <TvContentForm
           branches={branches}
           form={form}
+          errors={formErrors}
           msg={msg}
           onChange={updateFormField}
           onSubmit={submitUpload}
@@ -59,7 +63,9 @@ export default function TvContent() {
         <TvContentList
           allBranches={branches}
           items={items}
+          error={listError}
           loading={loading}
+          onRetry={loadContents}
           onEdit={openEdit}
           onRemove={removeItem}
           onToggle={toggleItem}
@@ -70,6 +76,7 @@ export default function TvContent() {
         <TvContentEditModal
           branches={branches}
           editForm={editForm}
+          errors={editErrors}
           editLoading={editLoading}
           onChange={updateEditField}
           onClose={closeEdit}

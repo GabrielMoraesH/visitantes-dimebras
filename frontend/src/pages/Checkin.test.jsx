@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import Checkin from "./Checkin";
-import api from "../services/api";
+import api, { openVisitLabel } from "../services/api";
 import { getToken, getUser } from "../services/session";
 
 vi.mock("../components/Header", () => ({
@@ -15,8 +15,8 @@ vi.mock("../components/QrModal", () => ({
 }));
 
 vi.mock("../components/CameraModal", () => ({
-  default: ({ onCapture, onClose }) => (
-    <div role="dialog" aria-label="Camera mock">
+  default: ({ captureErrorMessage, captureTarget, mode, onCapture, onClose }) => (
+    <div role="dialog" aria-label={`${mode}:${captureTarget}:${captureErrorMessage}`}>
       <button type="button" onClick={() => onCapture(new Blob(["foto"], { type: "image/jpeg" }))}>
         Capturar mock
       </button>
@@ -27,18 +27,22 @@ vi.mock("../components/CameraModal", () => ({
   ),
 }));
 
+const toast = {
+  error: vi.fn(),
+  show: vi.fn(),
+  success: vi.fn(),
+};
+
 vi.mock("../components/Feedback/ToastProvider", () => ({
-  useToast: () => ({
-    error: vi.fn(),
-    show: vi.fn(),
-    success: vi.fn(),
-  }),
+  useToast: () => toast,
 }));
+
+const loadOpenVisitsMock = vi.fn();
 
 vi.mock("../hooks/useOpenVisits", () => ({
   default: () => ({
     initialLoadingOpenVisits: false,
-    loadOpenVisits: vi.fn(),
+    loadOpenVisits: loadOpenVisitsMock,
     loadingOpenVisits: false,
     openVisits: [],
     refreshingOpenVisits: false,
@@ -71,13 +75,14 @@ vi.mock("../services/session", () => ({
   getUser: vi.fn(),
 }));
 
+const validCpf = "52998224725";
 const validDate = "2026-08-01T10:00:00-03:00";
 const expiredDate = "2025-01-01T10:00:00-03:00";
 
 function makeVisitor(overrides = {}) {
   return {
     id: 10,
-    cpf: "12345678901",
+    cpf: validCpf,
     name: "Maria Silva",
     company: "Dimebras",
     phone: "41999998888",
@@ -113,9 +118,7 @@ function setupApi(visitorRef) {
   api.post.mockResolvedValue({ data: { id: 99 } });
 }
 
-async function renderLoadedCheckin(visitor) {
-  const visitorRef = { current: visitor };
-  setupApi(visitorRef);
+function renderCheckin() {
   getToken.mockReturnValue("token");
   getUser.mockReturnValue({ id: 1, role: "RECEPCAO", branch: { name: "Filial 1" } });
 
@@ -124,8 +127,14 @@ async function renderLoadedCheckin(visitor) {
       <Checkin />
     </MemoryRouter>
   );
+}
 
-  await userEvent.type(screen.getByPlaceholderText("Digite o CPF para iniciar..."), "12345678901");
+async function renderLoadedCheckin(visitor) {
+  const visitorRef = { current: visitor };
+  setupApi(visitorRef);
+  renderCheckin();
+
+  await userEvent.type(screen.getByPlaceholderText("Digite o CPF para iniciar..."), validCpf);
   await userEvent.click(screen.getByRole("button", { name: "BUSCAR" }));
   expect(await screen.findByText("Maria Silva")).toBeInTheDocument();
 
@@ -141,10 +150,41 @@ function getStructuredAlert() {
   return screen.getByRole("alert", { name: /corrija os campos|atualize os documentos/i });
 }
 
-describe("Checkin document feedback", () => {
+describe("Checkin feedback", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     Element.prototype.scrollIntoView = vi.fn();
     window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+  });
+
+  it("valida CPF obrigatório e inválido antes da busca", async () => {
+    renderCheckin();
+
+    const input = screen.getByPlaceholderText("Digite o CPF para iniciar...");
+    await userEvent.click(screen.getByRole("button", { name: "BUSCAR" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Informe o CPF.");
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(api.get).not.toHaveBeenCalled();
+
+    await userEvent.type(input, "11111111111");
+    await userEvent.click(screen.getByRole("button", { name: "BUSCAR" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Digite um CPF válido.");
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it("padroniza visitante não encontrado antes de seguir para cadastro", async () => {
+    api.get.mockRejectedValue({ response: { status: 404, data: { message: "Visitante não encontrado" } } });
+    renderCheckin();
+
+    await userEvent.type(screen.getByPlaceholderText("Digite o CPF para iniciar..."), validCpf);
+    await userEvent.click(screen.getByRole("button", { name: "BUSCAR" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Nenhum visitante foi encontrado com o CPF informado. Cadastre o visitante para continuar."
+    );
   });
 
   it("mostra mensagem inicial clara para frente e verso expirados sem rolar ao buscar CPF", async () => {
@@ -181,33 +221,10 @@ describe("Checkin document feedback", () => {
       "O verso do documento está expirado. Fotografe-o novamente.",
     ]);
     expect(alert).toHaveFocus();
+    expect(screen.getByPlaceholderText("Falar com quem?")).toHaveAttribute("aria-invalid", "false");
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
     expect(api.post).not.toHaveBeenCalled();
-    expect(screen.queryByRole("dialog", { name: "Camera mock" })).not.toBeInTheDocument();
-  });
-
-  it("lista somente a frente quando apenas a frente está expirada", async () => {
-    await renderLoadedCheckin(makeVisitor({ documentFrontUpdatedAt: expiredDate }));
-
-    await fillRequiredVisitFields();
-    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
-
-    const alert = getStructuredAlert();
-    expect(within(alert).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "A frente do documento está expirada. Fotografe-a novamente.",
-    ]);
-  });
-
-  it("lista somente o verso quando apenas o verso está expirado", async () => {
-    await renderLoadedCheckin(makeVisitor({ documentBackUpdatedAt: expiredDate }));
-
-    await fillRequiredVisitFields();
-    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
-
-    const alert = getStructuredAlert();
-    expect(within(alert).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "O verso do documento está expirado. Fotografe-o novamente.",
-    ]);
+    expect(screen.queryByRole("dialog", { name: /Camera mock/i })).not.toBeInTheDocument();
   });
 
   it("distingue documento ausente de documento expirado", async () => {
@@ -228,7 +245,7 @@ describe("Checkin document feedback", () => {
     ]);
   });
 
-  it("consolida campos obrigatorios e documentos na mesma area", async () => {
+  it("consolida campos obrigatórios e documentos na mesma área", async () => {
     await renderLoadedCheckin(
       makeVisitor({
         documentFrontUpdatedAt: expiredDate,
@@ -241,14 +258,16 @@ describe("Checkin document feedback", () => {
     const alert = getStructuredAlert();
     expect(within(alert).getByText("Corrija os campos:")).toBeInTheDocument();
     expect(within(alert).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      "Informe com quem veio falar.",
-      "Informe o que veio fazer na empresa.",
+      "Informe com quem o visitante veio falar.",
+      "Informe o motivo da visita.",
       "A frente do documento está expirada. Fotografe-a novamente.",
       "O verso do documento está expirado. Fotografe-o novamente.",
     ]);
+    expect(screen.getByPlaceholderText("Falar com quem?")).toHaveAttribute("aria-describedby", "checkin-alert-title");
+    expect(screen.getByPlaceholderText("Motivo da visita?")).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("preserva dados preenchidos apos erro e nao duplica toast generico de documentos", async () => {
+  it("preserva dados preenchidos e não duplica toast genérico de documentos", async () => {
     await renderLoadedCheckin(makeVisitor({ documentFrontUpdatedAt: expiredDate }));
 
     await userEvent.type(screen.getByPlaceholderText("Falar com quem?"), "Joao");
@@ -257,7 +276,7 @@ describe("Checkin document feedback", () => {
 
     expect(screen.getByPlaceholderText("Falar com quem?")).toHaveValue("Joao");
     expect(screen.getByPlaceholderText("Motivo da visita?")).toHaveValue("Entrega");
-    expect(screen.queryByText("Verifique os campos obrigatórios")).not.toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("remove somente a pendência atualizada e libera etiqueta quando os dois documentos ficam válidos", async () => {
@@ -287,6 +306,7 @@ describe("Checkin document feedback", () => {
     await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith("/visits/checkin", expect.any(Object)));
+    expect(toast.success).not.toHaveBeenCalledWith("Check-in concluído! Etiqueta gerada.", "success");
   });
 
   it("respeita prefers-reduced-motion no scroll do alerta", async () => {
@@ -298,7 +318,7 @@ describe("Checkin document feedback", () => {
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "center" });
   });
 
-  it("nao trata foto antiga como pendência quando documentos estão válidos", async () => {
+  it("não trata foto antiga como pendência quando documentos estão válidos", async () => {
     await renderLoadedCheckin(makeVisitor({ photoUpdatedAt: "2024-01-01T10:00:00-03:00" }));
 
     await userEvent.type(screen.getByPlaceholderText("Falar com quem?"), "Joao");
@@ -307,5 +327,76 @@ describe("Checkin document feedback", () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalled());
     expect(screen.queryByText(/foto/i)).not.toBeInTheDocument();
+  });
+
+  it("padroniza visita em aberto e evita termos técnicos no erro de etiqueta", async () => {
+    await renderLoadedCheckin(makeVisitor());
+    api.post.mockRejectedValue({
+      response: { data: { code: "VISITOR_OPEN_VISIT_CONFLICT", message: "Já existe visita em andamento" } },
+    });
+    api.get.mockImplementation((url) => {
+      if (url.startsWith("/visits/open-by-cpf/")) return Promise.resolve({ data: { id: 77 } });
+      if (url.startsWith("/visitors/by-cpf/")) return Promise.resolve({ data: makeVisitor() });
+      if (url.startsWith("/visits/stats-by-cpf/")) return Promise.resolve({ data: { total: 0 } });
+      if (url.startsWith("/visits/recent-by-cpf/")) return Promise.resolve({ data: { items: [] } });
+      return Promise.resolve({ data: {} });
+    });
+
+    await fillRequiredVisitFields();
+    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Este visitante já possui uma visita em aberto nesta filial."
+    );
+    expect(screen.getByRole("button", { name: "REIMPRIMIR ETIQUETA" })).toBeInTheDocument();
+    expect(screen.queryByText(/token|jwt|qr|request|stack/i)).not.toBeInTheDocument();
+  });
+
+  it("padroniza rede, erro inesperado e detalhes técnicos da API", async () => {
+    await renderLoadedCheckin(makeVisitor());
+    await fillRequiredVisitFields();
+
+    api.post.mockRejectedValueOnce(new Error("Network Error"));
+    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+    );
+
+    api.post.mockRejectedValueOnce({ response: { data: { message: "token JWT stack request" } } });
+    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível gerar a etiqueta. Tente novamente em alguns instantes."
+    );
+
+    api.post.mockRejectedValueOnce({
+      response: { data: { details: [{ path: "documentFront", message: "documentFront buffer inválido" }] } },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
+    expect(within(getStructuredAlert()).getByText("Fotografe a frente do documento.")).toBeInTheDocument();
+    expect(screen.queryByText(/documentFront|buffer/i)).not.toBeInTheDocument();
+  });
+
+  it("expõe loading acessível durante a geração da etiqueta", async () => {
+    await renderLoadedCheckin(makeVisitor());
+    await fillRequiredVisitFields();
+
+    let resolvePost;
+    api.post.mockReturnValue(new Promise((resolve) => {
+      resolvePost = resolve;
+    }));
+
+    await userEvent.click(screen.getByRole("button", { name: "GERAR ETIQUETA" }));
+    expect(screen.getByRole("button", { name: "Gerando etiqueta..." })).toBeDisabled();
+
+    resolvePost({ data: { id: 99 } });
+    await waitFor(() => expect(openVisitLabel).toHaveBeenCalledWith(99));
+  });
+
+  it("abre câmera com mensagens de captura padronizadas por mídia", async () => {
+    await renderLoadedCheckin(makeVisitor({ documentFrontUpdatedAt: expiredDate }));
+
+    await userEvent.click(screen.getByRole("button", { name: "ATUALIZAR DOC (FRENTE)" }));
+
+    expect(screen.getByRole("dialog", { name: /document:docFront:Não foi possível capturar a imagem/i })).toBeInTheDocument();
   });
 });

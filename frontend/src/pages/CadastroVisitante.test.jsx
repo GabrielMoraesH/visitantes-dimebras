@@ -153,7 +153,7 @@ describe("CadastroVisitante CPF feedback", () => {
 
     const cpfInput = getCpfInput();
 
-    expect(screen.queryByText(/cpf inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Digite um CPF válido.")).not.toBeInTheDocument();
     expect(screen.queryByText(/cpf válido/i)).not.toBeInTheDocument();
     expect(cpfInput).toHaveAttribute("aria-invalid", "false");
     expect(getCpfBadge(cpfInput)).not.toHaveClass("ok");
@@ -351,6 +351,17 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(screen.queryByText(/fotografe o verso do documento/i)).not.toBeInTheDocument();
   });
 
+  it("mostra mensagem de CPF obrigatorio apos tentativa de envio", async () => {
+    const user = userEvent.setup();
+    renderCadastro();
+
+    await user.click(getCpfInput());
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findAllByText("Informe o CPF.")).toHaveLength(2);
+    expect(getCpfInput()).toHaveAccessibleDescription(/Informe o CPF\./);
+  });
+
   it("nao mostra erros prematuros nos campos ao iniciar interacao", async () => {
     const user = userEvent.setup();
     renderCadastro();
@@ -364,13 +375,29 @@ describe("CadastroVisitante CPF feedback", () => {
     expect(screen.queryByText(/empresa .*obrigat.ria/i)).not.toBeInTheDocument();
   });
 
+  it("diferencia mensagens obrigatorias e curtas apos submit", async () => {
+    const user = userEvent.setup();
+    renderCadastro();
+
+    await user.type(getCpfInput(), "52998224725");
+    await user.type(screen.getByLabelText(/nome completo/i), "Ma");
+    await user.type(screen.getByLabelText(/telefone/i), "45");
+    await user.type(screen.getByLabelText(/empresa/i), "D");
+    await user.click(getCpfInput());
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findAllByText("Digite o nome completo com pelo menos 3 caracteres.")).toHaveLength(2);
+    expect(screen.getAllByText("Digite um telefone com DDD.")).toHaveLength(2);
+    expect(screen.getAllByText("Digite o nome da empresa com pelo menos 2 caracteres.")).toHaveLength(2);
+  });
+
   it("nao mostra erro enquanto um CPF incompleto e digitado", async () => {
     const user = userEvent.setup();
     renderCadastro();
 
     await user.type(getCpfInput(), "123");
 
-    expect(screen.queryByText(/cpf inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Digite um CPF válido.")).not.toBeInTheDocument();
     expect(getCpfBadge()).not.toHaveClass("bad");
     expect(getCpfInput()).toHaveAttribute("aria-invalid", "false");
   });
@@ -383,9 +410,9 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.type(cpfInput, "11111111111");
     await user.tab();
 
-    expect(screen.getByText(/cpf inválido/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Digite um CPF válido.")).toHaveLength(1);
     expect(cpfInput).toHaveAttribute("aria-invalid", "true");
-    expect(cpfInput).toHaveAccessibleDescription("CPF inválido");
+    expect(cpfInput).toHaveAccessibleDescription("Digite um CPF válido.");
     expect(getCpfBadge(cpfInput)).toHaveClass("bad");
   });
 
@@ -397,7 +424,7 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.type(cpfInput, "52998224725");
 
     expect(screen.getByText(/cpf válido/i)).toBeInTheDocument();
-    expect(screen.queryByText(/cpf inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Digite um CPF válido.")).not.toBeInTheDocument();
     expect(cpfInput).toHaveAttribute("aria-invalid", "false");
     expect(cpfInput).toHaveAccessibleDescription("CPF válido");
     expect(getCpfBadge(cpfInput)).toHaveClass("ok");
@@ -410,13 +437,13 @@ describe("CadastroVisitante CPF feedback", () => {
     const cpfInput = getCpfInput();
     await user.type(cpfInput, "11111111111");
     await user.tab();
-    expect(screen.getByText(/cpf inválido/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Digite um CPF válido.")).toHaveLength(1);
 
     await user.click(cpfInput);
     await user.clear(cpfInput);
     await user.type(cpfInput, "52998224725");
 
-    expect(screen.queryByText(/cpf inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Digite um CPF válido.")).not.toBeInTheDocument();
     expect(screen.getByText(/cpf válido/i)).toBeInTheDocument();
     expect(getCpfBadge(cpfInput)).toHaveClass("ok");
   });
@@ -432,7 +459,7 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.clear(cpfInput);
 
     expect(screen.queryByText(/cpf válido/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/cpf inválido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Digite um CPF válido.")).not.toBeInTheDocument();
     expect(getCpfBadge(cpfInput)).not.toHaveClass("ok");
     expect(getCpfBadge(cpfInput)).not.toHaveClass("bad");
   });
@@ -445,7 +472,7 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.type(cpfInput, "11111111111");
     await user.keyboard("{Enter}");
 
-    expect(screen.getAllByText(/cpf inválido/i)).toHaveLength(2);
+    expect(screen.getAllByText("Digite um CPF válido.")).toHaveLength(2);
     await waitFor(() => expect(api.post).not.toHaveBeenCalled());
     expect(screen.getByRole("button", { name: /salvar/i })).toBeDisabled();
     expect(screen.getByTestId("location")).toHaveTextContent("/cadastro");
@@ -491,7 +518,7 @@ describe("CadastroVisitante CPF feedback", () => {
     const status = await screen.findByRole("status");
     await waitFor(() => expect(status).toHaveTextContent("Salvando cadastro, aguarde..."));
     expect(status).toHaveAttribute("aria-live", "polite");
-    expect(screen.getByRole("button", { name: "SALVANDO..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salvando..." })).toBeDisabled();
     expect(screen.getAllByText("Salvando cadastro, aguarde...")).toHaveLength(1);
     expect(container.querySelector(".cadastro-savingSpinner")).toHaveAttribute("aria-hidden", "true");
 
@@ -511,7 +538,7 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.dblClick(screen.getByRole("button", { name: /salvar/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("button", { name: "SALVANDO..." })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salvando..." })).toBeDisabled();
 
     resolvePost({ data: { id: 10 } });
     await waitFor(() => expect(screen.getByText("Checkin destino")).toBeInTheDocument());
@@ -530,10 +557,10 @@ describe("CadastroVisitante CPF feedback", () => {
 
     expect(await screen.findByText("Salvando cadastro, aguarde...")).toBeInTheDocument();
     rejectPost({ response: { data: { message: "Falha controlada" } } });
-    expect(await screen.findByText("Falha controlada")).toBeInTheDocument();
+    expect(await screen.findByText("Não foi possível concluir o cadastro. Tente novamente em alguns instantes.")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("Salvando cadastro, aguarde...")).not.toBeInTheDocument());
     expect(container.querySelector(".cadastro-savingSpinner")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "SALVAR" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Salvar" })).not.toBeDisabled();
   });
 
   it("volta a exibir o processamento em novo submit apos erro", async () => {
@@ -547,12 +574,12 @@ describe("CadastroVisitante CPF feedback", () => {
 
     await fillValidCadastro(user);
     await user.click(screen.getByRole("button", { name: /salvar/i }));
-    expect(await screen.findByText("Falha controlada")).toBeInTheDocument();
+    expect(await screen.findByText("Não foi possível concluir o cadastro. Tente novamente em alguns instantes.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "SALVAR" }));
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
 
     expect(await screen.findByText("Salvando cadastro, aguarde...")).toBeInTheDocument();
-    expect(screen.queryByText("Falha controlada")).not.toBeInTheDocument();
+    expect(screen.queryByText("Não foi possível concluir o cadastro. Tente novamente em alguns instantes.")).not.toBeInTheDocument();
 
     resolveSecondPost({ data: { id: 10 } });
     await waitFor(() => expect(screen.getByText("Checkin destino")).toBeInTheDocument());
@@ -566,18 +593,58 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.keyboard("{Enter}");
 
     const nameInput = screen.getByLabelText(/nome completo/i);
-    const alert = await screen.findByText(/nome completo .*obrigat.rio/i);
+    const alert = await screen.findByRole("alert");
 
     expect(nameInput).toHaveAttribute("aria-invalid", "true");
     expect(nameInput).toHaveAttribute("aria-describedby", expect.stringContaining("cadastro-name-error"));
     expect(nameInput).toHaveAttribute("aria-describedby", expect.stringContaining(alert.id));
     expect(alert).toHaveAttribute("id", "cadastro-form-alert");
+    expect(alert).toHaveAttribute("tabindex", "-1");
+    expect(alert).toHaveTextContent("Corrija os campos:");
+    expect(within(alert).getByText("Informe o nome completo.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^cpf$/i)).toHaveAttribute("aria-invalid", "false");
     expect(screen.getByLabelText(/telefone/i)).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText(/empresa/i)).toHaveAttribute("aria-invalid", "true");
   });
 
-  it("mostra erros inline por campo e move o foco para o primeiro invalido apos submit", async () => {
+  it("mantem alerta consolidado na ordem visual e sem termos tecnicos", async () => {
+    const user = userEvent.setup();
+    renderCadastro();
+
+    await user.click(getCpfInput());
+    await user.keyboard("{Enter}");
+
+    const alert = await screen.findByRole("alert");
+    const items = within(alert).getAllByRole("listitem").map((item) => item.textContent);
+
+    expect(items).toEqual([
+      "Informe o CPF.",
+      "Informe o nome completo.",
+      "Informe o telefone.",
+      "Informe a empresa.",
+      "Fotografe o visitante.",
+      "Fotografe a frente do documento.",
+      "Fotografe o verso do documento.",
+    ]);
+    expect(alert).not.toHaveTextContent(/photo|documentFront|documentBack|multipart|MIME|buffer/i);
+  });
+
+  it("executa scroll apenas apos tentativa de submit invalido", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const user = userEvent.setup();
+    renderCadastro();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    await user.click(getCpfInput());
+    await user.keyboard("{Enter}");
+    await screen.findByRole("alert");
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+  });
+
+  it("mostra erros inline por campo e move o foco para o alerta apos submit", async () => {
     const user = userEvent.setup();
     const { container } = renderCadastro();
 
@@ -588,11 +655,11 @@ describe("CadastroVisitante CPF feedback", () => {
     const phoneInput = screen.getByLabelText(/telefone/i);
     const companyInput = screen.getByLabelText(/empresa/i);
 
-    await screen.findByText(/nome completo .*obrigat.rio/i);
-    expect(container.querySelector("#cadastro-name-error")).toHaveTextContent(/nome completo/i);
-    expect(container.querySelector("#cadastro-phone-error")).toHaveTextContent(/telefone/i);
-    expect(container.querySelector("#cadastro-company-error")).toHaveTextContent(/empresa/i);
-    expect(nameInput).toHaveFocus();
+    const alert = await screen.findByRole("alert");
+    expect(container.querySelector("#cadastro-name-error")).toHaveTextContent("Informe o nome completo.");
+    expect(container.querySelector("#cadastro-phone-error")).toHaveTextContent("Informe o telefone.");
+    expect(container.querySelector("#cadastro-company-error")).toHaveTextContent("Informe a empresa.");
+    expect(alert).toHaveFocus();
     expect(nameInput).toHaveAttribute("aria-describedby", expect.stringContaining("cadastro-name-error"));
     expect(phoneInput).toHaveAttribute("aria-describedby", "cadastro-phone-error");
     expect(companyInput).toHaveAttribute("aria-describedby", "cadastro-company-error");
@@ -605,13 +672,17 @@ describe("CadastroVisitante CPF feedback", () => {
     await user.type(getCpfInput(), "52998224725");
     await user.keyboard("{Enter}");
 
-    const photoError = await screen.findByText(/fotografe o visitante/i);
-    const frontError = screen.getByText(/fotografe a frente do documento/i);
-    const backError = screen.getByText(/fotografe o verso do documento/i);
+    await screen.findByRole("alert");
+    const photoError = document.querySelector("#cadastro-photo-error");
+    const frontError = document.querySelector("#cadastro-doc-front-error");
+    const backError = document.querySelector("#cadastro-doc-back-error");
 
     expect(photoError).toHaveAttribute("id", "cadastro-photo-error");
+    expect(photoError).toHaveTextContent("Fotografe o visitante.");
     expect(frontError).toHaveAttribute("id", "cadastro-doc-front-error");
+    expect(frontError).toHaveTextContent("Fotografe a frente do documento.");
     expect(backError).toHaveAttribute("id", "cadastro-doc-back-error");
+    expect(backError).toHaveTextContent("Fotografe o verso do documento.");
     expect(screen.getByRole("button", { name: /tirar foto do visitante/i })).toHaveAccessibleDescription(
       "Fotografe o visitante."
     );
@@ -629,12 +700,12 @@ describe("CadastroVisitante CPF feedback", () => {
 
     await user.type(getCpfInput(), "52998224725");
     await user.keyboard("{Enter}");
-    expect(await screen.findByText(/nome completo .*obrigat.rio/i)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe o nome completo.");
     expect(container.querySelector("#cadastro-phone-error")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/nome completo/i), "Maria Silva");
 
-    expect(screen.queryByText(/nome completo .*obrigat.rio/i)).not.toBeInTheDocument();
+    expect(container.querySelector("#cadastro-name-error")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/nome completo/i)).toHaveAttribute("aria-invalid", "false");
     expect(container.querySelector("#cadastro-phone-error")).toBeInTheDocument();
     expect(screen.getByLabelText(/telefone/i)).toHaveAttribute("aria-invalid", "true");
@@ -646,15 +717,16 @@ describe("CadastroVisitante CPF feedback", () => {
 
     await user.type(getCpfInput(), "52998224725");
     await user.keyboard("{Enter}");
-    expect(await screen.findByText(/fotografe o visitante/i)).toBeInTheDocument();
-    expect(screen.getByText(/fotografe o verso do documento/i)).toBeInTheDocument();
+    await screen.findByRole("alert");
+    expect(document.querySelector("#cadastro-photo-error")).toHaveTextContent("Fotografe o visitante.");
+    expect(document.querySelector("#cadastro-doc-back-error")).toHaveTextContent("Fotografe o verso do documento.");
 
     await captureMedia(user, /tirar foto do visitante/i);
 
-    expect(screen.queryByText(/fotografe o visitante/i)).not.toBeInTheDocument();
+    expect(document.querySelector("#cadastro-photo-error")).not.toBeInTheDocument();
     expect(screen.getByText("Foto capturada")).toBeInTheDocument();
-    expect(screen.getByText(/fotografe a frente do documento/i)).toBeInTheDocument();
-    expect(screen.getByText(/fotografe o verso do documento/i)).toBeInTheDocument();
+    expect(document.querySelector("#cadastro-doc-front-error")).toHaveTextContent("Fotografe a frente do documento.");
+    expect(document.querySelector("#cadastro-doc-back-error")).toHaveTextContent("Fotografe o verso do documento.");
   });
 
   it("mantem ordem natural de tab a partir do CPF", async () => {

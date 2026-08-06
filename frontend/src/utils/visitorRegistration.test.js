@@ -24,15 +24,19 @@ describe("visitor registration utils", () => {
   it("retorna a primeira mensagem de erro mantendo a ordem do formulario", () => {
     expect(
       getFirstVisitorRegistrationError({
+        company: "",
         companyOk: false,
+        cpfDigits: "52998224725",
         cpfOk: true,
         docBackOk: false,
         docFrontOk: false,
+        name: "Maria Silva",
         nameOk: true,
+        phoneDisplay: "12345",
         phoneOk: false,
         photoOk: false,
       })
-    ).toBe("Telefone inválido (mínimo 10 dígitos).");
+    ).toBe("Digite um telefone com DDD.");
 
     expect(
       getFirstVisitorRegistrationError({
@@ -45,6 +49,62 @@ describe("visitor registration utils", () => {
         photoOk: true,
       })
     ).toBe("");
+  });
+
+  it.each([
+    [{ cpfDigits: "", cpfOk: false }, "Informe o CPF."],
+    [{ cpfDigits: "11111111111", cpfOk: false }, "Digite um CPF válido."],
+    [{ cpfDigits: "52998224725", cpfOk: true, name: "", nameOk: false }, "Informe o nome completo."],
+    [{ cpfDigits: "52998224725", cpfOk: true, name: "Ma", nameOk: false }, "Digite o nome completo com pelo menos 3 caracteres."],
+    [
+      { cpfDigits: "52998224725", cpfOk: true, name: "Maria", nameOk: true, phoneDisplay: "", phoneOk: false },
+      "Informe o telefone.",
+    ],
+    [
+      { cpfDigits: "52998224725", cpfOk: true, name: "Maria", nameOk: true, phoneDisplay: "12345", phoneOk: false },
+      "Digite um telefone com DDD.",
+    ],
+    [
+      {
+        cpfDigits: "52998224725",
+        cpfOk: true,
+        name: "Maria",
+        nameOk: true,
+        phoneDisplay: "45999999999",
+        phoneOk: true,
+        company: "",
+        companyOk: false,
+      },
+      "Informe a empresa.",
+    ],
+    [
+      {
+        cpfDigits: "52998224725",
+        cpfOk: true,
+        name: "Maria",
+        nameOk: true,
+        phoneDisplay: "45999999999",
+        phoneOk: true,
+        company: "D",
+        companyOk: false,
+      },
+      "Digite o nome da empresa com pelo menos 2 caracteres.",
+    ],
+  ])("retorna mensagem orientativa para erro local %#", (validation, expected) => {
+    expect(
+      getFirstVisitorRegistrationError({
+        company: "Dimebras",
+        companyOk: true,
+        docBackOk: true,
+        docFrontOk: true,
+        name: "Maria Silva",
+        nameOk: true,
+        phoneDisplay: "45999999999",
+        phoneOk: true,
+        photoOk: true,
+        ...validation,
+      })
+    ).toBe(expected);
   });
 
   it("monta payload e FormData sem alterar nomes usados pela API", () => {
@@ -111,12 +171,18 @@ describe("visitor registration utils", () => {
     expect(file.name).toBe("visitante-foto.jpg");
     expect(file.type).toBe("image/jpeg");
     expect(uploadVisitorRegistrationErrorMessage({ response: { status: 413 } })).toBe(
-      "Imagem excede o limite permitido."
+      "A imagem excede o tamanho permitido. Capture outra imagem."
     );
     expect(
       uploadVisitorRegistrationErrorMessage({
         response: { data: { message: "Falha no upload" } },
       })
-    ).toBe("Falha no upload");
+    ).toBe("Não foi possível concluir o cadastro. Tente novamente em alguns instantes.");
+    expect(uploadVisitorRegistrationErrorMessage({ response: { status: 415 } })).toBe(
+      "Formato de imagem não permitido. Capture a imagem novamente."
+    );
+    expect(uploadVisitorRegistrationErrorMessage({ request: {} })).toBe(
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+    );
   });
 });

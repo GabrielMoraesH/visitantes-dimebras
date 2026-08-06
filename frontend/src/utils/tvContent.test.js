@@ -7,7 +7,11 @@ import {
   formatTvContentDateTime,
   formatTvContentTitle,
   sameBranchSet,
+  TV_MAX_FILE_SIZE,
+  uploadErrorMessage,
+  validateCreateTvContentFields,
   validateCreateTvContentForm,
+  validateEditTvContentFields,
   validateEditTvContentForm,
 } from "./tvContent";
 
@@ -55,28 +59,59 @@ describe("tvContent utils", () => {
     expectSingleFileEntry(formData, file);
   });
 
-  it("keeps the current create validation messages", () => {
+  it("padroniza mensagens de validação da criação", () => {
     const baseForm = {
-      title: "Video",
+      title: "Vídeo",
       file: new File(["content"], "tv.mp4", { type: "video/mp4" }),
       order: "0",
       isActive: true,
       selectedBranchIds: [1],
     };
 
-    expect(validateCreateTvContentForm({ ...baseForm, title: " " })).toBe(
-      "Informe o tÃ­tulo da midia."
+    expect(validateCreateTvContentForm({ ...baseForm, title: " " })).toBe("Informe o título da mídia.");
+    expect(validateCreateTvContentForm({ ...baseForm, file: null })).toBe(
+      "Selecione uma imagem ou um vídeo."
     );
-    expect(validateCreateTvContentForm({ ...baseForm, file: null })).toBe("Selecione um arquivo.");
     expect(
       validateCreateTvContentForm({
         ...baseForm,
         file: new File(["content"], "tv.gif", { type: "image/gif" }),
       })
-    ).toBe("Use JPG, PNG, WEBP, MP4 ou WEBM.");
+    ).toBe("Formato de arquivo não permitido.");
     expect(validateCreateTvContentForm({ ...baseForm, selectedBranchIds: [] })).toBe(
       "Selecione pelo menos uma filial."
     );
+  });
+
+  it("retorna erros de criação na ordem do alerta consolidado", () => {
+    expect(
+      validateCreateTvContentFields({
+        title: " ",
+        file: null,
+        order: "0",
+        isActive: true,
+        selectedBranchIds: [],
+      })
+    ).toEqual([
+      { field: "title", message: "Informe o título da mídia." },
+      { field: "file", message: "Selecione uma imagem ou um vídeo." },
+      { field: "branches", message: "Selecione pelo menos uma filial." },
+    ]);
+  });
+
+  it("padroniza mídia muito grande", () => {
+    const oversizedFile = new File(["content"], "tv.mp4", { type: "video/mp4" });
+    Object.defineProperty(oversizedFile, "size", { value: TV_MAX_FILE_SIZE + 1 });
+
+    expect(
+      validateCreateTvContentFields({
+        title: "Vídeo",
+        file: oversizedFile,
+        order: "0",
+        isActive: true,
+        selectedBranchIds: [1],
+      })
+    ).toEqual([{ field: "file", message: "A mídia excede o tamanho permitido." }]);
   });
 
   it("maps edit form and payload preserving API contract values", () => {
@@ -96,6 +131,10 @@ describe("tvContent utils", () => {
       branchIds: [2, 5],
     });
     expect(validateEditTvContentForm(editForm)).toBe("");
+    expect(validateEditTvContentFields({ ...editForm, title: " ", branchIds: [] })).toEqual([
+      { field: "title", message: "Informe o título da mídia." },
+      { field: "branches", message: "Selecione pelo menos uma filial." },
+    ]);
     expect(buildEditTvContentPayload({ ...editForm, title: "  Novo  " })).toEqual({
       title: "Novo",
       order: 4,
@@ -113,14 +152,26 @@ describe("tvContent utils", () => {
     ).toBe(true);
   });
 
-  it("keeps the delete confirmation copy and danger type", () => {
+  it("padroniza confirmação de exclusão e mantém tipo danger", () => {
     expect(deleteConfirmationForTvContent({ title: "Campanha" })).toEqual({
       title: "Excluir conteúdo",
-      message: 'Deseja excluir "Campanha"? O arquivo físico também será removido quando possível.',
-      confirmText: "Excluir",
+      message: "Tem certeza de que deseja excluir este conteúdo? Esta ação não poderá ser desfeita.",
+      confirmText: "Excluir conteúdo",
       cancelText: "Cancelar",
       type: "danger",
     });
+  });
+
+  it("padroniza erros HTTP de upload sem expor detalhes técnicos", () => {
+    expect(uploadErrorMessage({}, "fallback")).toBe(
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+    );
+    expect(uploadErrorMessage({ response: { status: 413, data: {} } }, "fallback")).toBe(
+      "A mídia excede o tamanho permitido. Selecione outro arquivo."
+    );
+    expect(uploadErrorMessage({ response: { status: 415, data: {} } }, "fallback")).toBe(
+      "Formato de arquivo não permitido. Envie uma imagem ou um vídeo compatível."
+    );
   });
 
   it("formats TV content date and time parts for the admin table", () => {

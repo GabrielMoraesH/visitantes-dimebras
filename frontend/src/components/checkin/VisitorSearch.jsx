@@ -11,6 +11,7 @@ export default function VisitorSearch({
   onSubmit,
 }) {
   const fieldErrorMessages = uniqueFieldErrorMessages(fieldErrors);
+  const hasCpfMessage = message === "Informe o CPF." || message === "Digite um CPF válido.";
 
   return (
     <section className="card card-search">
@@ -30,13 +31,19 @@ export default function VisitorSearch({
           onChange={(event) => onCpfChange(event.target.value)}
           placeholder="Digite o CPF para iniciar..."
           inputMode="numeric"
+          aria-invalid={hasCpfMessage}
+          aria-describedby={message ? "checkin-message" : undefined}
         />
         <button type="submit" className="btn btn-primary btn-lg">
           BUSCAR
         </button>
       </form>
 
-      {message && <div className="alert">{message}</div>}
+      {message && (
+        <div className="alert" id="checkin-message" role="alert">
+          {message}
+        </div>
+      )}
 
       {fieldErrorMessages.length > 0 && (
         <div

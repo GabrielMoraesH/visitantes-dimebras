@@ -1,4 +1,4 @@
-import { isAdminUserId } from "../../utils/adminUsers";
+import { ADMIN_USER_MESSAGES, isAdminUserId } from "../../utils/adminUsers";
 
 function PencilIcon({ size = 18 }) {
   return (
@@ -23,17 +23,28 @@ function DisableIcon({ size = 18 }) {
 }
 
 export default function AdminUserActions({
-  disableLoading,
   onEdit,
   onToggleStatus,
+  statusLoadingAction,
+  statusLoadingUserId,
   user,
 }) {
+  const isStatusLoading = Number(statusLoadingUserId) === Number(user.id);
+  const statusText = user.isActive
+    ? ADMIN_USER_MESSAGES.deactivateLoading
+    : ADMIN_USER_MESSAGES.activateLoading;
+  const statusLabel =
+    statusLoadingAction === "deactivate"
+      ? ADMIN_USER_MESSAGES.deactivateLoadingAccessible
+      : ADMIN_USER_MESSAGES.activateLoadingAccessible;
+
   return (
     <div className="au-actions">
       <button
         className="au-iconBtn au-iconBtn-edit"
         onClick={() => onEdit(user)}
         title="Editar usuário"
+        aria-label="Editar usuário"
         type="button"
       >
         <PencilIcon />
@@ -42,11 +53,12 @@ export default function AdminUserActions({
       <button
         className="au-iconBtn au-iconBtn-del"
         onClick={() => onToggleStatus(user)}
-        disabled={isAdminUserId(user.id) || disableLoading}
-        title={user.isActive ? "Desativar usuário" : "Reativar usuário"}
+        disabled={isAdminUserId(user.id) || isStatusLoading}
+        title={isAdminUserId(user.id) ? ADMIN_USER_MESSAGES.protectedDisable : user.isActive ? "Desativar usuário" : "Ativar usuário"}
+        aria-label={isStatusLoading ? statusLabel : user.isActive ? "Desativar usuário" : "Ativar usuário"}
         type="button"
       >
-        <DisableIcon />
+        {isStatusLoading ? <span aria-live="polite">{statusText}</span> : <DisableIcon />}
       </button>
     </div>
   );

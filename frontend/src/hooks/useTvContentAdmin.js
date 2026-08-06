@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getToken, getUser } from "../services/session";
 import { getBranches } from "../services/branchService";
@@ -15,51 +15,51 @@ import {
   deleteConfirmationForTvContent,
   editFormFromTvContent,
   initialTvContentForm,
+  TV_CONTENT_MESSAGES,
+  tvContentActionErrorMessage,
   uploadErrorMessage,
-  validateCreateTvContentForm,
-  validateEditTvContentForm,
+  validateCreateTvContentFields,
+  validateEditTvContentFields,
 } from "../utils/tvContent";
-
-function apiMessage(error, fallback) {
-  return error?.response?.data?.message || fallback;
-}
 
 export function useTvContentAdmin({ confirm, showToast }) {
   const navigate = useNavigate();
   const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
+  const editOpenerRef = useRef(null);
 
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [listError, setListError] = useState("");
+  const [formErrors, setFormErrors] = useState([]);
   const [form, setForm] = useState(() => initialTvContentForm());
   const [editForm, setEditForm] = useState(null);
+  const [editErrors, setEditErrors] = useState([]);
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
   const loadContents = useCallback(async () => {
     try {
-      setMsg("");
+      setListError("");
       setLoading(true);
       const { data } = await getTvContents();
       setItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      const message = apiMessage(err, "Erro ao carregar conteudos.");
-      setMsg(message);
-      showToast(message, "error");
+    } catch {
+      setListError(TV_CONTENT_MESSAGES.loadError);
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   const loadBranches = useCallback(async () => {
     try {
       const { data } = await getBranches();
       setBranches(Array.isArray(data) ? data : []);
     } catch (err) {
-      const message = apiMessage(err, "Erro ao carregar filiais.");
+      const message = tvContentActionErrorMessage(err, "Não foi possível carregar as filiais.");
       showToast(message, "error");
     }
   }, [showToast]);
@@ -80,19 +80,24 @@ export function useTvContentAdmin({ confirm, showToast }) {
 
   function updateFormField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+    const errorField = field === "selectedBranchIds" ? "branches" : field;
+    setFormErrors((prev) => prev.filter((error) => error.field !== errorField));
   }
 
   function updateEditField(field, value) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    const errorField = field === "branchIds" ? "branches" : field;
+    setEditErrors((prev) => prev.filter((error) => error.field !== errorField));
   }
 
   async function submitUpload(event) {
     event.preventDefault();
     setMsg("");
+    setFormErrors([]);
 
-    const validationMessage = validateCreateTvContentForm(form);
-    if (validationMessage) {
-      showToast(validationMessage, "error");
+    const validationErrors = validateCreateTvContentFields(form);
+    if (validationErrors.length > 0) {
+      setFormErrors(validationErrors);
       return;
     }
 
@@ -101,45 +106,53 @@ export function useTvContentAdmin({ confirm, showToast }) {
       await createTvContent(buildCreateTvContentFormData(form));
       setForm(initialTvContentForm());
       event.target.reset();
-      showToast("Midia enviada com sucesso!");
+      showToast(TV_CONTENT_MESSAGES.createSuccess);
       await loadContents();
     } catch (err) {
-      const message = uploadErrorMessage(err, "Erro ao enviar midia.");
+      const message = uploadErrorMessage(err, TV_CONTENT_MESSAGES.unexpectedCreateError);
       setMsg(message);
-      showToast(message, "error");
     } finally {
       setUploading(false);
     }
   }
 
   function openEdit(item) {
+    editOpenerRef.current = document.activeElement;
     setEditForm(editFormFromTvContent(item));
+    setEditErrors([]);
     setEditOpen(true);
   }
 
   function closeEdit() {
     setEditOpen(false);
     setEditForm(null);
+    setEditErrors([]);
+    window.setTimeout(() => editOpenerRef.current?.focus?.(), 0);
   }
 
   async function saveEdit() {
     if (!editForm?.id) return;
 
-    const validationMessage = validateEditTvContentForm(editForm);
-    if (validationMessage) {
-      showToast(validationMessage, "error");
+    const validationErrors = validateEditTvContentFields(editForm);
+    if (validationErrors.length > 0) {
+      setEditErrors(validationErrors);
       return;
     }
 
     try {
       setEditLoading(true);
       await updateTvContent(editForm.id, buildEditTvContentPayload(editForm));
-      showToast("Conteúdo atualizado!");
+      showToast(TV_CONTENT_MESSAGES.updateSuccess);
       setEditOpen(false);
       setEditForm(null);
+      setEditErrors([]);
+      window.setTimeout(() => editOpenerRef.current?.focus?.(), 0);
       await loadContents();
     } catch (err) {
-      showToast(apiMessage(err, "Erro ao atualizar conteúdo."), "error");
+      showToast(
+        tvContentActionErrorMessage(err, TV_CONTENT_MESSAGES.unexpectedUpdateError),
+        "error"
+      );
     } finally {
       setEditLoading(false);
     }
@@ -154,10 +167,22 @@ export function useTvContentAdmin({ confirm, showToast }) {
   async function toggleItem(item) {
     try {
       await toggleTvContent(item.id);
-      showToast(item.isActive ? "Conteúdo desativado." : "Conteúdo ativado.");
+      showToast(
+        item.isActive
+          ? TV_CONTENT_MESSAGES.deactivateSuccess
+          : TV_CONTENT_MESSAGES.activateSuccess
+      );
       await loadContents();
     } catch (err) {
-      showToast(apiMessage(err, "Erro ao alterar status."), "error");
+      showToast(
+        tvContentActionErrorMessage(
+          err,
+          item.isActive
+            ? TV_CONTENT_MESSAGES.unexpectedDeactivateError
+            : TV_CONTENT_MESSAGES.unexpectedActivateError
+        ),
+        "error"
+      );
     }
   }
 
@@ -168,21 +193,27 @@ export function useTvContentAdmin({ confirm, showToast }) {
 
     try {
       await deleteTvContent(item.id);
-      showToast("Conteúdo excluído.");
+      showToast(TV_CONTENT_MESSAGES.deleteSuccess);
       await loadContents();
     } catch (err) {
-      showToast(apiMessage(err, "Erro ao excluir conteúdo."), "error");
+      showToast(
+        tvContentActionErrorMessage(err, TV_CONTENT_MESSAGES.unexpectedDeleteError),
+        "error"
+      );
     }
   }
 
   return {
     branches,
+    editErrors,
     editForm,
     editLoading,
     editOpen,
     form,
+    formErrors,
     isAdmin,
     items,
+    listError,
     loading,
     msg,
     uploading,
