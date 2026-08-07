@@ -6,6 +6,29 @@ import { formatDatePtBr, formatTimePtBr } from "../utils/dateTime";
 import "../styles/visitDetails.css";
 
 const EMPTY_TEXT = "Não informado";
+const VISIT_DETAILS_MESSAGES = {
+  loading: "Carregando detalhes...",
+  loadingAccessible: "Carregando detalhes da visita, aguarde...",
+  loadError: "Não foi possível carregar os detalhes da visita.",
+  loadErrorRetry: "Tente novamente.",
+  loadErrorLater: "Tente novamente em alguns instantes.",
+  notFound: "Esta visita não foi encontrada.",
+  networkError: "Não foi possível conectar ao servidor.",
+  networkErrorComplement: "Verifique sua conexão e tente novamente.",
+};
+
+function visitDetailsErrorMessage(err) {
+  if (!err?.response) {
+    return `${VISIT_DETAILS_MESSAGES.networkError} ${VISIT_DETAILS_MESSAGES.networkErrorComplement}`;
+  }
+
+  const status = Number(err.response.status);
+
+  if (status === 404) return VISIT_DETAILS_MESSAGES.notFound;
+  if (status >= 500) return `${VISIT_DETAILS_MESSAGES.loadError} ${VISIT_DETAILS_MESSAGES.loadErrorLater}`;
+
+  return `${VISIT_DETAILS_MESSAGES.loadError} ${VISIT_DETAILS_MESSAGES.loadErrorRetry}`;
+}
 
 function Icon({ name }) {
   const icons = {
@@ -203,7 +226,7 @@ export default function VisitDetails() {
           }
         }
       } catch (err) {
-        setMsg(err?.response?.data?.message || "Erro ao carregar detalhes da visita");
+        setMsg(visitDetailsErrorMessage(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -247,8 +270,13 @@ export default function VisitDetails() {
 
       <main className="vd-container">
         {(msg || loading) && (
-          <div className="vd-alert" role={msg ? "alert" : "status"}>
-            {msg || "Carregando..."}
+          <div
+            className="vd-alert"
+            role={msg ? "alert" : "status"}
+            aria-live={loading ? "polite" : undefined}
+            aria-label={loading ? VISIT_DETAILS_MESSAGES.loadingAccessible : undefined}
+          >
+            {msg || VISIT_DETAILS_MESSAGES.loading}
           </div>
         )}
 

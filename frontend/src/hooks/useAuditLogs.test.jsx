@@ -186,14 +186,27 @@ describe("useAuditLogs", () => {
     );
   });
 
-  it("renders API errors without exposing stack", async () => {
+  it("maps API errors without exposing raw backend details", async () => {
     getUsers.mockResolvedValue({ data: [] });
     getBranches.mockResolvedValue({ data: [] });
-    getAuditLogs.mockRejectedValue({ response: { data: { message: "Falha segura" } } });
+    getAuditLogs.mockRejectedValue({ response: { status: 400, data: { message: "ZodError stack query" } } });
 
     render(<Harness />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Falha segura");
-    expect(screen.getByRole("alert")).not.toHaveTextContent("stack");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível carregar os registros de auditoria. Tente novamente."
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/ZodError|stack|query/);
+  });
+
+  it("maps network audit errors", async () => {
+    getUsers.mockResolvedValue({ data: [] });
+    getBranches.mockResolvedValue({ data: [] });
+    getAuditLogs.mockRejectedValue(new Error("Network Error"));
+
+    render(<Harness />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+    );
   });
 });

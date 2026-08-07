@@ -54,8 +54,8 @@ export function HistoryFilters({
         type="date"
         value={filters.date}
         onChange={(event) => onChangeFilter("date", event.target.value)}
-        title="Filtrar por dia (check-in)"
-        aria-label="Filtrar por dia"
+        title="Filtrar por dia de check-in"
+        aria-label="Filtrar por dia de check-in"
       />
 
       <select
@@ -72,7 +72,7 @@ export function HistoryFilters({
       </select>
 
       <button type="submit" className="h-btn h-btn-primary">
-        Filtrar
+        Aplicar filtros
       </button>
     </form>
   );

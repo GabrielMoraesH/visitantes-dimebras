@@ -3,6 +3,8 @@ import { getBranches } from "../services/branchService";
 import { api } from "../services/api";
 import {
   buildHistoryParams,
+  hasHistoryFilters,
+  historyLoadErrorMessage,
   normalizeBranches,
   normalizeHistoryItems,
 } from "../utils/history";
@@ -17,8 +19,11 @@ const INITIAL_FILTERS = {
 export function useHistoryData({ enabled }) {
   const [items, setItems] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [focusError, setFocusError] = useState(false);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [total, setTotal] = useState(0);
@@ -32,8 +37,10 @@ export function useHistoryData({ enabled }) {
   }, []);
 
   const loadHistory = useCallback(
-    async (nextPage = page, nextLimit = limit) => {
-      setMsg("");
+    async (nextPage = page, nextLimit = limit, options = {}) => {
+      setError(null);
+      setFocusError(false);
+      setLoading(true);
 
       try {
         const params = buildHistoryParams(filters, nextPage, nextLimit);
@@ -43,9 +50,16 @@ export function useHistoryData({ enabled }) {
         setItems(normalizeHistoryItems(data));
         setPage(Number(data?.page || nextPage));
         setTotal(Number(data?.total || 0));
-        setTotalPages(Number(data?.totalPages || 1));
+        setTotalPages(Math.max(1, Number(data?.totalPages || 1)));
+        setAppliedFilters(filters);
       } catch (err) {
-        setMsg(err?.response?.data?.message || "Erro ao carregar histórico");
+        setItems([]);
+        setTotal(0);
+        setTotalPages(1);
+        setError(historyLoadErrorMessage(err));
+        setFocusError(Boolean(options.focusOnError));
+      } finally {
+        setLoading(false);
       }
     },
     [filters, limit, page]
@@ -53,7 +67,7 @@ export function useHistoryData({ enabled }) {
 
   const submitFilters = useCallback(() => {
     setPage(1);
-    loadHistory(1, limit);
+    loadHistory(1, limit, { focusOnError: true });
   }, [limit, loadHistory]);
 
   const changeLimit = useCallback(
@@ -62,7 +76,7 @@ export function useHistoryData({ enabled }) {
 
       setLimit(nextLimit);
       setPage(1);
-      loadHistory(1, nextLimit);
+      loadHistory(1, nextLimit, { focusOnError: true });
     },
     [loadHistory]
   );
@@ -83,16 +97,19 @@ export function useHistoryData({ enabled }) {
     }
 
     // Preserva o comportamento original: carrega ao entrar na tela,
-    // e filtros só disparam nova busca por submit/alteração de limite/paginação.
+    // e filtros so disparam nova busca por submit/alteracao de limite/paginacao.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
   return {
     branches,
+    error,
     filters,
+    focusError,
+    hasAppliedFilters: hasHistoryFilters(appliedFilters),
     items,
     limit,
-    msg,
+    loading,
     page,
     total,
     totalPages,

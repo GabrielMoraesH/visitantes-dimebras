@@ -4,14 +4,17 @@ import { useAuditLogs } from "../hooks/useAuditLogs";
 import {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
+  AUDIT_MESSAGES,
   AUDIT_PAGE_SIZES,
   auditActionTone,
   auditBranchLabel,
   auditUserLabel,
+  displayAuditValue,
   formatAuditActionLabel,
   formatAuditDateTime,
   formatAuditEntityLabel,
   formatMetadata,
+  hasAuditFilters,
 } from "../utils/auditLogs";
 import "../styles/auditLogs.css";
 
@@ -55,7 +58,7 @@ function AuditFilters({
       </label>
 
       <label className="auditField">
-        <span>Acao</span>
+        <span>Ação</span>
         <select
           className="auditInput"
           value={filters.action}
@@ -182,23 +185,19 @@ function AuditDateTime({ value }) {
 
   return (
     <span className="auditDateTime" title={formatted}>
-      <span>{date || "-"}</span>
+      <span>{date || AUDIT_MESSAGES.emptyValue}</span>
       {time && <span className="auditTime">{time}</span>}
     </span>
   );
 }
 
-function displayDescription(description) {
-  return String(description || "").trim() || "—";
-}
-
-function AuditTable({ items, loading, onOpenDetails }) {
+function AuditTable({ emptyMessage, items, loading, onOpenDetails }) {
   return (
     <div className="auditTableWrap">
       <table className="auditTable">
         <thead>
           <tr>
-            <th>Data/Hora</th>
+            <th>Data e hora</th>
             <th>Usuário</th>
             <th>Filial</th>
             <th>Ação</th>
@@ -212,12 +211,13 @@ function AuditTable({ items, loading, onOpenDetails }) {
           {items.length === 0 ? (
             <tr>
               <td className="auditEmpty" colSpan="8">
-                Nenhum registro de auditoria encontrado para os filtros informados.
+                {emptyMessage}
               </td>
             </tr>
           ) : (
             items.map((log) => {
-              const description = displayDescription(log.description);
+              const description = displayAuditValue(log.description);
+              const entityId = displayAuditValue(log.entityId);
 
               return (
                 <tr key={log.id}>
@@ -232,7 +232,7 @@ function AuditTable({ items, loading, onOpenDetails }) {
                   <td>
                     <AuditBadge type="entity" value={log.entity} />
                   </td>
-                  <td title={log.entityId || "-"}>{log.entityId || "-"}</td>
+                  <td title={entityId}>{entityId}</td>
                   <td className="auditDescription" title={description}>
                     {description}
                   </td>
@@ -241,6 +241,7 @@ function AuditTable({ items, loading, onOpenDetails }) {
                       className="auditLinkBtn"
                       type="button"
                       onClick={(event) => onOpenDetails(log, event.currentTarget)}
+                      aria-label={`Detalhes do registro de auditoria ${log.id}`}
                     >
                       Detalhes
                     </button>
@@ -256,10 +257,12 @@ function AuditTable({ items, loading, onOpenDetails }) {
 }
 
 function DetailRow({ label, children }) {
+  const value = displayAuditValue(children);
+
   return (
     <div className="auditDetailRow">
       <dt>{label}</dt>
-      <dd>{children || "-"}</dd>
+      <dd title={value}>{value}</dd>
     </div>
   );
 }
@@ -313,20 +316,20 @@ function AuditDetailsModal({ log, onClose, openerRef }) {
         </div>
 
         <dl className="auditDetails">
-          <DetailRow label="Data/Hora">{formatAuditDateTime(log.createdAt)}</DetailRow>
+          <DetailRow label="Data e hora">{formatAuditDateTime(log.createdAt)}</DetailRow>
+          <DetailRow label="Usuário">{auditUserLabel(log)}</DetailRow>
+          <DetailRow label="Filial">{auditBranchLabel(log)}</DetailRow>
           <DetailRow label="Ação">{formatAuditActionLabel(log.action)}</DetailRow>
           <DetailRow label="Entidade">{formatAuditEntityLabel(log.entity)}</DetailRow>
           <DetailRow label="Identificador">{log.entityId}</DetailRow>
-          <DetailRow label="Usuário">{auditUserLabel(log)}</DetailRow>
-          <DetailRow label="Filial">{auditBranchLabel(log)}</DetailRow>
           <DetailRow label="Descrição">{log.description}</DetailRow>
           <DetailRow label="Request ID">{log.requestId}</DetailRow>
-          <DetailRow label="IP">{log.ipAddress}</DetailRow>
-          <DetailRow label="User Agent">{log.userAgent}</DetailRow>
+          <DetailRow label="Endereço IP">{log.ipAddress}</DetailRow>
+          <DetailRow label="Navegador / User-Agent">{log.userAgent}</DetailRow>
         </dl>
 
         <div className="auditMetadata">
-          <h4>Metadata</h4>
+          <h4>Metadados</h4>
           <pre>{formatMetadata(log.metadata)}</pre>
         </div>
       </section>
@@ -336,16 +339,18 @@ function AuditDetailsModal({ log, onClose, openerRef }) {
 
 function AuditPagination({ loading, page, pageSize, total, totalPages, onPageChange }) {
   const hasPages = totalPages > 0;
+  const pageText = hasPages ? `Página ${page} de ${totalPages}` : "";
 
   return (
     <div className="auditPagination">
       <div className="auditPaginationInfo">
-        Total: {total} | Página {hasPages ? page : 0} de {totalPages}
+        {total} registros{pageText ? ` | ${pageText}` : ""}
       </div>
       <div className="auditPaginationActions">
         <button
           className="auditBtn auditBtn-ghost"
           type="button"
+          aria-label="Página anterior"
           disabled={loading || !hasPages || page <= 1}
           onClick={() => onPageChange(page - 1)}
         >
@@ -354,13 +359,14 @@ function AuditPagination({ loading, page, pageSize, total, totalPages, onPageCha
         <button
           className="auditBtn auditBtn-ghost"
           type="button"
+          aria-label="Próxima página"
           disabled={loading || !hasPages || page >= totalPages}
           onClick={() => onPageChange(page + 1)}
         >
           Próxima
         </button>
       </div>
-      <span className="auditPageSizeText">{pageSize} por página</span>
+      <span className="auditPageSizeText">{pageSize} registros</span>
     </div>
   );
 }
@@ -379,6 +385,10 @@ export default function AuditLogs() {
     setSelectedLog(null);
   }
 
+  const emptyMessage = hasAuditFilters(audit.appliedFilters)
+    ? AUDIT_MESSAGES.filteredEmpty
+    : AUDIT_MESSAGES.empty;
+
   return (
     <div className="auditPage">
       <Header />
@@ -390,7 +400,7 @@ export default function AuditLogs() {
             <p>Logs administrativos de acesso e operação.</p>
           </div>
           <div className="auditSummary" aria-live="polite">
-            {audit.loading ? "Atualizando..." : `${audit.total} registros`}
+            {audit.loading && !audit.initialLoading ? AUDIT_MESSAGES.updating : `${audit.total} registros`}
           </div>
         </div>
 
@@ -406,28 +416,43 @@ export default function AuditLogs() {
           onClear={audit.clearFilters}
         />
 
-        {audit.initialLoading && (
-          <div className="auditNotice" role="status" aria-live="polite">
-            Carregando auditoria...
-          </div>
-        )}
-
-        {audit.error && (
-          <div className="auditError" role="alert">
-            {audit.error}
+        {audit.initialLoading && !audit.error && (
+          <div
+            className="auditNotice"
+            role="status"
+            aria-live="polite"
+            aria-label={AUDIT_MESSAGES.initialLoadingAccessible}
+          >
+            {AUDIT_MESSAGES.initialLoading}
           </div>
         )}
 
         <section className="auditCard">
-          <AuditTable items={audit.items} loading={audit.loading} onOpenDetails={openDetails} />
-          <AuditPagination
-            loading={audit.loading}
-            page={audit.page}
-            pageSize={audit.pageSize}
-            total={audit.total}
-            totalPages={audit.totalPages}
-            onPageChange={audit.setPage}
-          />
+          {audit.error ? (
+            <div className="auditError" role="alert">
+              <span>{audit.error}</span>
+              <button className="auditBtn auditBtn-ghost" type="button" onClick={() => audit.loadAuditLogs()}>
+                {AUDIT_MESSAGES.retryButton}
+              </button>
+            </div>
+          ) : (
+            <>
+              <AuditTable
+                emptyMessage={emptyMessage}
+                items={audit.items}
+                loading={audit.loading}
+                onOpenDetails={openDetails}
+              />
+              <AuditPagination
+                loading={audit.loading}
+                page={audit.page}
+                pageSize={audit.pageSize}
+                total={audit.total}
+                totalPages={audit.totalPages}
+                onPageChange={audit.setPage}
+              />
+            </>
+          )}
         </section>
       </main>
 

@@ -3,13 +3,16 @@ import {
   AUDIT_ACTIONS,
   AUDIT_ENTITIES,
   auditActionTone,
+  auditLoadErrorMessage,
   auditBranchLabel,
   auditUserLabel,
   buildAuditLogParams,
+  displayAuditValue,
   formatAuditActionLabel,
   formatAuditDateTime,
   formatAuditEntityLabel,
   formatMetadata,
+  hasAuditFilters,
 } from "./auditLogs";
 
 describe("auditLogs utils", () => {
@@ -106,9 +109,30 @@ describe("auditLogs utils", () => {
     expect(formatAuditEntityLabel("AGENDA_EVENT")).toBe("Agenda");
     expect(formatAuditEntityLabel("USER")).toBe("Usuário");
     expect(formatAuditEntityLabel("FUTURE_ENTITY")).toBe("FUTURE_ENTITY");
-    expect(auditUserLabel({ user: null })).toBe("Usuario removido");
+    expect(auditUserLabel({ user: null })).toBe("Usuário removido");
     expect(auditBranchLabel({ branch: null })).toBe("Sem filial");
+    expect(displayAuditValue(null)).toBe("—");
+    expect(displayAuditValue("  ")).toBe("—");
+    expect(displayAuditValue("req-1")).toBe("req-1");
     expect(formatMetadata({ ok: true })).toBe('{\n  "ok": true\n}');
+    expect(formatMetadata(null)).toBe("Sem metadados");
     expect(formatAuditDateTime("2026-08-03T15:30:00.000Z")).toBe("03/08/2026 12:30");
+  });
+
+  it("detects active filters and maps load errors", () => {
+    expect(hasAuditFilters({ action: "", pageSize: 50 })).toBe(false);
+    expect(hasAuditFilters({ action: "LOGIN", pageSize: 50 })).toBe(true);
+    expect(auditLoadErrorMessage(new Error("Network Error"))).toBe(
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente."
+    );
+    expect(auditLoadErrorMessage({ response: { status: 403, data: { message: "Forbidden" } } })).toBe(
+      "Você não tem permissão para acessar a Auditoria."
+    );
+    expect(auditLoadErrorMessage({ response: { status: 500, data: { message: "Prisma stack" } } })).toBe(
+      "Não foi possível carregar os registros de auditoria. Tente novamente em alguns instantes."
+    );
+    expect(auditLoadErrorMessage({ response: { status: 400, data: { message: "ZodError stack" } } })).toBe(
+      "Não foi possível carregar os registros de auditoria. Tente novamente."
+    );
   });
 });

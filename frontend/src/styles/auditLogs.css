@@ -145,9 +145,19 @@
 }
 
 .auditError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border: 1px solid #ffd1d1;
   background: #fff4f4;
   color: var(--color-danger);
+}
+
+.auditCard > .auditError {
+  margin: 0;
+  border-width: 0 0 1px;
+  border-radius: 0;
 }
 
 .auditCard {

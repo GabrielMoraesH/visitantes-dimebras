@@ -260,6 +260,21 @@
 
   font-size: 13px;
   font-weight: 700;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-alert:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(180, 35, 24, 0.18);
+}
+
+.history-retry {
+  margin-left: auto;
 }
 
 
@@ -349,6 +364,17 @@
 
 .history-linkCell:hover {
   filter: brightness(0.9);
+}
+
+.history-dateTime {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-dateTime span:last-child {
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .history-table thead th:first-child {
@@ -484,6 +510,15 @@
 
   .history-pagination-actions .h-btn {
     flex: 1;
+  }
+
+  .history-alert {
+    align-items: stretch;
+  }
+
+  .history-retry {
+    width: 100%;
+    margin-left: 0;
   }
 
 }

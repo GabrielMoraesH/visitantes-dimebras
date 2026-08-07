@@ -58,6 +58,17 @@ function renderVisitDetails(visit = fullVisit) {
   });
 }
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
+
 describe("VisitDetails", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -104,6 +115,74 @@ describe("VisitDetails", () => {
     expect(screen.getByText("12345678")).toBeInTheDocument();
     expect(screen.queryByText(/administrador/i)).not.toBeInTheDocument();
     expect(container.querySelectorAll("input, textarea, select")).toHaveLength(0);
+  });
+
+  it("exibe loading de detalhes com mensagem acessível", async () => {
+    const visitRequest = deferred();
+    api.get.mockImplementation((url) => {
+      if (url === "/visits/42") return visitRequest.promise;
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+
+    renderWithRouter({
+      element: <VisitDetails />,
+      initialEntries: ["/visit/42"],
+      path: "/visit/:id",
+    });
+
+    expect(screen.getByRole("status", { name: "Carregando detalhes da visita, aguarde..." })).toHaveTextContent(
+      "Carregando detalhes..."
+    );
+
+    visitRequest.resolve({
+      data: {
+        ...fullVisit,
+        visitor: {
+          ...fullVisit.visitor,
+          photoUpdatedAt: null,
+          documentFrontUpdatedAt: null,
+          documentBackUpdatedAt: null,
+        },
+      },
+    });
+    expect(await screen.findByText("João da Silva")).toBeInTheDocument();
+  });
+
+  it("padroniza erro ao carregar detalhes sem expor mensagem técnica", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/visits/42") {
+        return Promise.reject({
+          response: { status: 500, data: { message: "Erro interno visitId stack" } },
+        });
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+
+    renderWithRouter({
+      element: <VisitDetails />,
+      initialEntries: ["/visit/42"],
+      path: "/visit/:id",
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Não foi possível carregar os detalhes da visita. Tente novamente em alguns instantes."
+    );
+    expect(screen.queryByText(/visitId|stack|Erro interno/i)).not.toBeInTheDocument();
+  });
+
+  it("informa quando a visita não existe", async () => {
+    api.get.mockImplementation((url) => {
+      if (url === "/visits/42") return Promise.reject({ response: { status: 404 } });
+      return Promise.reject(new Error(`URL inesperada: ${url}`));
+    });
+
+    renderWithRouter({
+      element: <VisitDetails />,
+      initialEntries: ["/visit/42"],
+      path: "/visit/:id",
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Esta visita não foi encontrada.");
   });
 
   it("exibe estados vazios e valores nulos sem checkout", async () => {

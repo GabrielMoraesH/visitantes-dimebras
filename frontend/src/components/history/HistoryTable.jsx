@@ -1,15 +1,31 @@
-import { formatHistoryDate } from "../../utils/history";
+import { formatHistoryDateParts, HISTORY_MESSAGES } from "../../utils/history";
+
+function HistoryDateTime({ value }) {
+  const { date, time } = formatHistoryDateParts(value);
+
+  if (date === "-" && time === "-") return "-";
+
+  return (
+    <span className="history-dateTime">
+      <span>{date}</span>
+      <span>{time}</span>
+    </span>
+  );
+}
 
 function HistoryRow({ visit, onOpenDetails }) {
   const clickable = Boolean(Number(visit?.id));
+  const visitorName = visit.visitor?.name || "visitante";
 
   return (
     <tr>
-      <td>{formatHistoryDate(visit.checkinAt)}</td>
+      <td>
+        <HistoryDateTime value={visit.checkinAt} />
+      </td>
 
       <td>
         {visit.checkoutAt ? (
-          formatHistoryDate(visit.checkoutAt)
+          <HistoryDateTime value={visit.checkoutAt} />
         ) : (
           <span className="pill pill-open">Aberto</span>
         )}
@@ -29,6 +45,7 @@ function HistoryRow({ visit, onOpenDetails }) {
             }
           }}
           title={clickable ? "Ver detalhes da visita" : ""}
+          aria-label={clickable ? `Detalhes da visita de ${visitorName}` : undefined}
         >
           {visit.visitor?.name || "-"}
         </span>
@@ -44,7 +61,9 @@ function HistoryRow({ visit, onOpenDetails }) {
   );
 }
 
-export function HistoryTable({ items, onOpenDetails }) {
+export function HistoryTable({ error, hasFilters, items, loading, onOpenDetails }) {
+  const emptyText = hasFilters ? HISTORY_MESSAGES.emptyWithFilters : HISTORY_MESSAGES.empty;
+
   return (
     <div className="history-tableWrap">
       <table className="history-table">
@@ -52,21 +71,33 @@ export function HistoryTable({ items, onOpenDetails }) {
           <tr>
             <th>Check-in</th>
             <th>Check-out</th>
-            <th>Nome do Visitante</th>
-            <th>Documento</th>
+            <th>Visitante</th>
+            <th>CPF</th>
             <th>Empresa</th>
             <th>Anfitrião</th>
-            <th>Registrado por(In)</th>
-            <th>Registrado por(Out)</th>
+            <th>Registrado por check-in</th>
+            <th>Registrado por check-out</th>
             <th>Filial</th>
           </tr>
         </thead>
 
         <tbody>
-          {items.length === 0 ? (
+          {loading ? (
             <tr>
               <td colSpan="9" className="history-empty">
-                Nenhum registro encontrado.
+                <span
+                  aria-label={HISTORY_MESSAGES.loadingAccessible}
+                  aria-live="polite"
+                  role="status"
+                >
+                  {HISTORY_MESSAGES.loading}
+                </span>
+              </td>
+            </tr>
+          ) : error ? null : items.length === 0 ? (
+            <tr>
+              <td colSpan="9" className="history-empty">
+                {emptyText}
               </td>
             </tr>
           ) : (

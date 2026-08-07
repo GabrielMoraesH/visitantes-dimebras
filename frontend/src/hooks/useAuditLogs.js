@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getBranches } from "../services/branchService";
 import { getUsers } from "../services/userService";
 import { getAuditLogs } from "../services/auditLogsService";
+import { auditLoadErrorMessage } from "../utils/auditLogs";
 
 export const INITIAL_AUDIT_FILTERS = {
   from: "",
@@ -13,10 +14,6 @@ export const INITIAL_AUDIT_FILTERS = {
   entityId: "",
   requestId: "",
 };
-
-function apiMessage(error, fallback) {
-  return error?.response?.data?.message || fallback;
-}
 
 function normalizeList(data) {
   return Array.isArray(data) ? data : [];
@@ -71,7 +68,7 @@ export function useAuditLogs({ enabled = true } = {}) {
           setPage(resolvedTotalPages);
         }
       } catch (err) {
-        setError(apiMessage(err, "Erro ao carregar auditoria"));
+        setError(auditLoadErrorMessage(err));
       } finally {
         setLoading(false);
         setInitialLoading(false);

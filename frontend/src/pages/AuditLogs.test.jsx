@@ -66,6 +66,16 @@ const newEventLogs = [
 
 function defaultHook(overrides = {}) {
   return {
+    appliedFilters: {
+      from: "",
+      to: "",
+      action: "",
+      entity: "",
+      userId: "",
+      branchId: "",
+      entityId: "",
+      requestId: "",
+    },
     branches: [{ id: 3, name: "Filial Centro" }],
     draftFilters: {
       from: "",
@@ -130,14 +140,16 @@ describe("AuditLogs page", () => {
       })
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando auditoria...");
-    expect(screen.getByText("Atualizando...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Carregando registros de auditoria, aguarde..." })).toHaveTextContent(
+      "Carregando auditoria..."
+    );
+    expect(screen.queryByText("Atualizando auditoria...")).not.toBeInTheDocument();
     expect(screen.getAllByText("03/08/2026").length).toBeGreaterThan(0);
     expect(screen.getAllByText("12:30")[0]).toHaveClass("auditTime");
-    expect(screen.getByText("Usuario removido")).toBeInTheDocument();
+    expect(screen.getByText("Usuário removido")).toBeInTheDocument();
     expect(screen.getByText("Sem filial")).toBeInTheDocument();
     expect(screen.getByText("FUTURE_ACTION")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     expect(screen.queryByText("changedFields")).not.toBeInTheDocument();
     expect(screen.queryByText("127.0.0.1")).not.toBeInTheDocument();
     expect(screen.getByText("Criou visitante com descricao longa")).toHaveAttribute("title");
@@ -183,21 +195,61 @@ describe("AuditLogs page", () => {
     expect(screen.getByText("FUTURE_ENTITY")).toBeInTheDocument();
   });
 
-  it("renders empty and API error states", () => {
-    renderPage(defaultHook({ items: [], total: 0, totalPages: 0, error: "Falha segura" }));
+  it("renders empty state without filters", () => {
+    renderPage(defaultHook({ items: [], total: 0, totalPages: 0 }));
 
-    expect(screen.getByText("Nenhum registro de auditoria encontrado para os filtros informados.")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Falha segura");
-    expect(screen.getByText("Total: 0 | Página 0 de 0")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+    expect(screen.getByText("Nenhum registro de auditoria foi encontrado.")).toBeInTheDocument();
+    expect(screen.queryByText(/Página 1 de 0|Página 0 de 0/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("0 registros").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("50 registros")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Página anterior" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Próxima página" })).toBeDisabled();
+  });
+
+  it("renders empty state with filters", () => {
+    renderPage(
+      defaultHook({
+        appliedFilters: {
+          from: "",
+          to: "",
+          action: "LOGIN",
+          entity: "",
+          userId: "",
+          branchId: "",
+          entityId: "",
+          requestId: "",
+        },
+        items: [],
+        total: 0,
+        totalPages: 0,
+      })
+    );
+
+    expect(screen.getByText("Nenhum registro de auditoria foi encontrado para os filtros informados.")).toBeInTheDocument();
+  });
+
+  it("renders API error state with retry and no empty state", async () => {
+    const hook = defaultHook({
+      items: [],
+      total: 0,
+      totalPages: 0,
+      error: "Não foi possível carregar os registros de auditoria. Tente novamente.",
+    });
+    renderPage(hook);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Não foi possível carregar os registros de auditoria. Tente novamente."
+    );
+    expect(screen.queryByText(/Nenhum registro de auditoria/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(hook.loadAuditLogs).toHaveBeenCalled();
   });
 
   it("applies filters by button and Enter, clears filters, changes pageSize and paginates", async () => {
     const hook = defaultHook({ page: 2, total: 75, totalPages: 3 });
     renderPage(hook);
 
-    await userEvent.selectOptions(screen.getByLabelText("Acao"), "LOGIN");
+    await userEvent.selectOptions(screen.getByLabelText("Ação"), "LOGIN");
     expect(hook.setFilter).toHaveBeenCalledWith("action", "LOGIN");
 
     await userEvent.selectOptions(screen.getByLabelText("Entidade"), "AUTH");
@@ -212,8 +264,8 @@ describe("AuditLogs page", () => {
     await userEvent.selectOptions(screen.getByLabelText("Itens por página"), "25");
     await userEvent.selectOptions(screen.getByLabelText("Itens por página"), "100");
     await userEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
-    await userEvent.click(screen.getByRole("button", { name: "Anterior" }));
-    await userEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await userEvent.click(screen.getByRole("button", { name: "Página anterior" }));
+    await userEvent.click(screen.getByRole("button", { name: "Próxima página" }));
 
     expect(hook.setFilter).toHaveBeenCalledWith("entity", "AUTH");
     expect(hook.setFilter).toHaveBeenCalledWith("userId", "7");
@@ -261,11 +313,11 @@ describe("AuditLogs page", () => {
     expect(screen.getByRole("option", { name: "Agenda" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Usuário" })).toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText("Acao"), "AGENDA_EVENT_UPDATE");
+    await userEvent.selectOptions(screen.getByLabelText("Ação"), "AGENDA_EVENT_UPDATE");
     await userEvent.selectOptions(screen.getByLabelText("Entidade"), "AGENDA_EVENT");
-    await userEvent.selectOptions(screen.getByLabelText("Acao"), "USER_DEACTIVATE");
+    await userEvent.selectOptions(screen.getByLabelText("Ação"), "USER_DEACTIVATE");
     await userEvent.selectOptions(screen.getByLabelText("Entidade"), "USER");
-    await userEvent.selectOptions(screen.getByLabelText("Acao"), "VISIT_LABEL_GENERATE");
+    await userEvent.selectOptions(screen.getByLabelText("Ação"), "VISIT_LABEL_GENERATE");
     await userEvent.selectOptions(screen.getByLabelText("Entidade"), "VISIT");
 
     expect(hook.setFilter).toHaveBeenCalledWith("action", "AGENDA_EVENT_UPDATE");
@@ -279,7 +331,7 @@ describe("AuditLogs page", () => {
   it("opens accessible details modal and closes by button, Escape and backdrop", async () => {
     const user = userEvent.setup();
     renderPage();
-    const opener = screen.getByRole("button", { name: "Detalhes" });
+    const opener = screen.getByRole("button", { name: "Detalhes do registro de auditoria 10" });
 
     await user.click(opener);
 
@@ -323,13 +375,46 @@ describe("AuditLogs page", () => {
       })
     );
 
-    await user.click(screen.getByRole("button", { name: "Detalhes" }));
+    await user.click(screen.getByRole("button", { name: "Detalhes do registro de auditoria 10" }));
 
     const dialog = screen.getByRole("dialog", { name: "Detalhes da auditoria" });
     expect(dialog).toHaveTextContent("Etiqueta de visita gerada");
     expect(dialog).toHaveTextContent("Visita");
+    expect(dialog).toHaveTextContent("Data e hora");
+    expect(dialog).toHaveTextContent("Endereço IP");
+    expect(dialog).toHaveTextContent("Navegador / User-Agent");
+    expect(screen.getByText("Metadados")).toBeInTheDocument();
     expect(dialog).toHaveTextContent('"reprint": false');
     expect(document.querySelector("[dangerouslysetinnerhtml]")).toBeNull();
+  });
+
+  it("renders standardized null values in the details modal", async () => {
+    const user = userEvent.setup();
+    renderPage(
+      defaultHook({
+        items: [
+          {
+            ...sampleLog,
+            description: null,
+            entityId: null,
+            requestId: null,
+            ipAddress: null,
+            userAgent: null,
+            metadata: null,
+            user: null,
+            branch: null,
+          },
+        ],
+      })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Detalhes do registro de auditoria 10" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Detalhes da auditoria" });
+    expect(dialog).toHaveTextContent("Usuário removido");
+    expect(dialog).toHaveTextContent("Sem filial");
+    expect(screen.getByText("Sem metadados")).toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4);
   });
 
   it("does not use console logging or unsafe HTML rendering", () => {

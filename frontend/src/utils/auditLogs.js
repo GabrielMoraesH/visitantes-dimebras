@@ -26,6 +26,25 @@ export const AUDIT_ENTITIES = ["AUTH", "VISITOR", "VISIT", "TV_CONTENT", "AGENDA
 
 export const AUDIT_PAGE_SIZES = [25, 50, 100];
 
+export const AUDIT_MESSAGES = {
+  initialLoading: "Carregando auditoria...",
+  initialLoadingAccessible: "Carregando registros de auditoria, aguarde...",
+  updating: "Atualizando auditoria...",
+  loadError: "Não foi possível carregar os registros de auditoria.",
+  loadErrorRetry: "Tente novamente.",
+  loadErrorLater: "Tente novamente em alguns instantes.",
+  networkError: "Não foi possível conectar ao servidor.",
+  networkErrorRetry: "Verifique sua conexão e tente novamente.",
+  forbidden: "Você não tem permissão para acessar a Auditoria.",
+  empty: "Nenhum registro de auditoria foi encontrado.",
+  filteredEmpty: "Nenhum registro de auditoria foi encontrado para os filtros informados.",
+  retryButton: "Tentar novamente",
+  removedUser: "Usuário removido",
+  noBranch: "Sem filial",
+  emptyValue: "—",
+  noMetadata: "Sem metadados",
+};
+
 const ACTION_LABELS = {
   LOGIN: "Login",
   VISITOR_CREATE: "Visitante criado",
@@ -85,7 +104,7 @@ export function formatAuditActionLabel(action) {
 }
 
 export function formatAuditEntityLabel(entity) {
-  return ENTITY_LABELS[entity] || entity || "-";
+  return ENTITY_LABELS[entity] || entity || AUDIT_MESSAGES.emptyValue;
 }
 
 export function auditActionTone(action) {
@@ -126,19 +145,43 @@ export function formatAuditDateTime(value) {
 }
 
 export function auditUserLabel(log) {
-  return log?.user?.username || "Usuario removido";
+  return log?.user?.username || AUDIT_MESSAGES.removedUser;
 }
 
 export function auditBranchLabel(log) {
-  return log?.branch?.name || "Sem filial";
+  return log?.branch?.name || AUDIT_MESSAGES.noBranch;
 }
 
 export function formatMetadata(metadata) {
-  if (metadata == null) return "null";
+  if (metadata == null) return AUDIT_MESSAGES.noMetadata;
 
   try {
     return JSON.stringify(metadata, null, 2);
   } catch {
     return String(metadata);
   }
+}
+
+export function displayAuditValue(value) {
+  return String(value ?? "").trim() || AUDIT_MESSAGES.emptyValue;
+}
+
+export function hasAuditFilters(filters = {}) {
+  return Object.entries(filters).some(([field, value]) => {
+    if (field === "pageSize") return false;
+    return String(value ?? "").trim() !== "";
+  });
+}
+
+export function auditLoadErrorMessage(error) {
+  if (!error?.response) {
+    return `${AUDIT_MESSAGES.networkError} ${AUDIT_MESSAGES.networkErrorRetry}`;
+  }
+
+  const status = Number(error.response.status);
+
+  if (status === 403) return AUDIT_MESSAGES.forbidden;
+  if (status >= 500) return `${AUDIT_MESSAGES.loadError} ${AUDIT_MESSAGES.loadErrorLater}`;
+
+  return `${AUDIT_MESSAGES.loadError} ${AUDIT_MESSAGES.loadErrorRetry}`;
 }
