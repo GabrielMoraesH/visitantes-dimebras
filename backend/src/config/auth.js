@@ -3,7 +3,7 @@ export const SESSION_JWT = Object.freeze({
   algorithms: ["HS256"],
   issuer: "visitantes-dimebras",
   audience: "visitantes-dimebras-frontend",
-  expiresIn: "8h",
+  expiresIn: "10h",
 });
 
 const MIN_JWT_SECRET_LENGTH = 32;
