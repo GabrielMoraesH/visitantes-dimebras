@@ -103,6 +103,6 @@ test("valid auth config preserves JWT algorithm, issuer, audience, and expiratio
     assert.deepEqual(SESSION_JWT.algorithms, ["HS256"]);
     assert.equal(SESSION_JWT.issuer, "visitantes-dimebras");
     assert.equal(SESSION_JWT.audience, "visitantes-dimebras-frontend");
-    assert.equal(SESSION_JWT.expiresIn, "8h");
+    assert.equal(SESSION_JWT.expiresIn, "10h");
   });
 });

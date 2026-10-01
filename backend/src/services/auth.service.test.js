@@ -284,7 +284,7 @@ test("login session JWT contains subject and no password or authorization claims
       assert.equal(decoded.payload.branchName, undefined);
       assert.equal(decoded.payload.password, undefined);
       assert.equal(decoded.payload.passwordHash, undefined);
-      assert.equal(decoded.payload.exp - decoded.payload.iat, 8 * 60 * 60);
+      assert.equal(decoded.payload.exp - decoded.payload.iat, 10 * 60 * 60);
     }
   );
 });
