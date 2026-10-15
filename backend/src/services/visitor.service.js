@@ -77,56 +77,6 @@ function buildRequiredVisitorFileCreate(files, now) {
   return { ok: true, data };
 }
 
-function hasStoredVisitorFile(visitor, fileKey) {
-  const field = visitorFileFields.find(([key]) => key === fileKey);
-  if (!field) return false;
-
-  const [, bytesKey, mimeKey] = field;
-  return Boolean(visitor?.[bytesKey] && visitor?.[mimeKey]);
-}
-
-function validateVisitorFileCompleteness({ visitor, files }) {
-  const requiredFields = visitorFileFields.map(([fileKey]) => fileKey);
-  const missingUploadFields = requiredFields.filter((field) => !files[field]);
-  const allFieldsUploaded = missingUploadFields.length === 0;
-  const storedFields = requiredFields.filter((field) => hasStoredVisitorFile(visitor, field));
-  const hasOnlyStoredPhoto =
-    storedFields.length === 1 && storedFields[0] === "photo";
-  const documentFieldsUploaded =
-    Boolean(files.documentFront) && Boolean(files.documentBack) && !files.photo;
-
-  if (storedFields.length === requiredFields.length) {
-    return { ok: true };
-  }
-
-  if (allFieldsUploaded) {
-    return { ok: true };
-  }
-
-  if (hasOnlyStoredPhoto && documentFieldsUploaded) {
-    return { ok: true };
-  }
-
-  if (storedFields.length === 0) {
-    return {
-      ok: false,
-      validation: {
-        statusCode: 400,
-        message: `Faltam arquivos obrigatórios: ${missingUploadFields.join(", ")}. Envie photo, documentFront e documentBack na mesma requisição.`,
-      },
-    };
-  }
-
-  return {
-    ok: false,
-    validation: {
-      statusCode: 400,
-      message:
-        "Cadastro do visitante está inconsistente. Envie photo, documentFront e documentBack na mesma requisição para regularizar.",
-    },
-  };
-}
-
 export async function ensureFileAccess({ user, id }) {
   const visitorId = parseVisitorId(id);
   if (!visitorId) return { ok: false, reason: "invalid-id" };
@@ -305,25 +255,6 @@ export async function update({ user, id, body }) {
 export async function updateFiles({ user, id, files }) {
   const access = await ensureFileAccess({ user, id });
   if (!access.ok) return access;
-
-  const currentVisitorFiles = await prisma.visitor.findUnique({
-    where: { id: access.id },
-    select: {
-      photoBytes: true,
-      photoMime: true,
-      documentFrontBytes: true,
-      documentFrontMime: true,
-      documentBackBytes: true,
-      documentBackMime: true,
-    },
-  });
-  if (!currentVisitorFiles) return { ok: false, reason: "not-found" };
-
-  const completeness = validateVisitorFileCompleteness({
-    visitor: currentVisitorFiles,
-    files,
-  });
-  if (!completeness.ok) return completeness;
 
   const dataResult = buildVisitorFileUpdate(files);
   if (!dataResult.ok) return dataResult;

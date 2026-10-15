@@ -156,6 +156,21 @@ test("POST /visitors/with-files requires authentication", async () => {
   assert.equal(response.body.code, "AUTH_REQUIRED");
 });
 
+test("PUT /visitors/:id/files requires authentication for partial uploads", async () => {
+  const response = await requestVisitors({
+    method: "PUT",
+    path: "/visitors/55/files",
+    body: formData({ fields: {}, files: {
+      photo: null,
+      documentFront: ["front.jpg", JPEG_BYTES, "image/jpeg"],
+      documentBack: null,
+    } }),
+  });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.code, "AUTH_REQUIRED");
+});
+
 test("POST /visitors/with-files rejects inactive authenticated user", async () => {
   const response = await withPrismaMocks(
     { user: { findUnique: async () => ({ ...activeUser(), isActive: false }) } },
