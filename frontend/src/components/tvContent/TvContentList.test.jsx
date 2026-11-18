@@ -140,6 +140,29 @@ describe("TvContentList title cell", () => {
 
     expect(onEdit).toHaveBeenCalledWith(item);
   });
+
+  it("RECEPCAO_TV ve somente o nome da propria filial, sem o indicador global", () => {
+    render(
+      <TvContentList
+        allBranches={[{ id: 4, name: "Alfamed MS" }]}
+        isAdmin={false}
+        items={[contentItem({ branches: [{ id: 4, name: "Alfamed MS" }] })]}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onToggle={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Alfamed MS")).toBeInTheDocument();
+    expect(screen.queryByText("Todas as filiais")).not.toBeInTheDocument();
+    expect(screen.queryByText("Outra filial")).not.toBeInTheDocument();
+  });
+
+  it("ADMIN ve o indicador global quando o conteudo esta vinculado a todas as filiais", () => {
+    renderList([contentItem({ branches })]);
+
+    expect(screen.getByText("Todas as filiais")).toBeInTheDocument();
+  });
 });
 
 describe("TvContentList preview", () => {

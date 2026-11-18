@@ -64,6 +64,7 @@ export default function TvContent() {
 
         <TvContentList
           allBranches={branches}
+          isAdmin={!isReceptionTv}
           items={items}
           error={listError}
           loading={loading}

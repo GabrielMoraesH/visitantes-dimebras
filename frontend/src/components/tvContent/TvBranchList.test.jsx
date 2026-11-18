@@ -27,6 +27,13 @@ describe("TvBranchList", () => {
     expect(badge).toHaveAttribute("title", "Alfama");
   });
 
+  it("RECEPCAO_TV exibe a propria filial mesmo quando ela e a unica visivel", () => {
+    render(<TvBranchList branches={[allBranches[0]]} allBranches={[allBranches[0]]} isAdmin={false} />);
+
+    expect(screen.getByText("Alfama")).toBeInTheDocument();
+    expect(screen.queryByText("Todas as filiais")).not.toBeInTheDocument();
+  });
+
   it("exibe a quantidade quando ha duas filiais", () => {
     render(<TvBranchList branches={allBranches.slice(0, 2)} allBranches={allBranches} />);
 

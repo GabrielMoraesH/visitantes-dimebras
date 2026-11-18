@@ -196,6 +196,20 @@ test("RECEPCAO_TV listings use only the active database account branch", async (
   }
 });
 
+test("RECEPCAO_TV list serializes only its own branch name", async () => {
+  const result = await withPrismaMocks({
+    user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 }) },
+    branch: { findUnique: async () => ({ id: 4 }) },
+    tvContent: { findMany: async () => [{
+      id: 17,
+      branches: [{ branchId: 4, branch: { id: 4, name: "Alfamed MS" } }],
+    }] },
+  }, () => listTvContents({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 4 } }));
+
+  assert.deepEqual(result, [{ id: 17, branches: [{ id: 4, name: "Alfamed MS" }] }]);
+  assert.equal(JSON.stringify(result).includes("Outra filial"), false);
+});
+
 test("RECEPCAO_TV without a valid database branch cannot list content", async () => {
   for (const account of [null, { id: 9, role: "RECEPCAO_TV", isActive: false, branchId: 4 }, { id: 9, role: "RECEPCAO_TV", isActive: true, branchId: null }]) {
     let contentLookupCalled = false;

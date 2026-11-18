@@ -153,6 +153,7 @@ function TvContentVideoModal({ item, onClose, videoRef }) {
 
 export default function TvContentList({
   allBranches,
+  isAdmin = true,
   error = "",
   items,
   loading,
@@ -247,7 +248,7 @@ export default function TvContentList({
                   <td>{tvContentTypeLabel(item.type)}</td>
                   <td>{formatBytes(item.fileSize)}</td>
                   <td className="tc-branchCell">
-                    <TvBranchList branches={item.branches} allBranches={allBranches} />
+                    <TvBranchList branches={item.branches} allBranches={allBranches} isAdmin={isAdmin} />
                   </td>
                   <td>{item.order ?? 0}</td>
                   <td>

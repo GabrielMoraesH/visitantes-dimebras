@@ -1,11 +1,11 @@
 import { branchIdsFromItem, sameBranchSet } from "../../utils/tvContent";
 
-export default function TvBranchList({ branches, allBranches }) {
+export default function TvBranchList({ branches, allBranches, isAdmin = true }) {
   const branchNames = Array.isArray(branches)
     ? branches.map((branch) => branch.name).filter(Boolean)
     : [];
 
-  if (sameBranchSet(branchIdsFromItem({ branches }), allBranches)) {
+  if (isAdmin && sameBranchSet(branchIdsFromItem({ branches }), allBranches)) {
     return (
       <span className="tc-branch-badge tc-branch-badge-all" title="Todas as filiais">
         Todas as filiais
