@@ -29,6 +29,7 @@ export default function TvContentForm({
   onChange,
   onSubmit,
   uploading,
+  isReceptionTv = false,
 }) {
   const alertRef = useRef(null);
   const errorByField = useMemo(
@@ -121,13 +122,14 @@ export default function TvContentForm({
           </label>
         </div>
 
-        <TvBranchSelector
+        {!isReceptionTv && <TvBranchSelector
           branches={branches}
           error={errorByField.branches}
           idPrefix="tv-content"
           selectedIds={form.selectedBranchIds}
           onChange={(selectedIds) => onChange("selectedBranchIds", selectedIds)}
-        />
+        />}
+        {isReceptionTv && <p className="tc-label">Exibido somente na sua filial</p>}
 
         <div className="tc-formActions">
           <button className="tc-btn tc-btn-primary tc-btn-submit" type="submit" disabled={uploading}>

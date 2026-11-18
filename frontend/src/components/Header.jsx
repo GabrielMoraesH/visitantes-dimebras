@@ -18,6 +18,7 @@ export default function Header({
   const navigate = useNavigate();
   const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
+  const canManageTvContent = isAdmin || user?.role === "RECEPCAO_TV";
 
   function logout() {
     clearSession();
@@ -63,7 +64,7 @@ export default function Header({
           </button>
         )}
 
-        {isAdmin && showTvContent && (
+        {canManageTvContent && showTvContent && (
           <button
             className="appHeader-btn appHeader-btn-ghost"
             onClick={() => navigate("/tv-content")}

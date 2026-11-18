@@ -63,7 +63,7 @@ export default function App() {
                 <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
                 <Route
                   path="/tv-content"
-                  element={<ProtectedRoute roles={["ADMIN"]}><TvContent /></ProtectedRoute>}
+                  element={<ProtectedRoute roles={["ADMIN", "RECEPCAO_TV"]}><TvContent /></ProtectedRoute>}
                 />
                 <Route path="*" element={<UnknownRoute />} />
               </Routes>

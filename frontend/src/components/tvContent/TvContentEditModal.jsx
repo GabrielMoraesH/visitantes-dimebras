@@ -13,6 +13,7 @@ export default function TvContentEditModal({
   onChange,
   onClose,
   onSubmit,
+  isReceptionTv = false,
 }) {
   const alertRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -105,13 +106,14 @@ export default function TvContentEditModal({
           </label>
         </div>
 
-        <TvBranchSelector
+          {!isReceptionTv && <TvBranchSelector
           branches={branches}
           error={errorByField.branches}
           idPrefix="tv-content-edit"
           selectedIds={editForm.branchIds}
           onChange={(branchIds) => onChange("branchIds", branchIds)}
-        />
+          />}
+          {isReceptionTv && <p className="tc-label">Exibido somente na sua filial</p>}
 
         <div className="tc-modalActions">
           <button

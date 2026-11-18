@@ -3,6 +3,7 @@ export const DEFAULT_BRANCH_ID = 1;
 export const DEFAULT_ROLE = "RECEPCAO";
 export const USER_ROLES = [
   { value: "RECEPCAO", label: "RECEPÇÃO" },
+  { value: "RECEPCAO_TV", label: "RECEPÇÃO + CONTEÚDO TV" },
   { value: "ADMIN", label: "ADMIN" },
 ];
 

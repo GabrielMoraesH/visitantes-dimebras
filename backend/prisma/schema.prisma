@@ -9,6 +9,7 @@ datasource db {
 
 enum UserRole {
   RECEPCAO
+  RECEPCAO_TV
   ADMIN
 }
 

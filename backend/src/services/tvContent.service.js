@@ -79,15 +79,65 @@ function sameIds(left, right) {
   return left.every((value, index) => value === right[index]);
 }
 
-async function findAllowedContent(id) {
-  return prisma.tvContent.findUnique({
+function isReceptionTv(actor) {
+  return actor?.role === "RECEPCAO_TV";
+}
+
+async function getReceptionTvBranchId(actor) {
+  const id = Number(actor?.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    const error = new Error("Usuário de recepção TV inválido.");
+    error.statusCode = 403;
+    throw error;
+  }
+  const user = await prisma.user.findUnique({
     where: { id },
+    select: { id: true, role: true, isActive: true, branchId: true },
+  });
+  if (!user || user.role !== "RECEPCAO_TV" || user.isActive !== true || !Number.isInteger(user.branchId) || user.branchId <= 0) {
+    const error = new Error("Usuário de recepção TV sem filial válida.");
+    error.statusCode = 403;
+    throw error;
+  }
+  const branch = await prisma.branch.findUnique({ where: { id: user.branchId }, select: { id: true } });
+  if (!branch) {
+    const error = new Error("Filial do usuário não encontrada.");
+    error.statusCode = 403;
+    throw error;
+  }
+  return user.branchId;
+}
+
+function scopedContentWhere(actor, branchId = actor?.branchId) {
+  return isReceptionTv(actor)
+    ? { branches: { some: { branchId }, none: { branchId: { not: branchId } } } }
+    : {};
+}
+
+function assertReceptionOwnBranch(actor, branchIds) {
+  if (!isReceptionTv(actor)) return;
+  if (!Number.isInteger(actor?.branchId) || branchIds.length !== 1 || branchIds[0] !== actor.branchId) {
+    const error = new Error("Recepção TV só pode gerenciar conteúdo exclusivo da própria filial.");
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
+async function findAllowedContent(id, actor) {
+  const query = {
     include: {
       branches: {
         include: { branch: { select: { id: true, name: true } } },
         orderBy: { branchId: "asc" },
       },
     },
+  };
+  if (!isReceptionTv(actor)) {
+    return prisma.tvContent.findUnique({ where: { id }, ...query });
+  }
+  return prisma.tvContent.findFirst({
+    where: { id, ...scopedContentWhere(actor) },
+    ...query,
   });
 }
 
@@ -230,8 +280,10 @@ function filePathFromUrl(fileUrl) {
   return path.join(tvUploadDir, fileName);
 }
 
-export async function listTvContents() {
+export async function listTvContents({ actor } = {}) {
+  const branchId = isReceptionTv(actor) ? await getReceptionTvBranchId(actor) : null;
   const items = await prisma.tvContent.findMany({
+    where: scopedContentWhere(actor, branchId),
     orderBy: [{ order: "asc" }, { createdAt: "desc" }],
     include: {
       branches: {
@@ -244,9 +296,10 @@ export async function listTvContents() {
   return items.map(serialize);
 }
 
-export async function listActiveTvContents() {
+export async function listActiveTvContents({ actor } = {}) {
+  const branchId = isReceptionTv(actor) ? await getReceptionTvBranchId(actor) : null;
   const items = await prisma.tvContent.findMany({
-    where: { isActive: true },
+    where: { ...scopedContentWhere(actor, branchId), isActive: true },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: {
       branches: {
@@ -304,7 +357,18 @@ export async function createTvContent({ actor, input, file }) {
 
   try {
     const data = createSchema.parse(input);
-    const branchIds = await validateBranchIds(data.branchIds);
+    const receptionBranchId = isReceptionTv(actor) ? await getReceptionTvBranchId(actor) : null;
+    if (isReceptionTv(actor) && Object.prototype.hasOwnProperty.call(input || {}, "branchIds")) {
+      const requestedBranchIds = parseBranchIds(input.branchIds);
+      if (requestedBranchIds.length > 0 && (requestedBranchIds.length !== 1 || requestedBranchIds[0] !== receptionBranchId)) {
+        const error = new Error("Recepção TV só pode cadastrar conteúdo na própria filial.");
+        error.statusCode = 403;
+        throw error;
+      }
+    }
+    const branchIds = isReceptionTv(actor)
+      ? [receptionBranchId]
+      : await validateBranchIds(data.branchIds);
 
     if (!file) {
       return { ok: false, status: 400, message: "Arquivo obrigatorio." };
@@ -365,16 +429,23 @@ export async function createTvContent({ actor, input, file }) {
   }
 }
 
-export async function updateTvContent({ contentId, input }) {
+export async function updateTvContent({ actor, contentId, input }) {
   const id = parseContentId(contentId);
+  const receptionBranchId = isReceptionTv(actor) ? await getReceptionTvBranchId(actor) : null;
   const data = updateSchema.parse(input);
   const hasBranchIds = Object.prototype.hasOwnProperty.call(data, "branchIds");
+
+  if (isReceptionTv(actor) && hasBranchIds) {
+    const error = new Error("Recepção TV não pode alterar as filiais associadas.");
+    error.statusCode = 403;
+    throw error;
+  }
 
   if (Object.keys(data).length === 0) {
     return { ok: false, status: 400, message: "Nada para atualizar" };
   }
 
-  const exists = await findAllowedContent(id);
+  const exists = await findAllowedContent(id, isReceptionTv(actor) ? { ...actor, branchId: receptionBranchId } : actor);
   if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   const previousBranchIds = branchIdsFromContent(exists);
@@ -388,6 +459,7 @@ export async function updateTvContent({ contentId, input }) {
 
     if (hasBranchIds) {
       const branchIds = await validateBranchIds(data.branchIds, tx);
+      assertReceptionOwnBranch(actor, branchIds);
       nextBranchIds = [...branchIds].sort((a, b) => a - b);
       await tx.tvContentBranch.deleteMany({ where: { tvContentId: id } });
       await tx.tvContentBranch.createMany({
@@ -430,9 +502,10 @@ export async function updateTvContent({ contentId, input }) {
   };
 }
 
-export async function toggleTvContent({ contentId }) {
+export async function toggleTvContent({ actor, contentId }) {
   const id = parseContentId(contentId);
-  const exists = await findAllowedContent(id);
+  const scopedActor = isReceptionTv(actor) ? { ...actor, branchId: await getReceptionTvBranchId(actor) } : actor;
+  const exists = await findAllowedContent(id, scopedActor);
   if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   const updated = await prisma.tvContent.update({
@@ -448,9 +521,10 @@ export async function toggleTvContent({ contentId }) {
   };
 }
 
-export async function deleteTvContent({ contentId }) {
+export async function deleteTvContent({ actor, contentId }) {
   const id = parseContentId(contentId);
-  const exists = await findAllowedContent(id);
+  const scopedActor = isReceptionTv(actor) ? { ...actor, branchId: await getReceptionTvBranchId(actor) } : actor;
+  const exists = await findAllowedContent(id, scopedActor);
   if (!exists) return { ok: false, status: 404, message: "Conteúdo não encontrado" };
 
   await prisma.tvContent.delete({ where: { id } });

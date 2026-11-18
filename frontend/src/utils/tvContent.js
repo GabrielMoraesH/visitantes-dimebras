@@ -146,7 +146,7 @@ export function validateCreateTvContentForm(form) {
   return validateCreateTvContentFields(form)[0]?.message || "";
 }
 
-export function validateCreateTvContentFields(form) {
+export function validateCreateTvContentFields(form, { isReceptionTv = false } = {}) {
   const cleanTitle = form.title.trim();
   const file = singleTvContentFile(form.file);
   const errors = [];
@@ -162,7 +162,7 @@ export function validateCreateTvContentFields(form) {
       errors.push({ field: "file", message: TV_CONTENT_VALIDATION_MESSAGES.fileTooLarge });
     }
   }
-  if (form.selectedBranchIds.length === 0) {
+  if (!isReceptionTv && form.selectedBranchIds.length === 0) {
     errors.push({ field: "branches", message: TV_CONTENT_VALIDATION_MESSAGES.branchRequired });
   }
 
@@ -173,25 +173,25 @@ export function validateEditTvContentForm(form) {
   return validateEditTvContentFields(form)[0]?.message || "";
 }
 
-export function validateEditTvContentFields(form) {
+export function validateEditTvContentFields(form, { isReceptionTv = false } = {}) {
   const cleanTitle = form.title.trim();
   const errors = [];
 
   if (!cleanTitle) errors.push({ field: "title", message: TV_CONTENT_VALIDATION_MESSAGES.titleRequired });
-  if (form.branchIds.length === 0) {
+  if (!isReceptionTv && form.branchIds.length === 0) {
     errors.push({ field: "branches", message: TV_CONTENT_VALIDATION_MESSAGES.branchRequired });
   }
 
   return errors;
 }
 
-export function buildCreateTvContentFormData(form) {
+export function buildCreateTvContentFormData(form, { isReceptionTv = false } = {}) {
   const file = singleTvContentFile(form.file);
   const formData = new FormData();
   formData.append("title", form.title.trim());
   formData.append("order", String(Number(form.order || 0)));
   formData.append("isActive", String(form.isActive));
-  formData.append("branchIds", JSON.stringify(form.selectedBranchIds));
+  if (!isReceptionTv) formData.append("branchIds", JSON.stringify(form.selectedBranchIds));
   formData.set("file", file);
   return formData;
 }
@@ -203,13 +203,14 @@ function singleTvContentFile(value) {
   return value || null;
 }
 
-export function buildEditTvContentPayload(form) {
-  return {
+export function buildEditTvContentPayload(form, { isReceptionTv = false } = {}) {
+  const payload = {
     title: form.title.trim(),
     order: Number(form.order || 0),
     isActive: form.isActive,
-    branchIds: form.branchIds,
   };
+  if (!isReceptionTv) payload.branchIds = form.branchIds;
+  return payload;
 }
 
 export function deleteConfirmationForTvContent() {

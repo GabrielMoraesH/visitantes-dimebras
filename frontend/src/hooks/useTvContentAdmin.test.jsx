@@ -12,7 +12,7 @@ vi.mock("react-router-dom", () => ({
 
 vi.mock("../services/session", () => ({
   getToken: vi.fn(() => "token"),
-  getUser: vi.fn(() => ({ role: "ADMIN" })),
+  getUser: vi.fn(() => globalThis.__tvContentUser || ({ role: "ADMIN" })),
 }));
 
 vi.mock("../services/branchService", () => ({
@@ -37,8 +37,24 @@ function submitEvent() {
 describe("useTvContentAdmin", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    globalThis.__tvContentUser = { role: "ADMIN" };
     getBranches.mockResolvedValue({ data: [{ id: 1, name: "Matriz" }] });
     getTvContents.mockResolvedValue({ data: [] });
+  });
+
+  it("RECEPCAO_TV cria sem validar ou enviar filial", async () => {
+    globalThis.__tvContentUser = { role: "RECEPCAO_TV", branch: { id: 4, name: "Alfamed MS" } };
+    const file = new File(["content"], "tv.mp4", { type: "video/mp4" });
+    createTvContent.mockResolvedValue({ data: { id: 2 } });
+    const { result } = renderHook(() => useTvContentAdmin({ confirm: vi.fn(), showToast: vi.fn() }));
+    await waitFor(() => expect(getTvContents).toHaveBeenCalled());
+    act(() => {
+      result.current.updateFormField("title", "Vídeo");
+      result.current.updateFormField("file", file);
+    });
+    await act(async () => result.current.submitUpload(submitEvent()));
+    expect(createTvContent.mock.calls[0][0].get("branchIds")).toBeNull();
+    expect(createTvContent.mock.calls[0][0].get("file")).toBe(file);
   });
 
   it("usa erros inline para validação corrigível e não dispara toast", async () => {

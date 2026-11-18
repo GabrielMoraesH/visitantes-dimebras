@@ -8,7 +8,9 @@ import {
   createTvContent,
   deleteTvContent,
   listPublicActiveTvContents,
+  listActiveTvContents,
   listTvContents,
+  updateTvContent,
   toggleTvContent,
 } from "./tvContent.service.js";
 
@@ -73,6 +75,7 @@ test("listTvContents preserves admin order, include and branch serialization", a
   );
 
   assert.deepEqual(findManyArgs, {
+    where: {},
     orderBy: [{ order: "asc" }, { createdAt: "desc" }],
     include: {
       branches: {
@@ -82,6 +85,136 @@ test("listTvContents preserves admin order, include and branch serialization", a
     },
   });
   assert.deepEqual(result, [{ id: 1, title: "Banner", branches: [{ id: 2, name: "Filial 2" }] }]);
+});
+
+test("RECEPCAO_TV cannot update shared content or change branch associations", async () => {
+  let findFirstArgs;
+  await withPrismaMocks({
+    user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 }) },
+    branch: { findUnique: async () => ({ id: 4 }) },
+    tvContent: {
+      findFirst: async (args) => {
+        findFirstArgs = args;
+        return null;
+      },
+    },
+  }, async () => {
+    const result = await updateTvContent({
+      actor: { id: 9, role: "RECEPCAO_TV", branchId: 4 },
+      contentId: { id: "8" },
+      input: { title: "Alterado" },
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 404);
+    assert.deepEqual(findFirstArgs.where, {
+      id: 8,
+      branches: { some: { branchId: 4 }, none: { branchId: { not: 4 } } },
+    });
+  });
+});
+
+test("RECEPCAO_TV cannot alter the branch association of its content", async () => {
+  let updateCalled = false;
+  await assert.rejects(withPrismaMocks({
+    user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 }) },
+    branch: { findUnique: async () => ({ id: 4 }) },
+    tvContent: { findFirst: async () => ({ id: 8, title: "Aviso", branches: [{ branchId: 4 }] }), update: async () => { updateCalled = true; } },
+  }, () => updateTvContent({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 4 }, contentId: { id: "8" }, input: { branchIds: [5] } })), { statusCode: 403 });
+  assert.equal(updateCalled, false);
+});
+
+test("RECEPCAO_TV rejects branch IDs from another branch on create before moving upload", async () => {
+  const tempFile = path.join(tvTempUploadDir, "foreign-branch-test.upload");
+  await fs.promises.mkdir(tvTempUploadDir, { recursive: true });
+  await fs.promises.writeFile(tempFile, PNG_BYTES);
+  try {
+    await assert.rejects(
+      withPrismaMocks({
+        user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 }) },
+        branch: { findUnique: async () => ({ id: 4 }) },
+      }, () => createTvContent({
+        actor: { id: 9, role: "RECEPCAO_TV", branchId: 99 },
+        input: { title: "Teste", branchIds: [5] },
+        file: { path: tempFile, originalname: "test.png", mimetype: "image/png", size: PNG_BYTES.length },
+      })),
+      { statusCode: 403 }
+    );
+  } finally {
+    await fs.promises.unlink(tempFile).catch(() => {});
+  }
+});
+
+test("RECEPCAO_TV creates without branchIds using the database account branch", async () => {
+  const tempPath = path.join(tvTempUploadDir, "reception-auto-branch.upload");
+  const createdContent = { id: 14, title: "Aviso", fileUrl: "/uploads/tv/generated.png", branches: [{ branch: { id: 4, name: "Alfamed MS" } }] };
+  let branchLink;
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async (callback) => callback({
+    tvContent: { create: async () => ({ id: 14 }), findUnique: async () => createdContent },
+    tvContentBranch: { createMany: async ({ data }) => { branchLink = data; } },
+  });
+  try {
+    const result = await withFsMocks({
+      open: async () => ({ read: async (buffer) => { PNG_BYTES.copy(buffer); return { bytesRead: PNG_BYTES.length }; }, close: async () => {} }),
+      rename: async () => {},
+    }, () => withPrismaMocks({
+      user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 }) },
+      branch: { findUnique: async () => ({ id: 4 }) },
+    }, () => createTvContent({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 99 }, input: { title: "Aviso" }, file: { path: tempPath, originalname: "aviso.png", mimetype: "image/png", size: PNG_BYTES.length } })));
+    assert.equal(result.ok, true);
+    assert.deepEqual(branchLink, [{ tvContentId: 14, branchId: 4 }]);
+  } finally {
+    prisma.$transaction = originalTransaction;
+  }
+});
+
+test("RECEPCAO_TV without a valid account branch cannot create content", async () => {
+  let transactionCalled = false;
+  const originalTransaction = prisma.$transaction;
+  prisma.$transaction = async () => { transactionCalled = true; };
+  try {
+    await assert.rejects(withPrismaMocks({
+      user: { findUnique: async () => ({ id: 9, role: "RECEPCAO_TV", isActive: true, branchId: null }) },
+    }, () => createTvContent({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 4 }, input: { title: "Aviso" }, file: null })), { statusCode: 403 });
+    assert.equal(transactionCalled, false);
+  } finally { prisma.$transaction = originalTransaction; }
+});
+
+test("RECEPCAO_TV listings use only the active database account branch", async () => {
+  for (const list of [listTvContents, listActiveTvContents]) {
+    let findManyArgs;
+    await withPrismaMocks({
+      user: { findUnique: async (args) => {
+        assert.deepEqual(args, { where: { id: 9 }, select: { id: true, role: true, isActive: true, branchId: true } });
+        return { id: 9, role: "RECEPCAO_TV", isActive: true, branchId: 4 };
+      } },
+      branch: { findUnique: async ({ where }) => ({ id: where.id }) },
+      tvContent: { findMany: async (args) => { findManyArgs = args; return []; } },
+    }, () => list({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 99 } }));
+    const expectedScope = { branches: { some: { branchId: 4 }, none: { branchId: { not: 4 } } } };
+    assert.deepEqual(findManyArgs.where, list === listActiveTvContents ? { ...expectedScope, isActive: true } : expectedScope);
+  }
+});
+
+test("RECEPCAO_TV without a valid database branch cannot list content", async () => {
+  for (const account of [null, { id: 9, role: "RECEPCAO_TV", isActive: false, branchId: 4 }, { id: 9, role: "RECEPCAO_TV", isActive: true, branchId: null }]) {
+    let contentLookupCalled = false;
+    await assert.rejects(withPrismaMocks({
+      user: { findUnique: async () => account },
+      branch: { findUnique: async () => account?.branchId ? null : null },
+      tvContent: { findMany: async () => { contentLookupCalled = true; return []; } },
+    }, () => listTvContents({ actor: { id: 9, role: "RECEPCAO_TV", branchId: 4 } })), { statusCode: 403 });
+    assert.equal(contentLookupCalled, false);
+  }
+});
+
+test("ADMIN listings retain unrestricted content access", async () => {
+  for (const list of [listTvContents, listActiveTvContents]) {
+    let findManyArgs;
+    await withPrismaMocks({ tvContent: { findMany: async (args) => { findManyArgs = args; return []; } } },
+      () => list({ actor: { id: 1, role: "ADMIN", branchId: 99 } }));
+    assert.deepEqual(findManyArgs.where, list === listActiveTvContents ? { isActive: true } : {});
+  }
 });
 
 test("listPublicActiveTvContents rejects invalid branch before Prisma", async () => {

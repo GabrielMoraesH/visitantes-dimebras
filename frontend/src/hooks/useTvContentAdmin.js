@@ -26,6 +26,12 @@ export function useTvContentAdmin({ confirm, showToast }) {
   const navigate = useNavigate();
   const user = useMemo(() => getUser(), []);
   const isAdmin = user?.role === "ADMIN";
+  const isReceptionTv = user?.role === "RECEPCAO_TV";
+  const canManageTvContent = isAdmin || isReceptionTv;
+  const ownBranch = useMemo(
+    () => user?.branch?.id ? { id: Number(user.branch.id), name: user.branch.name } : null,
+    [user?.branch?.id, user?.branch?.name]
+  );
   const editOpenerRef = useRef(null);
 
   const [items, setItems] = useState([]);
@@ -70,13 +76,15 @@ export function useTvContentAdmin({ confirm, showToast }) {
       navigate("/login", { replace: true });
       return;
     }
-    if (!isAdmin) {
+    if (!canManageTvContent) {
       navigate("/checkin", { replace: true });
       return;
     }
-    loadBranches();
+    if (isAdmin) loadBranches();
+    else if (ownBranch) setBranches([ownBranch]);
+    else setBranches([]);
     loadContents();
-  }, [isAdmin, loadBranches, loadContents, navigate]);
+  }, [canManageTvContent, isAdmin, loadBranches, loadContents, navigate, ownBranch]);
 
   function updateFormField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -95,7 +103,7 @@ export function useTvContentAdmin({ confirm, showToast }) {
     setMsg("");
     setFormErrors([]);
 
-    const validationErrors = validateCreateTvContentFields(form);
+    const validationErrors = validateCreateTvContentFields(form, { isReceptionTv });
     if (validationErrors.length > 0) {
       setFormErrors(validationErrors);
       return;
@@ -103,7 +111,7 @@ export function useTvContentAdmin({ confirm, showToast }) {
 
     try {
       setUploading(true);
-      await createTvContent(buildCreateTvContentFormData(form));
+      await createTvContent(buildCreateTvContentFormData(form, { isReceptionTv }));
       setForm(initialTvContentForm());
       event.target.reset();
       showToast(TV_CONTENT_MESSAGES.createSuccess);
@@ -133,7 +141,7 @@ export function useTvContentAdmin({ confirm, showToast }) {
   async function saveEdit() {
     if (!editForm?.id) return;
 
-    const validationErrors = validateEditTvContentFields(editForm);
+    const validationErrors = validateEditTvContentFields(editForm, { isReceptionTv });
     if (validationErrors.length > 0) {
       setEditErrors(validationErrors);
       return;
@@ -141,7 +149,7 @@ export function useTvContentAdmin({ confirm, showToast }) {
 
     try {
       setEditLoading(true);
-      await updateTvContent(editForm.id, buildEditTvContentPayload(editForm));
+      await updateTvContent(editForm.id, buildEditTvContentPayload(editForm, { isReceptionTv }));
       showToast(TV_CONTENT_MESSAGES.updateSuccess);
       setEditOpen(false);
       setEditForm(null);
@@ -212,6 +220,7 @@ export function useTvContentAdmin({ confirm, showToast }) {
     form,
     formErrors,
     isAdmin,
+    isReceptionTv,
     items,
     listError,
     loading,

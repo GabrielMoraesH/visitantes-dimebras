@@ -25,6 +25,7 @@ export default function TvContent() {
     form,
     formErrors,
     items,
+    isReceptionTv,
     listError,
     loading,
     msg,
@@ -58,6 +59,7 @@ export default function TvContent() {
           onChange={updateFormField}
           onSubmit={submitUpload}
           uploading={uploading}
+          isReceptionTv={isReceptionTv}
         />
 
         <TvContentList
@@ -75,6 +77,7 @@ export default function TvContent() {
       {editOpen && (
         <TvContentEditModal
           branches={branches}
+          isReceptionTv={isReceptionTv}
           editForm={editForm}
           errors={editErrors}
           editLoading={editLoading}

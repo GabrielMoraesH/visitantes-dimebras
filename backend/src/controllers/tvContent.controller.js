@@ -136,7 +136,7 @@ export function handleTvUploadErrors(req, res, next) {
 
 export async function listTvContents(req, res, next) {
   try {
-    const items = await tvContentService.listTvContents();
+    const items = await tvContentService.listTvContents({ actor: req.user });
 
     return res.json(items);
   } catch (err) {
@@ -146,7 +146,7 @@ export async function listTvContents(req, res, next) {
 
 export async function listActiveTvContents(req, res, next) {
   try {
-    const items = await tvContentService.listActiveTvContents();
+    const items = await tvContentService.listActiveTvContents({ actor: req.user });
 
     return res.json(items);
   } catch (err) {
@@ -209,6 +209,7 @@ export async function createTvContent(req, res, next) {
 export async function updateTvContent(req, res, next) {
   try {
     const result = await tvContentService.updateTvContent({
+      actor: req.user,
       contentId: req.params,
       input: req.body,
     });
@@ -233,7 +234,7 @@ export async function updateTvContent(req, res, next) {
 
 export async function toggleTvContent(req, res, next) {
   try {
-    const result = await tvContentService.toggleTvContent({ contentId: req.params });
+    const result = await tvContentService.toggleTvContent({ actor: req.user, contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     await safeAuditLog({
@@ -253,7 +254,7 @@ export async function toggleTvContent(req, res, next) {
 
 export async function deleteTvContent(req, res, next) {
   try {
-    const result = await tvContentService.deleteTvContent({ contentId: req.params });
+    const result = await tvContentService.deleteTvContent({ actor: req.user, contentId: req.params });
     if (!result.ok) return res.status(result.status).json({ message: result.message });
 
     logInfo("tv_content_deleted", {

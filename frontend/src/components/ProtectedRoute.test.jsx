@@ -126,6 +126,14 @@ describe("ProtectedRoute", () => {
     expect(onMount).not.toHaveBeenCalled();
   });
 
+  it("redireciona RECEPCAO_TV para checkin ao acessar rota ADMIN", () => {
+    const onMount = vi.fn();
+    setSession({ id: 2, username: "recepcao-tv", role: "RECEPCAO_TV" });
+    renderProtected({ roles: ["ADMIN"], onMount });
+    expect(screen.getByText("Checkin destino")).toBeInTheDocument();
+    expect(onMount).not.toHaveBeenCalled();
+  });
+
   it("renderiza ADMIN em rota ADMIN", () => {
     setSession({ id: 1, username: "admin", role: "ADMIN" });
 

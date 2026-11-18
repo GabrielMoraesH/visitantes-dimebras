@@ -74,4 +74,12 @@ describe("Header", () => {
 
     expect(screen.queryByRole("button", { name: "AUDITORIA" })).not.toBeInTheDocument();
   });
+
+  it("exibe Conteúdo TV para RECEPCAO_TV sem exibir opções administrativas", () => {
+    renderHeader("RECEPCAO_TV");
+    expect(screen.getByRole("button", { name: "CONTEÚDO TV" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "AUDITORIA" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "HISTÓRICO" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "USUÁRIOS" })).not.toBeInTheDocument();
+  });
 });
